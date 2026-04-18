@@ -1,5 +1,6 @@
 import random, json
 from fastapi import APIRouter, HTTPException
+import time as _time_module
 from app.database import SessionLocal, Profile, Question, GameSession, Player, Answer, PlayerStats
 from app.models import (
     GameCreate, GameResponse, PlayerJoin, PlayerResponse,
@@ -90,7 +91,7 @@ def _persist_answer(room_code: str, player_id: str, question_id: int,
         if not ps:
             ps = PlayerStats(player_name=p.player_name)
             db.add(ps)
-        ps.games_played = 1  # will recount on game end
+        # games_played updated on game end only
         ps.total_score = (ps.total_score or 0) + pts
         ps.total_correct = (ps.total_correct or 0) + (1 if is_correct else 0)
         ps.total_asked = (ps.total_asked or 0) + 1
@@ -247,8 +248,7 @@ def get_question(room_code: str):
     if not q:
         raise HTTPException(status_code=400, detail="No more questions")
     
-    import time
-    elapsed = time.time() - gs.question_started_at
+    elapsed = _time_module.time() - gs.question_started_at
     remaining = max(0, int(gs.question_time_limit - elapsed))
     
     # Shuffle options
@@ -300,6 +300,38 @@ def submit_answer(room_code: str, data: AnswerSubmit):
     finally:
         db.close()
 
+
+def _finalize_game_stats(room_code: str):
+    """Increment games_played for all active players; mark winner."""
+    gs = GAMES.get(room_code)
+    if not gs:
+        return
+    winner = gs.winner()
+    db = SessionLocal()
+    try:
+        g = db.query(GameSession).filter(GameSession.room_code == room_code).first()
+        if not g:
+            return
+        for p_state in gs.players.values():
+            if not p_state.is_active:
+                continue
+            p = db.query(Player).filter(
+                Player.game_id == g.id, Player.player_id == p_state.player_id
+            ).first()
+            if not p:
+                continue
+            ps = db.query(PlayerStats).filter(PlayerStats.player_name == p.player_name).first()
+            if not ps:
+                ps = PlayerStats(player_name=p.player_name)
+                db.add(ps)
+            ps.games_played = (ps.games_played or 0) + 1
+            if winner and p_state.player_id == winner.player_id:
+                ps.games_won = (ps.games_won or 0) + 1
+            ps.last_played_at = int(datetime.utcnow().timestamp())
+        db.commit()
+    finally:
+        db.close()
+
 @router.post("/{room_code}/next")
 def next_question(room_code: str):
     gs = GAMES.get(room_code)
@@ -316,6 +348,7 @@ def next_question(room_code: str):
                 db.commit()
         finally:
             db.close()
+        _finalize_game_stats(room_code)
     return {"ok": True, "current_question": gs.current_q + 1, "status": gs.status}
 
 @router.get("/{room_code}/scores")
