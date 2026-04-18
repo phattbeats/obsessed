@@ -12,6 +12,7 @@ class ProfileCreate(BaseModel):
     discord_handle: str = ""
     pinterest_handle: str = ""
     threads_handle: str = ""
+    instagram_handle: str = ""
     manual_link: str = ""
     manual_facts: str = ""
 
@@ -24,6 +25,7 @@ class ProfileUpdate(BaseModel):
     discord_handle: Optional[str] = None
     pinterest_handle: Optional[str] = None
     threads_handle: Optional[str] = None
+    instagram_handle: Optional[str] = None
     manual_link: Optional[str] = None
     manual_facts: Optional[str] = None
 
@@ -37,6 +39,7 @@ class ProfileResponse(BaseModel):
     discord_handle: str
     pinterest_handle: str
     threads_handle: str
+    instagram_handle: str
     manual_link: str
     manual_facts: str
     scrape_status: str

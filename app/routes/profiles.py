@@ -5,6 +5,7 @@ from app.models import ProfileCreate, ProfileUpdate, ProfileResponse, QuestionRe
 from app.services.scraper.reddit import scrape_reddit, generate_questions
 from app.services.scraper.pinterest import scrape_pinterest
 from app.services.scraper.threads import scrape_threads
+from app.services.scraper.instagram import scrape_instagram
 from app.services.generator import generate_from_manual
 import json
 
@@ -17,6 +18,7 @@ def _profile(p: Profile) -> ProfileResponse:
         steam_id=p.steam_id, discord_handle=p.discord_handle,
         pinterest_handle=p.pinterest_handle,
         threads_handle=p.threads_handle,
+        instagram_handle=p.instagram_handle,
         manual_link=p.manual_link, manual_facts=p.manual_facts,
         scrape_status=p.scrape_status, scrape_error=p.scrape_error,
         question_count=p.question_count,
@@ -108,6 +110,9 @@ async def trigger_scrape(profile_id: int):
             raw_parts.append(text)
         if p.threads_handle:
             text, _ = await scrape_threads(p.threads_handle)
+            raw_parts.append(text)
+        if p.instagram_handle:
+            text, _ = await scrape_instagram(p.instagram_handle)
             raw_parts.append(text)
         if p.manual_facts:
             raw_parts.append(p.manual_facts)
