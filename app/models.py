@@ -11,6 +11,7 @@ class ProfileCreate(BaseModel):
     steam_id: str = ""
     discord_handle: str = ""
     pinterest_handle: str = ""
+    threads_handle: str = ""
     manual_link: str = ""
     manual_facts: str = ""
 
@@ -22,6 +23,7 @@ class ProfileUpdate(BaseModel):
     steam_id: Optional[str] = None
     discord_handle: Optional[str] = None
     pinterest_handle: Optional[str] = None
+    threads_handle: Optional[str] = None
     manual_link: Optional[str] = None
     manual_facts: Optional[str] = None
 
@@ -34,6 +36,7 @@ class ProfileResponse(BaseModel):
     steam_id: str
     discord_handle: str
     pinterest_handle: str
+    threads_handle: str
     manual_link: str
     manual_facts: str
     scrape_status: str
