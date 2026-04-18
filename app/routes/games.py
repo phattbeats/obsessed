@@ -336,8 +336,25 @@ def _finalize_game_stats(room_code: str):
 def next_question(room_code: str):
     gs = GAMES.get(room_code)
     if not gs:
+        # Resume from DB (container restart recovery)
+        db = SessionLocal()
+        try:
+            g = db.query(GameSession).filter(GameSession.room_code == room_code).first()
+            if not g or g.status == "finished":
+                raise HTTPException(status_code=404, detail="Game not found")
+            # Reconstruct minimal game state from DB for resume
+            from app.services.game_engine import GameState
+            gs = GameState(profile_id=g.profile_id, num_questions=g.total_questions)
+            gs.status = g.status
+            gs.current_q = g.current_question
+            GAMES[room_code] = gs
+        finally:
+            db.close()
+    if not gs:
         raise HTTPException(status_code=404, detail="Game not found")
     gs.next_question()
+    if gs.current_q >= gs.total_q:
+        gs.status = "finished"
     db = SessionLocal()
     try:
         g = db.query(GameSession).filter(GameSession.room_code == room_code).first()
@@ -347,8 +364,7 @@ def next_question(room_code: str):
             db.commit()
     finally:
         db.close()
-    if gs.current_q >= gs.total_q:
-        gs.status = "finished"
+    if gs.status == "finished":
         _finalize_game_stats(room_code)
     return {"ok": True, "current_question": gs.current_q + 1, "status": gs.status}
 
