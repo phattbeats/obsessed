@@ -1,0 +1,178 @@
+import asyncio
+from fastapi import APIRouter, HTTPException
+from app.database import SessionLocal, Profile, Question
+from app.models import ProfileCreate, ProfileUpdate, ProfileResponse, QuestionResponse
+from app.services.scraper.reddit import scrape_reddit, generate_questions
+from app.services.generator import generate_from_manual
+import json
+
+router = APIRouter(prefix="/api/profiles", tags=["profiles"])
+
+def _profile(p: Profile) -> ProfileResponse:
+    return ProfileResponse(
+        id=p.id, name=p.name, bio=p.bio,
+        reddit_handle=p.reddit_handle, twitter_handle=p.twitter_handle,
+        steam_id=p.steam_id, discord_handle=p.discord_handle,
+        manual_link=p.manual_link, manual_facts=p.manual_facts,
+        scrape_status=p.scrape_status, scrape_error=p.scrape_error,
+        question_count=p.question_count,
+        created_at=p.created_at, updated_at=p.updated_at,
+    )
+
+@router.post("", response_model=ProfileResponse)
+def create_profile(data: ProfileCreate):
+    db = SessionLocal()
+    try:
+        p = Profile(name=data.name, bio=data.bio, reddit_handle=data.reddit_handle,
+                    twitter_handle=data.twitter_handle, steam_id=data.steam_id,
+                    discord_handle=data.discord_handle, manual_link=data.manual_link,
+                    manual_facts=data.manual_facts)
+        db.add(p)
+        db.commit()
+        db.refresh(p)
+        return _profile(p)
+    finally:
+        db.close()
+
+@router.get("", response_model=list[ProfileResponse])
+def list_profiles():
+    db = SessionLocal()
+    try:
+        profiles = db.query(Profile).order_by(Profile.created_at.desc()).all()
+        return [_profile(p) for p in profiles]
+    finally:
+        db.close()
+
+@router.get("/{profile_id}", response_model=ProfileResponse)
+def get_profile(profile_id: int):
+    db = SessionLocal()
+    try:
+        p = db.query(Profile).filter(Profile.id == profile_id).first()
+        if not p:
+            raise HTTPException(status_code=404, detail="Profile not found")
+        return _profile(p)
+    finally:
+        db.close()
+
+@router.put("/{profile_id}", response_model=ProfileResponse)
+def update_profile(profile_id: int, data: ProfileUpdate):
+    db = SessionLocal()
+    try:
+        p = db.query(Profile).filter(Profile.id == profile_id).first()
+        if not p:
+            raise HTTPException(status_code=404, detail="Profile not found")
+        for field, value in data.model_dump(exclude_unset=True).items():
+            setattr(p, field, value)
+        p.updated_at = int(__import__("datetime").datetime.utcnow().timestamp())
+        db.commit()
+        db.refresh(p)
+        return _profile(p)
+    finally:
+        db.close()
+
+@router.delete("/{profile_id}")
+def delete_profile(profile_id: int):
+    db = SessionLocal()
+    try:
+        p = db.query(Profile).filter(Profile.id == profile_id).first()
+        if not p:
+            raise HTTPException(status_code=404, detail="Profile not found")
+        db.delete(p)
+        db.commit()
+        return {"ok": True}
+    finally:
+        db.close()
+
+@router.post("/{profile_id}/scrape")
+async def trigger_scrape(profile_id: int):
+    db = SessionLocal()
+    try:
+        p = db.query(Profile).filter(Profile.id == profile_id).first()
+        if not p:
+            raise HTTPException(status_code=404, detail="Profile not found")
+        p.scrape_status = "scraping"
+        p.scrape_error = ""
+        db.commit()
+        
+        raw_parts = []
+        if p.reddit_handle:
+            text, _ = await scrape_reddit(p.reddit_handle)
+            raw_parts.append(text)
+        if p.manual_facts:
+            raw_parts.append(p.manual_facts)
+        
+        raw = "\n".join(raw_parts)
+        p.raw_content = raw[:50000]  # cap at 50k chars
+        p.scrape_status = "done"
+        p.updated_at = int(__import__("datetime").datetime.utcnow().timestamp())
+        db.commit()
+        
+        # Trigger question generation
+        await _generate_questions_async(p.id, raw, p.name)
+        
+        return {"ok": True, "status": "done"}
+    except Exception as e:
+        p.scrape_status = "failed"
+        p.scrape_error = str(e)[:500]
+        db.commit()
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        db.close()
+
+async def _generate_questions_async(profile_id: int, raw_content: str, name: str):
+    from app.services.scraper.reddit import generate_questions as gen_llm
+    from app.services.generator import generate_from_manual
+    
+    db = SessionLocal()
+    try:
+        questions = []
+        if raw_content.strip():
+            questions = await gen_llm(profile_id, raw_content, name)
+        if not questions and raw_content.strip():
+            questions = generate_from_manual(raw_content, name)
+        
+        for q in questions:
+            db.add(Question(
+                profile_id=profile_id,
+                category=q.get("category", "history"),
+                question_text=q["question_text"],
+                correct_answer=q["correct_answer"],
+                wrong_answers=json.dumps(q.get("wrong_answers", [])),
+                difficulty=q.get("difficulty", 1),
+                source_snippet=q.get("source_snippet", "")[:500],
+            ))
+        
+        p = db.query(Profile).filter(Profile.id == profile_id).first()
+        if p:
+            p.question_count = db.query(Question).filter(Question.profile_id == profile_id).count()
+        db.commit()
+    finally:
+        db.close()
+
+@router.get("/{profile_id}/questions", response_model=list[QuestionResponse])
+def preview_questions(profile_id: int):
+    db = SessionLocal()
+    try:
+        qs = db.query(Question).filter(Question.profile_id == profile_id).limit(50).all()
+        return [QuestionResponse(
+            id=q.id, category=q.category, question_text=q.question_text,
+            correct_answer=q.correct_answer,
+            wrong_answers=json.loads(q.wrong_answers) if q.wrong_answers else [],
+            difficulty=q.difficulty, source_snippet=q.source_snippet,
+        ) for q in qs]
+    finally:
+        db.close()
+
+@router.post("/{profile_id}/generate")
+async def trigger_generate(profile_id: int):
+    db = SessionLocal()
+    try:
+        p = db.query(Profile).filter(Profile.id == profile_id).first()
+        if not p:
+            raise HTTPException(status_code=404, detail="Profile not found")
+        raw = p.raw_content or p.manual_facts
+        await _generate_questions_async(p.id, raw, p.name)
+        db.refresh(p)
+        return {"ok": True, "question_count": p.question_count}
+    finally:
+        db.close()

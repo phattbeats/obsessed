@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Obsessed — Hyper-Personal Trivia</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Fredoka+One&family=JetBrains+Mono:wght@700&family=Nunito:wght@400;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+
+<!-- HOME -->
+<div id="screen-home" class="screens active">
+  <div class="app-title">OBSESSED</div>
+  <p class="app-tagline">The trivia game that knows your friends better than you do</p>
+  <div class="action-grid">
+    <button class="btn primary" onclick="showScreen('profile')">New Game</button>
+    <button class="btn" onclick="showScreen('history')">History</button>
+  </div>
+  <div id="home-stats" class="stats-bar"></div>
+</div>
+
+<!-- PROFILE MANAGEMENT -->
+<div id="screen-profile" class="screens">
+  <div class="screen-header">
+    <button class="back-btn" onclick="showScreen('home')">←</button>
+    <h2>Profile</h2>
+  </div>
+  <form class="profile-form" id="profile-form" onsubmit="submitProfile(event)">
+    <div class="form-group">
+      <label>Guest Name</label>
+      <input name="name" placeholder="Who is this about?" required>
+    </div>
+    <div class="form-group">
+      <label>Bio / Notes</label>
+      <textarea name="bio" placeholder="Optional context about this person..."></textarea>
+    </div>
+    <div class="row-2">
+      <div class="form-group">
+        <label>Reddit Handle</label>
+        <input name="reddit_handle" placeholder="username (no @)">
+      </div>
+      <div class="form-group">
+        <label>Twitter / X Handle</label>
+        <input name="twitter_handle" placeholder="username (no @)">
+      </div>
+    </div>
+    <div class="row-2">
+      <div class="form-group">
+        <label>Steam ID</label>
+        <input name="steam_id" placeholder="Steam username or ID">
+      </div>
+      <div class="form-group">
+        <label>Discord Handle</label>
+        <input name="discord_handle" placeholder="username#0000">
+      </div>
+    </div>
+    <div class="form-group">
+      <label>Manual Link</label>
+      <input name="manual_link" placeholder="Link to bio or profile page">
+    </div>
+    <div class="form-group">
+      <label>Manual Facts</label>
+      <textarea name="manual_facts" placeholder="One fact per line. Paste what you know about this person..."></textarea>
+    </div>
+    <button type="submit" class="btn primary">Save Profile</button>
+  </form>
+  <div id="profile-list" style="margin-top: 1rem;"></div>
+</div>
+
+<!-- LOBBY -->
+<div id="screen-lobby" class="screens">
+  <div class="screen-header">
+    <button class="back-btn" onclick="exitLobby()">←</button>
+    <h2>Waiting Room</h2>
+  </div>
+  <div class="room-code-display" id="room-code-display">------</div>
+  <p style="color: var(--text-secondary); font-size: 14px;">Share this code with friends</p>
+  <div class="player-list">
+    <h3>Players</h3>
+    <div id="lobby-players"></div>
+  </div>
+  <button class="btn primary" id="start-game-btn" onclick="startGame()">Start Game</button>
+</div>
+
+<!-- GAME PLAY -->
+<div id="screen-game" class="screens">
+  <div id="wedge-board" class="wedge-board" style="margin-bottom: 1rem;"></div>
+  <div id="category-badge" class="category-badge">HISTORY</div>
+  <div id="question-progress">Question 1 / 50</div>
+  <div id="timer-bar" class="timer-bar"><div id="timer-fill"></div></div>
+  <div id="question-text" class="question-text"></div>
+  <div id="answer-grid" class="answer-grid"></div>
+</div>
+
+<!-- RESULTS -->
+<div id="screen-results" class="screens">
+  <div class="screen-header">
+    <button class="back-btn" onclick="showScreen('home')">←</button>
+    <h2>Results</h2>
+  </div>
+  <div class="winner-display" id="winner-display"></div>
+  <div class="final-scores" id="final-scores"></div>
+  <button class="btn" onclick="showScreen('home')" style="margin-top: 1rem;">Play Again</button>
+</div>
+
+<!-- HISTORY -->
+<div id="screen-history" class="screens">
+  <div class="screen-header">
+    <button class="back-btn" onclick="showScreen('home')">←</button>
+    <h2>Leaderboard</h2>
+  </div>
+  <div id="leaderboard-content" style="padding: 1rem; width: 100%;"></div>
+</div>
+
+<!-- TOAST -->
+<div id="toast"></div>
+
+<script src="/static/js/app.js"></script>
+<script>loadProfiles(); loadLeaderboard();</script>
+</body>
+</html>

@@ -1,0 +1,61 @@
+from fastapi import FastAPI
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse, HTMLResponse
+from fastapi.middleware.cors import CORSMiddleware
+import os
+
+from app.database import init_db
+from app.routes import profiles, games, stats
+
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+
+app = FastAPI(title="Obsessed", version="1.0.0")
+
+app.add_middleware(
+    CORSMiddleware, allow_origins=["*"], allow_credentials=True,
+    allow_methods=["*"], allow_headers=["*"],
+)
+
+# API routes
+app.include_router(profiles.router)
+app.include_router(games.router)
+app.include_router(stats.router)
+
+@app.get("/api/health")
+def health():
+    return {"status": "ok", "app": "Obsessed"}
+
+@app.get("/", response_class=HTMLResponse)
+@app.get("/index.html", response_class=HTMLResponse)
+def serve_index():
+    path = os.path.join(BASE_DIR, "static", "index.html")
+    with open(path, "r") as f:
+        return f.read()
+
+@app.get("/host.html", response_class=HTMLResponse)
+def serve_host():
+    path = os.path.join(BASE_DIR, "static", "host.html")
+    with open(path, "r") as f:
+        return f.read()
+
+@app.get("/play.html", response_class=HTMLResponse)
+def serve_play():
+    path = os.path.join(BASE_DIR, "static", "play.html")
+    with open(path, "r") as f:
+        return f.read()
+
+@app.get("/profile.html", response_class=HTMLResponse)
+def serve_profile():
+    path = os.path.join(BASE_DIR, "static", "profile.html")
+    with open(path, "r") as f:
+        return f.read()
+
+@app.get("/history.html", response_class=HTMLResponse)
+def serve_history():
+    path = os.path.join(BASE_DIR, "static", "history.html")
+    with open(path, "r") as f:
+        return f.read()
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run("app.main:app", host="0.0.0.0", port=8000, reload=False)
