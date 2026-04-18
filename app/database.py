@@ -21,6 +21,7 @@ class Profile(Base):
     twitter_handle = Column(String(200), default="")
     steam_id = Column(String(200), default="")
     discord_handle = Column(String(200), default="")
+    pinterest_handle = Column(String(200), default="")
     manual_link = Column(String(500), default="")
     manual_facts = Column(Text, default="")
     scrape_status = Column(String(50), default="pending")  # pending|scraping|done|failed

@@ -3,6 +3,7 @@ from fastapi import APIRouter, HTTPException
 from app.database import SessionLocal, Profile, Question
 from app.models import ProfileCreate, ProfileUpdate, ProfileResponse, QuestionResponse
 from app.services.scraper.reddit import scrape_reddit, generate_questions
+from app.services.scraper.pinterest import scrape_pinterest
 from app.services.generator import generate_from_manual
 import json
 
@@ -13,6 +14,7 @@ def _profile(p: Profile) -> ProfileResponse:
         id=p.id, name=p.name, bio=p.bio,
         reddit_handle=p.reddit_handle, twitter_handle=p.twitter_handle,
         steam_id=p.steam_id, discord_handle=p.discord_handle,
+        pinterest_handle=p.pinterest_handle,
         manual_link=p.manual_link, manual_facts=p.manual_facts,
         scrape_status=p.scrape_status, scrape_error=p.scrape_error,
         question_count=p.question_count,
@@ -25,7 +27,8 @@ def create_profile(data: ProfileCreate):
     try:
         p = Profile(name=data.name, bio=data.bio, reddit_handle=data.reddit_handle,
                     twitter_handle=data.twitter_handle, steam_id=data.steam_id,
-                    discord_handle=data.discord_handle, manual_link=data.manual_link,
+                    discord_handle=data.discord_handle, pinterest_handle=data.pinterest_handle,
+                    manual_link=data.manual_link,
                     manual_facts=data.manual_facts)
         db.add(p)
         db.commit()
@@ -97,6 +100,9 @@ async def trigger_scrape(profile_id: int):
         raw_parts = []
         if p.reddit_handle:
             text, _ = await scrape_reddit(p.reddit_handle)
+            raw_parts.append(text)
+        if p.pinterest_handle:
+            text, _ = await scrape_pinterest(p.pinterest_handle)
             raw_parts.append(text)
         if p.manual_facts:
             raw_parts.append(p.manual_facts)
