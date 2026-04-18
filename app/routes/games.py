@@ -338,16 +338,17 @@ def next_question(room_code: str):
     if not gs:
         raise HTTPException(status_code=404, detail="Game not found")
     gs.next_question()
+    db = SessionLocal()
+    try:
+        g = db.query(GameSession).filter(GameSession.room_code == room_code).first()
+        if g:
+            g.current_question = gs.current_q
+            g.status = gs.status
+            db.commit()
+    finally:
+        db.close()
     if gs.current_q >= gs.total_q:
         gs.status = "finished"
-        db = SessionLocal()
-        try:
-            g = db.query(GameSession).filter(GameSession.room_code == room_code).first()
-            if g:
-                g.status = "finished"
-                db.commit()
-        finally:
-            db.close()
         _finalize_game_stats(room_code)
     return {"ok": True, "current_question": gs.current_q + 1, "status": gs.status}
 
