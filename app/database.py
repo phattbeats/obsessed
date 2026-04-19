@@ -33,6 +33,8 @@ class Profile(Base):
     llm_calls = Column(Integer, default=0)
     llm_spend_cents = Column(Integer, default=0)
     question_budget = Column(Integer, default=50)
+    consent_obtained = Column(Boolean, default=False)
+    consent_token = Column(String(200), default="")
     created_at = Column(Integer, default=lambda: int(datetime.utcnow().timestamp()))
     updated_at = Column(Integer, default=lambda: int(datetime.utcnow().timestamp()))
 

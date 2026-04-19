@@ -38,9 +38,24 @@ async function loadProfiles() {
       <h3>${esc(p.name)}</h3>
       <div class="meta">@${esc(p.reddit_handle || p.twitter_handle || '—')}</div>
       <div class="meta">${p.question_count} questions</div>
+      ${p.consent_obtained ? '<span style="color:var(--correct);font-size:12px;font-weight:700">✓ CONSENT</span>' : '<span style="color:var(--wrong);font-size:12px;font-weight:700">⚠ GUEST CONSENT REQUIRED</span>'}
       <span class="status-badge status-${p.scrape_status}">${p.scrape_status}</span>
-      ${p.scrape_status === 'done' ? `<button class="btn" style="margin-top:0.5rem;font-size:14px;padding:0.5rem" onclick="event.stopPropagation(); createGame(${p.id})">Host Game</button>` : ''}
+      ${p.scrape_status === 'done' && p.consent_obtained ? `<button class="btn" style="margin-top:0.5rem;font-size:14px;padding:0.5rem" onclick="event.stopPropagation(); createGame(${p.id})">Host Game</button>` : ''}
+      ${p.scrape_status === 'done' && !p.consent_obtained ? `<button class="btn" style="margin-top:0.5rem;font-size:14px;padding:0.5rem;color:var(--accent)" onclick="event.stopPropagation(); requestConsentLink(${p.id})">Send to Guest</button>` : ''}
     </div>`).join('');
+}
+
+async function requestConsentLink(profileId) {
+  const res = await fetch(API + '/api/profiles/' + profileId + '/consent-link');
+  if (!res.ok) return toast('Error generating link');
+  const data = await res.json();
+  const fullUrl = window.location.origin + data.consent_link;
+  const msg = 'Send this to your guest:\n' + fullUrl;
+  if (navigator.clipboard) {
+    navigator.clipboard.writeText(fullUrl).then(() => toast('Consent link copied!')).catch(() => toast(msg));
+  } else {
+    prompt('Copy this consent link:', fullUrl);
+  }
 }
 
 async function submitProfile(e) {

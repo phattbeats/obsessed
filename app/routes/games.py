@@ -109,6 +109,8 @@ def create_game(data: GameCreate):
             p = db.query(Profile).filter(Profile.id == data.profile_id).first()
             if not p:
                 raise HTTPException(status_code=404, detail="Profile not found")
+            if not p.consent_obtained:
+                raise HTTPException(status_code=403, detail="Consent not obtained from guest. Generate a consent link first.")
         g = GameSession(room_code=room_code, profile_id=data.profile_id)
         db.add(g)
         db.commit()

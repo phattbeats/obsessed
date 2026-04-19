@@ -8,6 +8,7 @@ from app.services.scraper.threads import scrape_threads
 from app.services.scraper.instagram import scrape_instagram
 from app.services.generator import generate_from_manual
 import json
+import hashlib, hmac, time as _time_module
 
 router = APIRouter(prefix="/api/profiles", tags=["profiles"])
 
@@ -25,6 +26,7 @@ def _profile(p: Profile) -> ProfileResponse:
         llm_calls=p.llm_calls or 0,
         llm_spend_cents=p.llm_spend_cents or 0,
         question_budget=p.question_budget or 50,
+        consent_obtained=bool(p.consent_obtained),
         created_at=p.created_at, updated_at=p.updated_at,
     )
 
@@ -38,7 +40,8 @@ def create_profile(data: ProfileCreate):
                     manual_link=data.manual_link,
                     manual_facts=data.manual_facts,
                     llm_calls=0, llm_spend_cents=0,
-                    question_budget=getattr(data, "question_budget", 50) or 50)
+                    question_budget=getattr(data, "question_budget", 50) or 50,
+                    consent_obtained=getattr(data, "consent_obtained", False) or False)
         db.add(p)
         db.commit()
         db.refresh(p)
@@ -114,6 +117,41 @@ def get_profile_stats(profile_id: int):
             "scrape_status": p.scrape_status,
             "updated_at": p.updated_at,
         }
+    finally:
+        db.close()
+
+
+CONSENT_SECRET = b"obsessed-consent-2026"
+
+@router.get("/profiles/{profile_id}/consent-link")
+def generate_consent_link(profile_id: int):
+    """Generate a signed consent URL for the guest to visit."""
+    db = SessionLocal()
+    try:
+        p = db.query(Profile).filter(Profile.id == profile_id).first()
+        if not p:
+            raise HTTPException(status_code=404, detail="Profile not found")
+        token = p.consent_token or ""
+        if not token:
+            token = hashlib.sha256(f"{p.id}-{p.name}-{_time_module.time_ns()}".encode()).hexdigest()[:32]
+            p.consent_token = token
+            db.commit()
+        link = f"/api/profiles/consent/verify?token={token}"
+        return {"consent_link": link, "profile_name": p.name, "token": token}
+    finally:
+        db.close()
+
+@router.get("/profiles/consent/verify")
+def verify_consent(token: str):
+    """Guest visits this URL to grant consent."""
+    db = SessionLocal()
+    try:
+        p = db.query(Profile).filter(Profile.consent_token == token).first()
+        if not p:
+            raise HTTPException(status_code=404, detail="Invalid consent link")
+        p.consent_obtained = True
+        db.commit()
+        return {"ok": True, "message": f"Consent confirmed for {p.name}"}
     finally:
         db.close()
 

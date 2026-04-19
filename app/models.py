@@ -16,6 +16,7 @@ class ProfileCreate(BaseModel):
     manual_link: str = ""
     manual_facts: str = ""
     question_budget: int = 50
+    consent_obtained: bool = False
 
 class ProfileUpdate(BaseModel):
     name: Optional[str] = None
@@ -32,6 +33,7 @@ class ProfileUpdate(BaseModel):
     llm_calls: Optional[int] = None
     llm_spend_cents: Optional[int] = None
     question_budget: Optional[int] = None
+    consent_obtained: Optional[bool] = None
 
 class ProfileResponse(BaseModel):
     id: int
@@ -52,9 +54,11 @@ class ProfileResponse(BaseModel):
     llm_calls: int
     llm_spend_cents: int
     question_budget: int
+    consent_obtained: bool
     llm_calls: int
     llm_spend_cents: int
     question_budget: int
+    consent_obtained: bool
     created_at: int
     updated_at: int
 
