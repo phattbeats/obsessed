@@ -64,9 +64,6 @@ class ProfileResponse(BaseModel):
     consent_obtained: bool
     content_quality: str
     content_chunks: int
-    llm_calls: int
-    llm_spend_cents: int
-    question_budget: int
     created_at: int
     updated_at: int
 

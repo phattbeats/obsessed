@@ -129,7 +129,7 @@ def get_profile_stats(profile_id: int):
 
 CONSENT_SECRET = b"obsessed-consent-2026"
 
-@router.get("/profiles/{profile_id}/consent-link")
+@router.get("/{profile_id}/consent-link")
 def generate_consent_link(profile_id: int):
     """Generate a signed consent URL for the guest to visit."""
     db = SessionLocal()

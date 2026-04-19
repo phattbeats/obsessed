@@ -5,7 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 import os
 
 from app.database import init_db
-from app.routes import profiles, games, stats
+from app.routes import profiles, games, stats, news
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
@@ -20,6 +20,7 @@ app.add_middleware(
 app.include_router(profiles.router)
 app.include_router(games.router)
 app.include_router(stats.router)
+app.include_router(news.router)
 
 @app.get("/api/health")
 def health():

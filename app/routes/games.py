@@ -209,6 +209,12 @@ def start_game(room_code: str):
         if not g:
             raise HTTPException(status_code=404, detail="Room not found")
         
+        # Check consent if profile is set
+        if g.profile_id:
+            profile = db.query(Profile).filter(Profile.id == g.profile_id).first()
+            if profile and not profile.consent_obtained:
+                raise HTTPException(status_code=403, detail="Guest consent not obtained. Generate a consent link first.")
+
         # Load questions
         qs = db.query(Question).filter(Question.profile_id == g.profile_id).all()
         if not qs:
