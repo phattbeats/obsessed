@@ -92,6 +92,9 @@ def generate_room_code() -> str:
 def get_or_create_game(room_code: str, profile_id: Optional[int] = None) -> GameState:
     if room_code not in GAMES:
         GAMES[room_code] = GameState(room_code=room_code, profile_id=profile_id)
+    elif profile_id is not None and GAMES[room_code].profile_id is None:
+        # Only set profile_id on first assignment, not on subsequent resumes
+        GAMES[room_code].profile_id = profile_id
     return GAMES[room_code]
 
 def cleanup_game(room_code: str):

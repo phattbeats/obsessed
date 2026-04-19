@@ -96,7 +96,7 @@ def list_all_profiles():
 @router.get("/leaderboard")
 def admin_leaderboard(limit: int = 50):
     """
-    Org-wide leaderboard — top players by total score across all games.
+    Org-wide leaderboard - top players by total score across all games.
     """
     db = SessionLocal()
     try:
@@ -146,9 +146,10 @@ def recent_games(limit: int = 20):
 
 @router.post("/profiles/{profile_id}/rescrape")
 async def rescrape_profile(profile_id: int):
-    """
+    """  
     Re-run scraping for a profile. Triggers the full scraper chain.
     """
+    import asyncio
     db = SessionLocal()
     try:
         p = db.query(Profile).filter(Profile.id == profile_id).first()
@@ -160,26 +161,38 @@ async def rescrape_profile(profile_id: int):
         db.commit()
 
         try:
-            content_parts = []
+            # Run all scrapers concurrently
+            scrape_tasks = []
             if p.reddit_handle:
-                reddit_data = await scrape_reddit(p.reddit_handle)
-                if reddit_data:
-                    content_parts.extend(reddit_data)
+                scrape_tasks.append(("reddit", scrape_reddit(p.reddit_handle)))
             if p.instagram_handle:
-                ig_data = await scrape_instagram(p.instagram_handle)
-                if ig_data:
-                    content_parts.extend(ig_data)
+                scrape_tasks.append(("instagram", scrape_instagram(p.instagram_handle)))
             if p.pinterest_handle:
-                pin_data = await scrape_pinterest(p.pinterest_handle)
-                if pin_data:
-                    content_parts.extend(pin_data)
+                scrape_tasks.append(("pinterest", scrape_pinterest(p.pinterest_handle)))
             if p.threads_handle:
-                threads_data = await scrape_threads(p.threads_handle)
-                if threads_data:
-                    content_parts.extend(threads_data)
+                scrape_tasks.append(("threads", scrape_threads(p.threads_handle)))
+
+            # asyncio.gather runs all concurrently
+            results = await asyncio.gather(
+                *[task for _, task in scrape_tasks],
+                return_exceptions=True
+            )
+
+            content_parts = []
+            for i, (source, _) in enumerate(scrape_tasks):
+                result = results[i]
+                if isinstance(result, Exception):
+                    p.scrape_error = f"{source} error: {result}"
+                    p.scrape_status = "error"
+                    db.commit()
+                    return {"ok": False, "profile_id": profile_id, "status": "error", "error": str(result)}
+                content_str, _ = result
+                if content_str:
+                    content_parts.append(content_str)
 
             combined = "\n".join(content_parts) if content_parts else ""
             p.scrape_status = "done" if combined else "pending"
+            p.content = combined  # actually save the scraped content
             p.content_chunks = len(content_parts)
         except Exception as e:
             p.scrape_status = "error"

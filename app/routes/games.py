@@ -168,8 +168,8 @@ def join_game(room_code: str, data: PlayerJoin):
             Player.game_id == g.id, Player.player_name == data.player_name
         ).first()
         if existing:
-            player_id = data.player_id or existing.player_id
-            existing.player_id = player_id
+            # Use the DB record player_id as authoritative identity
+            player_id = existing.player_id
             existing.is_active = True
             db.commit()
             gs = get_or_create_game(room_code, g.profile_id)
@@ -259,10 +259,10 @@ def get_question(room_code: str):
     elapsed = _time_module.time() - gs.question_started_at
     remaining = max(0, int(gs.question_time_limit - elapsed))
     
-    # Shuffle options
-    options = [q.correct_answer] + q.wrong_answers
+    # Only wrong answers shown to players — correct answer revealed after submit
+    options = q.wrong_answers
     random.shuffle(options)
-    
+
     return QuestionDisplay(
         question_num=gs.current_q + 1,
         total_questions=gs.total_q,
@@ -310,7 +310,7 @@ def submit_answer(room_code: str, data: AnswerSubmit):
 
 
 def _finalize_game_stats(room_code: str):
-    """Increment games_played for all active players; mark winner."""
+    """Increment games_played for all active players; mark winner; clean up in-memory game."""
     gs = GAMES.get(room_code)
     if not gs:
         return
@@ -339,6 +339,8 @@ def _finalize_game_stats(room_code: str):
         db.commit()
     finally:
         db.close()
+    # Remove from in-memory GAMES dict to prevent unbounded growth
+    cleanup_game(room_code)
 
 @router.post("/{room_code}/next")
 def next_question(room_code: str):
