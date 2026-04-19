@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Obsessed — Ops Dashboard</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Fredoka+One&family=Nunito:wght@400;700&display=swap" rel="stylesheet">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: 'Nunito', sans-serif; background: #1a1a2e; color: #fff; min-height: 100vh; }
+    .header { background: #0f3460; padding: 1rem 2rem; display: flex; justify-content: space-between; align-items: center; border-bottom: 3px solid #e94560; }
+    .header h1 { font-family: 'Fredoka One', cursive; font-size: 28px; color: #e94560; }
+    .header nav a { color: #b8b8d1; text-decoration: none; margin-left: 1.5rem; font-size: 14px; }
+    .header nav a:hover { color: #fff; }
+    .container { max-width: 1200px; margin: 2rem auto; padding: 0 2rem; }
+    .section { margin-bottom: 2rem; }
+    .section h2 { font-family: 'Fredoka One', cursive; font-size: 20px; color: #e94560; margin-bottom: 1rem; }
+    .card { background: #16213e; border-radius: 16px; padding: 1.5rem; margin-bottom: 1rem; border: 2px solid #0f3460; }
+    .card-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 1rem; }
+    .stat { background: #0f3460; border-radius: 12px; padding: 1.5rem; text-align: center; }
+    .stat .number { font-family: 'Fredoka One', cursive; font-size: 48px; color: #00e676; }
+    .stat .label { font-size: 14px; color: #b8b8d1; margin-top: 0.25rem; }
+    table { width: 100%; border-collapse: collapse; }
+    th { text-align: left; font-size: 12px; color: #b8b8d1; text-transform: uppercase; letter-spacing: 0.05em; padding: 0.5rem 0.75rem; border-bottom: 1px solid #0f3460; }
+    td { padding: 0.75rem; border-bottom: 1px solid #0f3460; font-size: 14px; }
+    tr:hover td { background: #0f3460; }
+    .badge { display: inline-block; padding: 0.2rem 0.6rem; border-radius: 8px; font-size: 11px; font-weight: 700; text-transform: uppercase; }
+    .badge-done { background: #00e67622; color: #00e676; }
+    .badge-pending { background: #ffea0022; color: #ffea00; }
+    .badge-error { background: #ff174422; color: #ff1744; }
+    .badge-running { background: #2979ff22; color: #2979ff; }
+    .actions button { background: #e94560; border: none; color: #fff; padding: 0.3rem 0.8rem; border-radius: 8px; cursor: pointer; font-size: 12px; }
+    .actions button:hover { background: #ff2d55; }
+    .refresh-btn { background: #0f3460; border: 2px solid #e94560; color: #e94560; padding: 0.5rem 1.5rem; border-radius: 12px; cursor: pointer; font-family: 'Fredoka One', cursive; font-size: 16px; }
+    .refresh-btn:hover { background: #e94560; color: #fff; }
+    .top-bar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h1>OBSESSED OPS</h1>
+    <nav>
+      <a href="/index.html">Lobby</a>
+      <a href="/host.html">Host</a>
+      <a href="/admin.html">Ops Dashboard</a>
+      <a href="/docs">API Docs</a>
+    </nav>
+  </div>
+
+  <div class="container">
+    <div class="top-bar">
+      <h2 class="section" style="margin:0">Operational Overview</h2>
+      <button class="refresh-btn" onclick="loadAll()">Refresh</button>
+    </div>
+
+    <div class="card-grid" id="stats-grid">
+      <div class="stat"><div class="number" id="stat-profiles">—</div><div class="label">Profiles</div></div>
+      <div class="stat"><div class="number" id="stat-active">—</div><div class="label">Active Games</div></div>
+      <div class="stat"><div class="number" id="stat-games-7d">—</div><div class="label">Games (7 days)</div></div>
+      <div class="stat"><div class="number" id="stat-players">—</div><div class="label">Players w/ Stats</div></div>
+    </div>
+
+    <div class="section">
+      <h2>Leaderboard — Top 20</h2>
+      <div class="card">
+        <table>
+          <thead><tr><th>#</th><th>Player</th><th>Games</th><th>Won</th><th>Win Rate</th><th>Total Score</th></tr></thead>
+          <tbody id="leaderboard-body"><tr><td colspan="6" style="text-align:center;color:#b8b8d1">Loading...</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="section">
+      <h2>Recent Games</h2>
+      <div class="card">
+        <table>
+          <thead><tr><th>Room</th><th>Profile ID</th><th>Status</th><th>Players</th><th>Question</th><th>Created</th><th></th></tr></thead>
+          <tbody id="games-body"><tr><td colspan="7" style="text-align:center;color:#b8b8d1">Loading...</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="section">
+      <h2>All Profiles</h2>
+      <div class="card">
+        <table>
+          <thead><tr><th>ID</th><th>Name</th><th>Bio</th><th>Scrape Status</th><th>Questions</th><th>LLM Cost (¢)</th><th>Consent</th><th>Actions</th></tr></thead>
+          <tbody id="profiles-body"><tr><td colspan="8" style="text-align:center;color:#b8b8d1">Loading...</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const API = '/api';
+
+    function badge(status) {
+      return '<span class="badge badge-' + status + '">' + status + '</span>';
+    }
+
+    function timeAgo(iso) {
+      if (!iso) return '—';
+      const d = new Date(iso);
+      const now = new Date();
+      const secs = Math.floor((now - d) / 1000);
+      if (secs < 60) return secs + 's ago';
+      const mins = Math.floor(secs / 60);
+      if (mins < 60) return mins + 'm ago';
+      const hrs = Math.floor(mins / 60);
+      if (hrs < 24) return hrs + 'h ago';
+      return Math.floor(hrs / 24) + 'd ago';
+    }
+
+    async function loadAll() {
+      await Promise.all([loadOverview(), loadLeaderboard(), loadGames(), loadProfiles()]);
+    }
+
+    async function loadOverview() {
+      try {
+        const r = await fetch(API + '/admin/overview');
+        const d = await r.json();
+        document.getElementById('stat-profiles').textContent = d.profiles.total;
+        document.getElementById('stat-active').textContent = d.games.active;
+        document.getElementById('stat-games-7d').textContent = d.games.last_7_days;
+        document.getElementById('stat-players').textContent = d.players.with_stats;
+      } catch (e) { console.error('overview error', e); }
+    }
+
+    async function loadLeaderboard() {
+      try {
+        const r = await fetch(API + '/admin/leaderboard?limit=20');
+        const d = await r.json();
+        const tbody = document.getElementById('leaderboard-body');
+        if (!d.length) { tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:#b8b8d1">No players yet</td></tr>'; return; }
+        tbody.innerHTML = d.map((p, i) => '<tr><td>' + (i+1) + '</td><td>' + p.player_name + '</td><td>' + p.games_played + '</td><td>' + p.games_won + '</td><td>' + (p.win_rate*100).toFixed(0) + '%</td><td>' + p.total_score.toLocaleString() + '</td></tr>').join('');
+      } catch (e) { console.error('leaderboard error', e); }
+    }
+
+    async function loadGames() {
+      try {
+        const r = await fetch(API + '/admin/games/recent?limit=20');
+        const d = await r.json();
+        const tbody = document.getElementById('games-body');
+        if (!d.length) { tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:#b8b8d1">No games yet</td></tr>'; return; }
+        tbody.innerHTML = d.map(g => '<tr><td><code style="font-size:12px">' + g.room_code + '</code></td><td>' + g.profile_id + '</td><td>' + badge(g.status) + '</td><td>' + g.player_count + '</td><td>' + g.current_question + '</td><td>' + timeAgo(g.created_at) + '</td><td class="actions"><button onclick="clearGame(\'' + g.room_code + '\')">Clear</button></td></tr>').join('');
+      } catch (e) { console.error('games error', e); }
+    }
+
+    async function loadProfiles() {
+      try {
+        const r = await fetch(API + '/admin/profiles');
+        const d = await r.json();
+        const tbody = document.getElementById('profiles-body');
+        if (!d.length) { tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;color:#b8b8d1">No profiles yet</td></tr>'; return; }
+        tbody.innerHTML = d.map(p => '<tr><td>' + p.id + '</td><td>' + p.name + '</td><td style="max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + (p.bio||'') + '</td><td>' + badge(p.scrape_status) + '</td><td>' + p.question_count + '</td><td>' + (p.llm_spend_cents||0) + '</td><td>' + (p.consent_obtained?'✅':'❌') + '</td><td class="actions"><button onclick="rescrape(' + p.id + ')">Rescrape</button></td></tr>').join('');
+      } catch (e) { console.error('profiles error', e); }
+    }
+
+    async function rescrape(id) {
+      if (!confirm('Rescrape profile #' + id + '?')) return;
+      try {
+        const r = await fetch(API + '/admin/profiles/' + id + '/rescrape', { method: 'POST' });
+        const d = await r.json();
+        alert('Rescrape triggered: ' + d.status);
+        loadProfiles();
+      } catch (e) { alert('Error: ' + e); }
+    }
+
+    async function clearGame(room) {
+      if (!confirm('Delete game ' + room + '?')) return;
+      try {
+        const r = await fetch(API + '/admin/games/' + room + '/clear', { method: 'POST' });
+        const d = await r.json();
+        if (d.ok) loadGames();
+        else alert('Error: ' + JSON.stringify(d));
+      } catch (e) { alert('Error: ' + e); }
+    }
+
+    loadAll();
+  </script>
+</body>
+</html>

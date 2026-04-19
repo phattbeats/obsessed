@@ -5,7 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 import os
 
 from app.database import init_db
-from app.routes import profiles, games, stats, news, court, sos, auditor
+from app.routes import profiles, games, stats, news, court, sos, auditor, admin
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
@@ -24,6 +24,7 @@ app.include_router(news.router)
 app.include_router(court.router)
 app.include_router(sos.router)
 app.include_router(auditor.router)
+app.include_router(admin.router)
 
 @app.get("/api/health")
 def health():
@@ -57,6 +58,12 @@ def serve_profile():
 @app.get("/history.html", response_class=HTMLResponse)
 def serve_history():
     path = os.path.join(BASE_DIR, "static", "history.html")
+    with open(path, "r") as f:
+        return f.read()
+
+@app.get("/admin.html", response_class=HTMLResponse)
+def serve_admin():
+    path = os.path.join(BASE_DIR, "static", "admin.html")
     with open(path, "r") as f:
         return f.read()
 
