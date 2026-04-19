@@ -1,4 +1,4 @@
-"""County auditor property records routes."""
+"""County auditor property records routes — search-first nationwide discovery."""
 
 from __future__ import annotations
 
@@ -14,30 +14,35 @@ from app.services.scraper.auditor import (
 router = APIRouter(prefix="/api/auditor", tags=["auditor"])
 
 
-@router.get("/search/{county}")
+@router.get("/search")
 async def search_auditor(
-    county: str,
+    county: str = Query(..., description="County name (e.g. 'Franklin County', 'Delaware County')"),
     term: str = Query(..., description="Owner name or address to search"),
     search_type: str = "owner",
+    state: str = "Ohio",
 ):
-    """Search a county auditor for property records."""
-    results = await search_property_records(county, term, search_type)
-    return {"county": county, "term": term, "results": results, "count": len(results)}
+    """Discover auditor URL for a county via web search, then scrape property records."""
+    results = await search_property_records(county, term, search_type, state)
+    return {"county": county, "state": state, "term": term, "results": results, "count": len(results)}
 
 
 @router.get("/property/{county}/{parcel_id}")
-async def get_property(county: str, parcel_id: str):
+async def get_property(county: str, parcel_id: str, state: str = "Ohio"):
     """Look up a specific property by parcel ID."""
-    result = await get_property_details(county, parcel_id)
+    result = await get_property_details(county, parcel_id, state)
     if result.get("status") == "not found":
         raise HTTPException(status_code=404, detail="Property not found")
     return result
 
 
 @router.get("/by-address/{county}")
-async def get_by_address(county: str, address: str = Query(...)):
+async def get_by_address(
+    county: str,
+    address: str = Query(...),
+    state: str = "Ohio",
+):
     """Look up property by street address."""
-    result = await get_property_by_address(county, address)
+    result = await get_property_by_address(county, address, state)
     if result.get("status") == "not found":
         raise HTTPException(status_code=404, detail="Property not found at address")
     return result
@@ -45,5 +50,5 @@ async def get_by_address(county: str, address: str = Query(...)):
 
 @router.get("/counties")
 async def list_counties():
-    """List supported county auditors."""
+    """List known fallback Ohio county auditors (search-first discovery used for others)."""
     return {"counties": list(AUDITOR_SEARCH_URLS.keys())}
