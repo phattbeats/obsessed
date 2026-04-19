@@ -6,6 +6,7 @@ from app.services.scraper.reddit import scrape_reddit, generate_questions
 from app.services.scraper.pinterest import scrape_pinterest
 from app.services.scraper.threads import scrape_threads
 from app.services.scraper.instagram import scrape_instagram
+from app.services.scraper.crawl4ai import crawl4ai_scrape
 from app.services.generator import generate_from_manual
 import json
 import hashlib, hmac, time as _time_module
@@ -181,6 +182,10 @@ async def trigger_scrape(profile_id: int):
             raw_parts.append(text)
         if p.manual_facts:
             raw_parts.append(p.manual_facts)
+        if p.manual_link:
+            text, meta = await crawl4ai_scrape(p.manual_link)
+            if text and len(text) > 20:
+                raw_parts.append(text)
         
         raw = "\n".join(raw_parts)
         p.raw_content = raw[:50000]  # cap at 50k chars
