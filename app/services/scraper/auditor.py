@@ -1,35 +1,45 @@
 """
 County Auditor property records scraper.
-Searches county auditor websites for property records by owner name or address.
-Returns structured property records (owner, address, acreage, value) without storing full deeds.
+Uses search-first discovery: accepts any US county name, discovers the actual auditor
+website via web search, then scrapes with crawl4ai. No hardcoded county list.
 """
 
 from __future__ import annotations
 
-import os
-from typing import Optional
 import httpx
+from typing import Optional
 
 from app.services.scraper.crawl4ai import crawl4ai_scrape
 
 
-# County auditor property search URLs
-# These are public-facing search pages
-AUDITOR_SEARCH_URLS = {
-    "franklin": "https://property.franklincountyauditor.org",
-    "delaware": "https://delawarecountyauditor.org/property-search/",
-    "licking": "https://lickingcountyauditor.org/property-search/",
-    "fairfield": "https://fairfieldcountyauditor.com/property-search/",
-    "union": "https://unioncountyauditor.org/property-search/",
-    "madison": "https://madisoncountyauditor.org/",
-    "pickaway": "https://pickawaycountyauditor.com/",
-    "hocking": "https://hockingcountyauditor.net/property-search/",
-    "athens": "https://athenscountyauditor.com/",
-    "vinton": "https://vintoncountyauditor.com/",
-}
+async def find_auditor_url(county: str, state: str = "Ohio") -> str | None:
+    """
+    Web search to discover the County Auditor website for a given county.
+    Returns the auditor site URL, or None if not found.
+    """
+    query = f"{county} County {state} Auditor property search"
+    search_url = "https://www.google.com/search"
+    try:
+        async with httpx.AsyncClient(timeout=15.0) as client:
+            resp = await client.get(
+                search_url,
+                params={"q": query, "num": 5},
+                headers={"User-Agent": "Mozilla/5.0"},
+            )
+            text = resp.text
+            import re
+            urls = re.findall(r'https?://[^\s<>"]+', text)
+            for url in urls:
+                url_lower = url.lower()
+                # Filter for county auditor sites
+                if any(k in url_lower for k in ['auditor', 'property', 'parcel', 'tax']) and 'google' not in url_lower:
+                    return url.split('&')[0].split('?')[0]
+            return None
+    except Exception:
+        return None
 
 
-def parse_property_record(raw: str, search_term: str) -> dict:
+def parse_property_record(raw: str, search_term: str, county: str) -> dict:
     """Parse raw text from auditor page into structured record."""
     lines = [l.strip() for l in raw.split("\n") if l.strip()]
     record = {
@@ -40,6 +50,7 @@ def parse_property_record(raw: str, search_term: str) -> dict:
         "market_value": "",
         "taxable_value": "",
         "search_term": search_term,
+        "county": county,
     }
     for line in lines:
         lower = line.lower()
@@ -61,49 +72,56 @@ def parse_property_record(raw: str, search_term: str) -> dict:
 async def search_property_records(
     county: str,
     search_term: str,
-    search_type: str = "owner",  # "owner" or "address"
+    search_type: str = "owner",
+    state: str = "Ohio",
 ) -> list[dict]:
     """
-    Search a county auditor for property records.
-    county: one of the keys in AUDITOR_SEARCH_URLS
-    search_term: owner name or property address
-    search_type: "owner" or "address"
-    Returns list of property records.
+    Search a county auditor website for property records.
+    County-agnostic: discovers the auditor URL via web search first,
+    then scrapes with crawl4ai.
+
+    county: county name (e.g. "Franklin", "Maricopa", "Los Angeles")
+    search_term: owner name, address, or parcel ID
+    search_type: "owner", "address", or "parcel"
+    state: state name (default Ohio — override for any US state)
+
+    Returns list of property records with {owner, address, parcel_id, acreage,
+    market_value, taxable_value, county, source_url}.
     """
-    base_url = AUDITOR_SEARCH_URLS.get(county.lower(), "")
-    if not base_url:
+    # Step 1: discover the auditor URL
+    auditor_url = await find_auditor_url(county, state)
+    if not auditor_url:
         return []
 
+    # Step 2: scrape the discovered URL
     try:
-        text, meta = await crawl4ai_scrape(base_url)
+        text, meta = await crawl4ai_scrape(auditor_url)
         if not text or text.startswith("["):
             return []
         records = []
-        # Look for blocks containing the search term
         blocks = text.split("---")
         for block in blocks[:20]:
             if search_term.lower() in block.lower():
-                record = parse_property_record(block, search_term)
-                record["county"] = county
-                record["source_url"] = base_url
+                record = parse_property_record(block, search_term, county)
+                record["source_url"] = auditor_url
                 records.append(record)
         return records
     except Exception:
         return []
 
 
-async def get_property_details(county: str, parcel_id: str) -> dict:
+async def get_property_details(county: str, parcel_id: str, state: str = "Ohio") -> dict:
     """Look up a specific property by parcel ID."""
-    results = await search_property_records(county, parcel_id, "parcel")
+    results = await search_property_records(county, parcel_id, "parcel", state)
     for r in results:
         if parcel_id in str(r.get("parcel_id", "")):
             return r
-    return {"parcel_id": parcel_id, "county": county, "status": "not found"}
+    return {"parcel_id": parcel_id, "county": county, "state": state, "status": "not found"}
 
 
-async def get_property_by_address(county: str, address: str) -> dict:
+async def get_property_by_address(county: str, address: str, state: str = "Ohio") -> dict:
     """Look up property details by street address."""
-    results = await search_property_records(county, address, "address")
+    results = await search_property_records(county, address, "address", state)
     if results:
         return results[0]
-    return {"address": address, "county": county, "status": "not found"}
+    return {"address": address, "county": county, "state": state, "status": "not found"}
