@@ -139,10 +139,10 @@ def generate_consent_link(profile_id: int):
             raise HTTPException(status_code=404, detail="Profile not found")
         token = p.consent_token or ""
         if not token:
-            token = hashlib.sha256(f"{p.id}-{p.name}-{_time_module.time_ns()}".encode()).hexdigest()[:32]
+            token = hashlib.sha256(f"{p.id}-{p.name}-{_time_module.time() * 1e9}".encode()).hexdigest()[:32]
             p.consent_token = token
             db.commit()
-        link = f"/api/profiles/consent/verify?token={token}"
+        link = f"/profiles/consent/verify?token={token}"
         return {"consent_link": link, "profile_name": p.name, "token": token}
     finally:
         db.close()
