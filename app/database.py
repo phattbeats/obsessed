@@ -35,6 +35,8 @@ class Profile(Base):
     question_budget = Column(Integer, default=50)
     consent_obtained = Column(Boolean, default=False)
     consent_token = Column(String(200), default="")
+    content_quality = Column(String(20), default="")  # insufficient|limited|adequate|rich
+    content_chunks = Column(Integer, default=0)
     created_at = Column(Integer, default=lambda: int(datetime.utcnow().timestamp()))
     updated_at = Column(Integer, default=lambda: int(datetime.utcnow().timestamp()))
 

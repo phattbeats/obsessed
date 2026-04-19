@@ -17,6 +17,8 @@ class ProfileCreate(BaseModel):
     manual_facts: str = ""
     question_budget: int = 50
     consent_obtained: bool = False
+    content_quality: str
+    content_chunks: int
 
 class ProfileUpdate(BaseModel):
     name: Optional[str] = None
@@ -34,6 +36,8 @@ class ProfileUpdate(BaseModel):
     llm_spend_cents: Optional[int] = None
     question_budget: Optional[int] = None
     consent_obtained: Optional[bool] = None
+    content_quality: Optional[str] = None
+    content_chunks: Optional[int] = None
 
 class ProfileResponse(BaseModel):
     id: int
@@ -55,10 +59,11 @@ class ProfileResponse(BaseModel):
     llm_spend_cents: int
     question_budget: int
     consent_obtained: bool
+    content_quality: str
+    content_chunks: int
     llm_calls: int
     llm_spend_cents: int
     question_budget: int
-    consent_obtained: bool
     created_at: int
     updated_at: int
 

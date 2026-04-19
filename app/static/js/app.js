@@ -40,6 +40,7 @@ async function loadProfiles() {
       <div class="meta">${p.question_count} questions</div>
       ${p.consent_obtained ? '<span style="color:var(--correct);font-size:12px;font-weight:700">✓ CONSENT</span>' : '<span style="color:var(--wrong);font-size:12px;font-weight:700">⚠ GUEST CONSENT REQUIRED</span>'}
       <span class="status-badge status-${p.scrape_status}">${p.scrape_status}</span>
+      ${p.content_quality ? `<span style="font-size:11px;font-weight:700;color:${p.content_quality==='insufficient'?'var(--wrong)':p.content_quality==='limited'?'var(--accent)':p.content_quality==='rich'?'var(--correct)':'var(--text-secondary)'}">${p.content_quality.toUpperCase()} (${p.content_chunks||0} facts)</span>` : ''}
       ${p.scrape_status === 'done' && p.consent_obtained ? `<button class="btn" style="margin-top:0.5rem;font-size:14px;padding:0.5rem" onclick="event.stopPropagation(); createGame(${p.id})">Host Game</button>` : ''}
       ${p.scrape_status === 'done' && !p.consent_obtained ? `<button class="btn" style="margin-top:0.5rem;font-size:14px;padding:0.5rem;color:var(--accent)" onclick="event.stopPropagation(); requestConsentLink(${p.id})">Send to Guest</button>` : ''}
     </div>`).join('');
@@ -74,9 +75,12 @@ async function submitProfile(e) {
   loadProfiles();
   if (p.scrape_status === 'pending') {
     // Auto-scrape if handles provided
-    if (data.reddit_handle || data.manual_facts) {
+    if (data.reddit_handle || data.manual_facts || data.threads_handle || data.pinterest_handle || data.instagram_handle || data.manual_link) {
       toast('Scraping in background...');
-      await fetch(API + `/api/profiles/${p.id}/scrape`, { method: 'POST' });
+      const scrapeRes = await fetch(API + `/api/profiles/${p.id}/scrape`, { method: 'POST' });
+      const scrapeData = await scrapeRes.json().catch(() => ({}));
+      if (scrapeData.warning) toast('⚠ ' + scrapeData.warning);
+      else if (scrapeRes.ok) toast('Scraping complete!');
       loadProfiles();
     }
   }

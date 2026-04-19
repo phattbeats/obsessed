@@ -28,6 +28,8 @@ def _profile(p: Profile) -> ProfileResponse:
         llm_spend_cents=p.llm_spend_cents or 0,
         question_budget=p.question_budget or 50,
         consent_obtained=bool(p.consent_obtained),
+        content_quality=p.content_quality or "",
+        content_chunks=p.content_chunks or 0,
         created_at=p.created_at, updated_at=p.updated_at,
     )
 
@@ -42,7 +44,8 @@ def create_profile(data: ProfileCreate):
                     manual_facts=data.manual_facts,
                     llm_calls=0, llm_spend_cents=0,
                     question_budget=getattr(data, "question_budget", 50) or 50,
-                    consent_obtained=getattr(data, "consent_obtained", False) or False)
+                    consent_obtained=getattr(data, "consent_obtained", False) or False,
+                    content_quality="", content_chunks=0)
         db.add(p)
         db.commit()
         db.refresh(p)
@@ -189,14 +192,34 @@ async def trigger_scrape(profile_id: int):
         
         raw = "\n".join(raw_parts)
         p.raw_content = raw[:50000]  # cap at 50k chars
+
+        # Estimate content quality from scraped chunks
+        import re as _re
+        chunks = [ch.strip() for ch in raw.split("\n\n") if len(ch.strip()) > 40]
+        p.content_chunks = len(chunks)
+        if len(chunks) < 15:
+            p.content_quality = "insufficient"
+        elif len(chunks) < 30:
+            p.content_quality = "limited"
+        elif len(chunks) <= 100:
+            p.content_quality = "adequate"
+        else:
+            p.content_quality = "rich"
+            p.content_chunks = 100  # cap at 100 for rich
+
         p.scrape_status = "done"
         p.updated_at = int(__import__("datetime").datetime.utcnow().timestamp())
         db.commit()
-        
+        scrape_warning = None
+        if p.content_quality == "insufficient":
+            scrape_warning = f"Not enough content. Need at least 15 facts, got {len(chunks)}. Add more handles or use manual entry."
+        elif p.content_quality == "limited":
+            scrape_warning = f"Limited content ({len(chunks)} facts) — generating shortened 25-question game."
+
         # Trigger question generation
         await _generate_questions_async(p.id, raw, p.name, budget=p.question_budget)
         
-        return {"ok": True, "status": "done"}
+        return {"ok": True, "status": "done", "warning": scrape_warning, "content_quality": p.content_quality, "content_chunks": p.content_chunks}
     except Exception as e:
         p.scrape_status = "failed"
         p.scrape_error = str(e)[:500]
@@ -233,7 +256,11 @@ async def _generate_questions_async(profile_id: int, raw_content: str, name: str
             questions = generate_from_manual(raw_content, name)
 
         budget = budget or 50
-        questions = questions[:budget]  # enforce budget cap
+        # Reduce question count for limited content
+        max_q = budget if budget else 50
+        if p and p.content_quality == "limited":
+            max_q = min(25, max_q)
+        questions = questions[:max_q]  # enforce budget + quality cap
 
         for q in questions:
             db.add(Question(
