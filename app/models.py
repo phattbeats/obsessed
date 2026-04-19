@@ -15,6 +15,7 @@ class ProfileCreate(BaseModel):
     instagram_handle: str = ""
     manual_link: str = ""
     manual_facts: str = ""
+    question_budget: int = 50
 
 class ProfileUpdate(BaseModel):
     name: Optional[str] = None
@@ -28,6 +29,9 @@ class ProfileUpdate(BaseModel):
     instagram_handle: Optional[str] = None
     manual_link: Optional[str] = None
     manual_facts: Optional[str] = None
+    llm_calls: Optional[int] = None
+    llm_spend_cents: Optional[int] = None
+    question_budget: Optional[int] = None
 
 class ProfileResponse(BaseModel):
     id: int
@@ -45,6 +49,12 @@ class ProfileResponse(BaseModel):
     scrape_status: str
     scrape_error: str
     question_count: int
+    llm_calls: int
+    llm_spend_cents: int
+    question_budget: int
+    llm_calls: int
+    llm_spend_cents: int
+    question_budget: int
     created_at: int
     updated_at: int
 

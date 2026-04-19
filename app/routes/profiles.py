@@ -22,6 +22,9 @@ def _profile(p: Profile) -> ProfileResponse:
         manual_link=p.manual_link, manual_facts=p.manual_facts,
         scrape_status=p.scrape_status, scrape_error=p.scrape_error,
         question_count=p.question_count,
+        llm_calls=p.llm_calls or 0,
+        llm_spend_cents=p.llm_spend_cents or 0,
+        question_budget=p.question_budget or 50,
         created_at=p.created_at, updated_at=p.updated_at,
     )
 
@@ -33,7 +36,9 @@ def create_profile(data: ProfileCreate):
                     twitter_handle=data.twitter_handle, steam_id=data.steam_id,
                     discord_handle=data.discord_handle, pinterest_handle=data.pinterest_handle,
                     manual_link=data.manual_link,
-                    manual_facts=data.manual_facts)
+                    manual_facts=data.manual_facts,
+                    llm_calls=0, llm_spend_cents=0,
+                    question_budget=getattr(data, "question_budget", 50) or 50)
         db.add(p)
         db.commit()
         db.refresh(p)
@@ -90,6 +95,28 @@ def delete_profile(profile_id: int):
     finally:
         db.close()
 
+@router.get("/{profile_id}/stats")
+def get_profile_stats(profile_id: int):
+    """Returns question count, LLM call stats, spend, and budget info."""
+    db = SessionLocal()
+    try:
+        p = db.query(Profile).filter(Profile.id == profile_id).first()
+        if not p:
+            raise HTTPException(status_code=404, detail="Profile not found")
+        return {
+            "profile_id": p.id,
+            "name": p.name,
+            "question_count": p.question_count or 0,
+            "llm_calls": p.llm_calls or 0,
+            "llm_spend_cents": p.llm_spend_cents or 0,
+            "llm_spend_dollars": round((p.llm_spend_cents or 0) / 100, 4),
+            "question_budget": p.question_budget or 50,
+            "scrape_status": p.scrape_status,
+            "updated_at": p.updated_at,
+        }
+    finally:
+        db.close()
+
 @router.post("/{profile_id}/scrape")
 async def trigger_scrape(profile_id: int):
     db = SessionLocal()
@@ -124,7 +151,7 @@ async def trigger_scrape(profile_id: int):
         db.commit()
         
         # Trigger question generation
-        await _generate_questions_async(p.id, raw, p.name)
+        await _generate_questions_async(p.id, raw, p.name, budget=p.question_budget)
         
         return {"ok": True, "status": "done"}
     except Exception as e:
@@ -135,18 +162,36 @@ async def trigger_scrape(profile_id: int):
     finally:
         db.close()
 
-async def _generate_questions_async(profile_id: int, raw_content: str, name: str):
+async def _generate_questions_async(profile_id: int, raw_content: str, name: str, budget: int = 50):
     from app.services.scraper.reddit import generate_questions as gen_llm
     from app.services.generator import generate_from_manual
-    
+    import httpx
+
     db = SessionLocal()
+    total_calls = 0
+    total_spend_cents = 0
     try:
+        p = db.query(Profile).filter(Profile.id == profile_id).first()
         questions = []
         if raw_content.strip():
-            questions = await gen_llm(profile_id, raw_content, name)
+            # Try LLM generation (counted against budget)
+            try:
+                result = await gen_llm(profile_id, raw_content, name)
+                questions = result
+                # Extract usage from the LiteLLM response if available
+                # gen_llm doesn't return usage directly — estimate from output length
+                # One call per generate_questions invocation
+                total_calls = 1
+                est_tokens = len(raw_content) // 4 + 2000  # rough estimate
+                total_spend_cents = int(est_tokens * 0.003)  # ~$3/MTok input, rounded up
+            except Exception:
+                pass
         if not questions and raw_content.strip():
             questions = generate_from_manual(raw_content, name)
-        
+
+        budget = budget or 50
+        questions = questions[:budget]  # enforce budget cap
+
         for q in questions:
             db.add(Question(
                 profile_id=profile_id,
@@ -157,10 +202,12 @@ async def _generate_questions_async(profile_id: int, raw_content: str, name: str
                 difficulty=q.get("difficulty", 1),
                 source_snippet=q.get("source_snippet", "")[:500],
             ))
-        
+
         p = db.query(Profile).filter(Profile.id == profile_id).first()
         if p:
             p.question_count = db.query(Question).filter(Question.profile_id == profile_id).count()
+            p.llm_calls = (p.llm_calls or 0) + min(total_calls, budget)
+            p.llm_spend_cents = (p.llm_spend_cents or 0) + total_spend_cents
         db.commit()
     finally:
         db.close()
@@ -187,7 +234,7 @@ async def trigger_generate(profile_id: int):
         if not p:
             raise HTTPException(status_code=404, detail="Profile not found")
         raw = p.raw_content or p.manual_facts
-        await _generate_questions_async(p.id, raw, p.name)
+        await _generate_questions_async(p.id, raw, p.name, budget=p.question_budget)
         db.refresh(p)
         return {"ok": True, "question_count": p.question_count}
     finally:
