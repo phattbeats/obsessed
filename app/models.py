@@ -13,6 +13,7 @@ class ProfileCreate(BaseModel):
     pinterest_handle: str = ""
     threads_handle: str = ""
     instagram_handle: str = ""
+    google_places_handle: str = ""
     manual_link: str = ""
     manual_facts: str = ""
     question_budget: int = 50
@@ -30,6 +31,7 @@ class ProfileUpdate(BaseModel):
     pinterest_handle: Optional[str] = None
     threads_handle: Optional[str] = None
     instagram_handle: Optional[str] = None
+    google_places_handle: Optional[str] = None
     manual_link: Optional[str] = None
     manual_facts: Optional[str] = None
     llm_calls: Optional[int] = None
@@ -50,6 +52,7 @@ class ProfileResponse(BaseModel):
     pinterest_handle: str
     threads_handle: str
     instagram_handle: str
+    google_places_handle: str
     manual_link: str
     manual_facts: str
     scrape_status: str

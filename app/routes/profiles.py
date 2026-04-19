@@ -7,6 +7,7 @@ from app.services.scraper.pinterest import scrape_pinterest
 from app.services.scraper.threads import scrape_threads
 from app.services.scraper.instagram import scrape_instagram
 from app.services.scraper.crawl4ai import crawl4ai_scrape
+from app.services.scraper.places import scrape_places
 from app.services.generator import generate_from_manual
 import json
 import hashlib, hmac, time as _time_module
@@ -21,6 +22,7 @@ def _profile(p: Profile) -> ProfileResponse:
         pinterest_handle=p.pinterest_handle,
         threads_handle=p.threads_handle,
         instagram_handle=p.instagram_handle,
+        google_places_handle=p.google_places_handle or "",
         manual_link=p.manual_link, manual_facts=p.manual_facts,
         scrape_status=p.scrape_status, scrape_error=p.scrape_error,
         question_count=p.question_count,
@@ -188,6 +190,10 @@ async def trigger_scrape(profile_id: int):
         if p.manual_link:
             text, meta = await crawl4ai_scrape(p.manual_link)
             if text and len(text) > 20:
+                raw_parts.append(text)
+        if p.google_places_handle:
+            text, _ = await scrape_places(p.google_places_handle)
+            if text:
                 raw_parts.append(text)
         
         raw = "\n".join(raw_parts)
