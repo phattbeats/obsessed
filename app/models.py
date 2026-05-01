@@ -14,6 +14,9 @@ class ProfileCreate(BaseModel):
     threads_handle: str = ""
     instagram_handle: str = ""
     google_places_handle: str = ""
+    wikipedia_handle: str = ""
+    osm_query: str = ""
+    travel_url: str = ""
     manual_link: str = ""
     manual_facts: str = ""
     question_budget: int = 50
@@ -32,6 +35,9 @@ class ProfileUpdate(BaseModel):
     threads_handle: Optional[str] = None
     instagram_handle: Optional[str] = None
     google_places_handle: Optional[str] = None
+    wikipedia_handle: Optional[str] = None
+    osm_query: Optional[str] = None
+    travel_url: Optional[str] = None
     manual_link: Optional[str] = None
     manual_facts: Optional[str] = None
     llm_calls: Optional[int] = None
@@ -53,6 +59,9 @@ class ProfileResponse(BaseModel):
     threads_handle: str
     instagram_handle: str
     google_places_handle: str
+    wikipedia_handle: str
+    osm_query: str
+    travel_url: str
     manual_link: str
     manual_facts: str
     scrape_status: str

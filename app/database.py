@@ -25,6 +25,9 @@ class Profile(Base):
     threads_handle = Column(String(200), default="")
     instagram_handle = Column(String(200), default="")
     google_places_handle = Column(String(500), default="")  # comma-separated business names
+    wikipedia_handle = Column(String(500), default="")  # place name for Wikipedia scrape
+    osm_query = Column(String(500), default="")  # place name for OpenStreetMap
+    travel_url = Column(String(500), default="")  # travel blog or TripAdvisor URL
     manual_link = Column(String(500), default="")
     manual_facts = Column(Text, default="")
     scrape_status = Column(String(50), default="pending")  # pending|scraping|done|failed

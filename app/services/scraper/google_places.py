@@ -6,7 +6,7 @@ Each source feeds into the shared question-generation pipeline.
 import asyncio
 from app.services.scraper.wikipedia import scrape_wikipedia, search_wikipedia
 from app.services.scraper.osm import scrape_osm, search_osm
-from app.services.scraper.google_places import scrape_places as scrape_google_places
+from app.services.scraper.places import scrape_places as scrape_google_places
 from app.services.scraper.travel import (
     scrape_tripadvisor_url,
     scrape_travel_blog,

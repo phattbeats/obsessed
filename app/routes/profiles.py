@@ -23,6 +23,9 @@ def _profile(p: Profile) -> ProfileResponse:
         threads_handle=p.threads_handle,
         instagram_handle=p.instagram_handle,
         google_places_handle=p.google_places_handle or "",
+        wikipedia_handle=p.wikipedia_handle or "",
+        osm_query=p.osm_query or "",
+        travel_url=p.travel_url or "",
         manual_link=p.manual_link, manual_facts=p.manual_facts,
         scrape_status=p.scrape_status, scrape_error=p.scrape_error,
         question_count=p.question_count,
@@ -42,6 +45,9 @@ def create_profile(data: ProfileCreate):
         p = Profile(name=data.name, bio=data.bio, reddit_handle=data.reddit_handle,
                     twitter_handle=data.twitter_handle, steam_id=data.steam_id,
                     discord_handle=data.discord_handle, pinterest_handle=data.pinterest_handle,
+                    wikipedia_handle=getattr(data, "wikipedia_handle", "") or "",
+                    osm_query=getattr(data, "osm_query", "") or "",
+                    travel_url=getattr(data, "travel_url", "") or "",
                     manual_link=data.manual_link,
                     manual_facts=data.manual_facts,
                     llm_calls=0, llm_spend_cents=0,
@@ -192,8 +198,23 @@ async def trigger_scrape(profile_id: int):
             if text and len(text) > 20:
                 raw_parts.append(text)
         if p.google_places_handle:
-            text, _ = await scrape_places(p.google_places_handle)
-            if text:
+            text, _ = await scrape_places(google_places_query=p.google_places_handle)
+            if text and not text.startswith("[Places: no data"):
+                raw_parts.append(text)
+        if p.wikipedia_handle:
+            from app.services.scraper.wikipedia import scrape_wikipedia
+            text, _ = await scrape_wikipedia(p.wikipedia_handle)
+            if text and not text.startswith("[Wikipedia error"):
+                raw_parts.append(text)
+        if p.osm_query:
+            from app.services.scraper.osm import scrape_osm
+            text, _ = await scrape_osm(p.osm_query)
+            if text and not text.startswith("[OpenStreetMap: no results"):
+                raw_parts.append(text)
+        if p.travel_url:
+            from app.services.scraper.travel import scrape_travel_blog
+            text, _ = await scrape_travel_blog(p.travel_url)
+            if text and len(text) > 50:
                 raw_parts.append(text)
         
         raw = "\n".join(raw_parts)
