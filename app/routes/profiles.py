@@ -9,6 +9,7 @@ from app.services.scraper.instagram import scrape_instagram
 from app.services.scraper.crawl4ai import crawl4ai_scrape
 from app.services.scraper.places import scrape_places
 from app.services.scraper.things import scrape_things
+from app.services.scraper.events import scrape_events
 from app.services.generator import generate_from_manual
 import json
 import hashlib, hmac, time as _time_module
@@ -29,6 +30,7 @@ def _profile(p: Profile) -> ProfileResponse:
         travel_url=p.travel_url or "",
         wikidata_query=p.wikidata_query or "",
         openlibrary_query=p.openlibrary_query or "",
+        gdelt_query=p.gdelt_query or "",
         manual_link=p.manual_link, manual_facts=p.manual_facts,
         scrape_status=p.scrape_status, scrape_error=p.scrape_error,
         question_count=p.question_count,
@@ -53,6 +55,7 @@ def create_profile(data: ProfileCreate):
                     travel_url=getattr(data, "travel_url", "") or "",
                     wikidata_query=getattr(data, "wikidata_query", "") or "",
                     openlibrary_query=getattr(data, "openlibrary_query", "") or "",
+                    gdelt_query=getattr(data, "gdelt_query", "") or "",
                     manual_link=data.manual_link,
                     manual_facts=data.manual_facts,
                     llm_calls=0, llm_spend_cents=0,
@@ -228,6 +231,10 @@ async def trigger_scrape(profile_id: int):
         if p.openlibrary_query:
             text, _ = await scrape_things(openlibrary_query=p.openlibrary_query)
             if text and not text.startswith("[Things: no data"):
+                raw_parts.append(text)
+        if p.gdelt_query:
+            text, _ = await scrape_events(gdelt_query=p.gdelt_query)
+            if text and not text.startswith("[Events: no data"):
                 raw_parts.append(text)
         
         raw = "\n".join(raw_parts)

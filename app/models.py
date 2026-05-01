@@ -19,6 +19,7 @@ class ProfileCreate(BaseModel):
     travel_url: str = ""
     wikidata_query: str = ""
     openlibrary_query: str = ""
+    gdelt_query: str = ""
     manual_link: str = ""
     manual_facts: str = ""
     question_budget: int = 50
@@ -42,6 +43,7 @@ class ProfileUpdate(BaseModel):
     travel_url: Optional[str] = None
     wikidata_query: Optional[str] = None
     openlibrary_query: Optional[str] = None
+    gdelt_query: Optional[str] = None
     manual_link: Optional[str] = None
     manual_facts: Optional[str] = None
     llm_calls: Optional[int] = None
@@ -68,6 +70,7 @@ class ProfileResponse(BaseModel):
     travel_url: str
     wikidata_query: str
     openlibrary_query: str
+    gdelt_query: str
     manual_link: str
     manual_facts: str
     scrape_status: str
