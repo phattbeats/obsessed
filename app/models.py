@@ -17,12 +17,14 @@ class ProfileCreate(BaseModel):
     wikipedia_handle: str = ""
     osm_query: str = ""
     travel_url: str = ""
+    wikidata_query: str = ""
+    openlibrary_query: str = ""
     manual_link: str = ""
     manual_facts: str = ""
     question_budget: int = 50
     consent_obtained: bool = False
-    content_quality: str
-    content_chunks: int
+    content_quality: str = ""
+    content_chunks: int = 0
 
 class ProfileUpdate(BaseModel):
     name: Optional[str] = None
@@ -38,6 +40,8 @@ class ProfileUpdate(BaseModel):
     wikipedia_handle: Optional[str] = None
     osm_query: Optional[str] = None
     travel_url: Optional[str] = None
+    wikidata_query: Optional[str] = None
+    openlibrary_query: Optional[str] = None
     manual_link: Optional[str] = None
     manual_facts: Optional[str] = None
     llm_calls: Optional[int] = None
@@ -62,6 +66,8 @@ class ProfileResponse(BaseModel):
     wikipedia_handle: str
     osm_query: str
     travel_url: str
+    wikidata_query: str
+    openlibrary_query: str
     manual_link: str
     manual_facts: str
     scrape_status: str

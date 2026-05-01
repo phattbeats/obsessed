@@ -28,6 +28,8 @@ class Profile(Base):
     wikipedia_handle = Column(String(500), default="")  # place name for Wikipedia scrape
     osm_query = Column(String(500), default="")  # place name for OpenStreetMap
     travel_url = Column(String(500), default="")  # travel blog or TripAdvisor URL
+    wikidata_query = Column(String(500), default="")  # Wikidata search query (for things)
+    openlibrary_query = Column(String(500), default="")  # OpenLibrary search query (for things)
     manual_link = Column(String(500), default="")
     manual_facts = Column(Text, default="")
     scrape_status = Column(String(50), default="pending")  # pending|scraping|done|failed

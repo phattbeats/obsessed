@@ -8,6 +8,7 @@ from app.services.scraper.threads import scrape_threads
 from app.services.scraper.instagram import scrape_instagram
 from app.services.scraper.crawl4ai import crawl4ai_scrape
 from app.services.scraper.places import scrape_places
+from app.services.scraper.things import scrape_things
 from app.services.generator import generate_from_manual
 import json
 import hashlib, hmac, time as _time_module
@@ -26,6 +27,8 @@ def _profile(p: Profile) -> ProfileResponse:
         wikipedia_handle=p.wikipedia_handle or "",
         osm_query=p.osm_query or "",
         travel_url=p.travel_url or "",
+        wikidata_query=p.wikidata_query or "",
+        openlibrary_query=p.openlibrary_query or "",
         manual_link=p.manual_link, manual_facts=p.manual_facts,
         scrape_status=p.scrape_status, scrape_error=p.scrape_error,
         question_count=p.question_count,
@@ -48,6 +51,8 @@ def create_profile(data: ProfileCreate):
                     wikipedia_handle=getattr(data, "wikipedia_handle", "") or "",
                     osm_query=getattr(data, "osm_query", "") or "",
                     travel_url=getattr(data, "travel_url", "") or "",
+                    wikidata_query=getattr(data, "wikidata_query", "") or "",
+                    openlibrary_query=getattr(data, "openlibrary_query", "") or "",
                     manual_link=data.manual_link,
                     manual_facts=data.manual_facts,
                     llm_calls=0, llm_spend_cents=0,
@@ -215,6 +220,14 @@ async def trigger_scrape(profile_id: int):
             from app.services.scraper.travel import scrape_travel_blog
             text, _ = await scrape_travel_blog(p.travel_url)
             if text and len(text) > 50:
+                raw_parts.append(text)
+        if p.wikidata_query:
+            text, _ = await scrape_things(wikidata_query=p.wikidata_query)
+            if text and not text.startswith("[Things: no data"):
+                raw_parts.append(text)
+        if p.openlibrary_query:
+            text, _ = await scrape_things(openlibrary_query=p.openlibrary_query)
+            if text and not text.startswith("[Things: no data"):
                 raw_parts.append(text)
         
         raw = "\n".join(raw_parts)
