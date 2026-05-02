@@ -1,3 +1,4 @@
+sha: 826a3f607f453b81cccc80cfea0633ead9fb4e3b
 name: Build and Push to Docker Hub
 
 on:
@@ -25,10 +26,10 @@ jobs:
           TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
           if [ -n "$TAG" ]; then
             echo "version=$TAG" >> $GITHUB_OUTPUT
-            echo "tags=phattbeatts/obsessed:$TAG,phattbeatts/obsessed:latest,phattbeatts/obsessed:$SHA" >> $GITHUB_OUTPUT
+            echo "tags=phattbeats/obsessed:$TAG,phattbeats/obsessed:latest,phattbeats/obsessed:$SHA" >> $GITHUB_OUTPUT
           else
             echo "version=$SHA" >> $GITHUB_OUTPUT
-            echo "tags=phattbeatts/obsessed:$SHA,phattbeatts/obsessed:latest" >> $GITHUB_OUTPUT
+            echo "tags=phattbeats/obsessed:$SHA,phattbeats/obsessed:latest" >> $GITHUB_OUTPUT
           fi
 
       - name: Set up QEMU for multi-arch
