@@ -7,6 +7,7 @@ import httpx
 import re
 import json
 from app.services.scraper.rate_limiter import WIKIDATA_LIMITER, retry_with_backoff
+from app.services.entity_cache import get_cached, write_cached
 
 WD_API = "https://www.wikidata.org/wiki/Special:EntityData"
 WD_SPARQL = "https://query.wikidata.org/sparql"
@@ -108,7 +109,7 @@ def _extract_property_values(claims: dict, prop_id: str) -> list[str]:
     return values
 
 
-async def scrape_wikidata(entity_id: str) -> tuple[str, dict]:
+async def scrape_wikidata(entity_id: str, entity_type: str = "thing") -> tuple[str, dict]:
     """
     Fetch and format Wikidata entity as readable text.
     Returns (raw_text, metadata).
@@ -197,6 +198,11 @@ async def scrape_wikidata(entity_id: str) -> tuple[str, dict]:
 
         # P180 = described by source
         return "\n".join(raw_parts), meta
+
+    # WRITE TO CACHE
+    write_cached(entity_id, entity_type, "\n".join(raw_parts), meta.get("label", ""))
+
+    return "\n".join(raw_parts), meta
 
     except Exception as e:
         return f"[Wikidata parse error for {entity_id}: {e}]", {}

@@ -4,6 +4,7 @@ Free API, no auth, good structured data on published works.
 """
 import httpx
 import re
+from app.services.entity_cache import get_cached, write_cached
 
 OL_API = "https://openlibrary.org"
 
@@ -14,6 +15,15 @@ async def search_openlibrary(query: str, max_results: int = 3) -> list[dict]:
     Returns list of {key, title, author, year, cover_i}.
     """
     try:
+        async with httpx.AsyncClient
+
+    # CHECK CACHE FIRST
+    cached = get_cached(key, entity_type)
+    if cached:
+        raw_content, meta = cached
+        return raw_content, meta  # CACHE HIT
+
+try:
         async with httpx.AsyncClient(timeout=15.0) as client:
             r = await client.get(
                 f"{OL_API}/search.json",
@@ -39,12 +49,21 @@ async def search_openlibrary(query: str, max_results: int = 3) -> list[dict]:
         return []
 
 
-async def scrape_openlibrary(key: str) -> tuple[str, dict]:
+async def scrape_openlibrary(key: str, entity_type: str = "thing") -> tuple[str, dict]:
     """
     Fetch a specific OpenLibrary work/edition by key (e.g. '/works/OL123W').
     Returns (raw_text, metadata).
     """
     try:
+        async with httpx.AsyncClient
+
+    # CHECK CACHE FIRST
+    cached = get_cached(key, entity_type)
+    if cached:
+        raw_content, meta = cached
+        return raw_content, meta  # CACHE HIT
+
+try:
         async with httpx.AsyncClient(timeout=15.0) as client:
             r = await client.get(f"{OL_API}{key}.json")
             if r.status_code != 200:
@@ -104,6 +123,11 @@ async def scrape_openlibrary(key: str) -> tuple[str, dict]:
                     raw_parts.append(f"Created: {date}")
 
             return "\n".join(raw_parts), meta
+
+    # WRITE TO CACHE
+    write_cached(key, entity_type, "\n".join(raw_parts), meta.get("key", ""))
+
+    return "\n".join(raw_parts), meta
 
     except Exception as e:
         return f"[OpenLibrary scrape error for {key}: {e}]", {}

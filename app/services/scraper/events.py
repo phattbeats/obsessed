@@ -67,6 +67,13 @@ async def scrape_events(
     from app.services.scraper.wikipedia import scrape_wikipedia
     from app.services.scraper.gdelt import scrape_gdelt
 
+    # Check entity cache first
+    from app.services.entity_cache import get_cached, write_cached
+    cache_key = wikipedia_query or gdelt_query or "event"
+    cached = get_cached(cache_key, "event")
+    if cached:
+        return cached[0], [{"source": "cache", "label": cache_key}]
+
     raw_parts = []
     entries = []
     failed_sources = []
@@ -121,7 +128,11 @@ async def scrape_events(
     if failed_sources:
         raw_parts.append(f"[Sources unavailable: {', '.join(failed_sources)}]")
 
-    return "\n\n---\n\n".join(raw_parts), entries
+    result = "\n\n---\n\n".join(raw_parts)
+    if result and not result.startswith("[Events: no data"):
+        write_cached(cache_key, "event", result)
+
+    return result, entries
 
 
 async def generate_event_questions(profile_id: int, raw_content: str, event_name: str) -> list[dict]:

@@ -5,9 +5,11 @@ Uses the Wikipedia REST API (no auth, no rate limits on public data).
 
 Falls back to Wikipedia HTML scrape (via crawl4ai) if the REST API fails.
 Rate-limit aware: no hard sleeps needed on the public REST API.
+Cache: checks entity_cache before scraping. Cache miss scrapes and writes result.
 """
 import httpx
 import re
+from app.services.entity_cache import get_cached, write_cached
 
 WIKIPEDIA_API = "https://en.wikipedia.org/api/rest_v1"
 
@@ -50,7 +52,7 @@ async def _scrape_via_rest(slug: str, place_name: str) -> tuple[str, dict]:
                         raw_parts.append(clean)
 
             remaining = d2.get("remaining", {}).get("sections", [])
-            for section in remaining[:30]:  # was 10, now 30 for richer content
+            for section in remaining[:30]:
                 text = section.get("text", "")
                 if text:
                     clean = re.sub(r"<[^>]+>", "", text)
@@ -65,32 +67,39 @@ async def _scrape_via_html(place_name: str) -> tuple[str, dict]:
     from app.services.scraper.crawl4ai import crawl4ai_scrape
     url = f"https://en.wikipedia.org/wiki/{place_name.replace(' ', '_')}"
     text, meta = await crawl4ai_scrape(url)
-    # crawl4ai returns (markdown_text, metadata_dict)
     title = (meta or {}).get("title", place_name) if isinstance(meta, dict) else place_name
     return text, {"title": title}
 
 
-async def scrape_wikipedia(place_name: str) -> tuple[str, dict]:
+async def scrape_wikipedia(place_name: str, entity_type: str = "place") -> tuple[str, dict]:
     """
     Fetch Wikipedia summary + content for a place name.
-    Tries REST API first, falls back to HTML scrape (crawl4ai) on failure.
+    Cache check first. On miss: REST API → HTML fallback → write to cache.
     Returns (raw_text, metadata_dict).
     metadata: {title, description, latitude, longitude, url}
     """
+    # Cache check
+    cached = get_cached(place_name, entity_type)
+    if cached:
+        return cached[0], {"cached": True}
+
     slug = place_name.replace(" ", "_")
 
-    # Try REST API
+    # REST API — primary
     try:
         raw_parts, meta = await _scrape_via_rest(slug, place_name)
         if raw_parts:
-            return "\n\n".join(raw_parts[:40]), meta  # was 20, now 40
-    except Exception as e:
-        pass  # fall through to HTML fallback
+            result = "\n\n".join(raw_parts[:40])
+            write_cached(place_name, entity_type, result, meta.get("url", ""))
+            return result, meta
+    except Exception:
+        pass
 
-    # Fallback: HTML scrape via crawl4ai
+    # HTML fallback
     try:
         text, meta = await _scrape_via_html(place_name)
         if text and len(text) > 50:
+            write_cached(place_name, entity_type, text, meta.get("title", ""))
             return text, meta
     except Exception:
         pass

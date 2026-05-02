@@ -8,10 +8,9 @@ Fallback chain:
   OpenStreetMap/Nominatim → GeoNames
   Travel blog URL → Wikipedia summary only (if no travel URL provided)
 
-Each source feeds into the shared question-generation pipeline.
+Cache: checks entity_cache before scraping. Cache miss scrapes and writes result.
 All scrapers are rate-limit aware (no hard sleeps).
 """
-import os
 from app.config import settings
 from app.services.scraper.wikipedia import scrape_wikipedia
 from app.services.scraper.osm import scrape_osm
@@ -29,13 +28,17 @@ async def scrape_places(
     Aggregate place data from all available sources.
     Pass whichever queries/URLs are relevant for the place being researched.
 
-    Sources are tried in priority order. Each completes gracefully even if
-    2/3 sources are down — failed sources return empty/fallback content, not errors.
-
     Returns (raw_text, places_found).
     raw_text: combined content from all sources
     places_found: list of geo objects from OSM search (most useful for geo)
     """
+    # Check entity cache first
+    from app.services.entity_cache import get_cached, write_cached
+    cache_key = wikipedia_query or osm_query or google_places_query or "place"
+    cached = get_cached(cache_key, "place")
+    if cached:
+        return cached[0], []
+
     raw_parts = []
     osm_places = []
     failed_sources = []
@@ -101,7 +104,11 @@ async def scrape_places(
     if failed_sources:
         raw_parts.append(f"[Sources unavailable: {', '.join(failed_sources)}]")
 
-    return "\n\n---\n\n".join(raw_parts), osm_places
+    result = "\n\n---\n\n".join(raw_parts)
+    if result and not result.startswith("[Places: no data"):
+        write_cached(cache_key, "place", result)
+
+    return result, osm_places
 
 
 async def _travel_fallback(wikipedia_query: str) -> str:
@@ -141,7 +148,7 @@ Rules:
     user_prompt = f"Facts about {place_name}:\n{raw_content[: settings.content_max_chars]}"
 
     try:
-        api_key = settings.litellm_api_key or os.environ.get("LITELLM_API_KEY", "")
+        api_key = settings.litellm_api_key or __import__("os").environ.get("LITELLM_API_KEY", "")
         async with httpx.AsyncClient(timeout=60.0) as client:
             resp = await client.post(
                 "http://10.0.0.100:4000/chat/completions",

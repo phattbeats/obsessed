@@ -9,6 +9,7 @@ import httpx
 import re
 from datetime import datetime
 from app.services.scraper.rate_limiter import GDELT_LIMITER, retry_with_backoff
+from app.services.entity_cache import get_cached, write_cached
 
 GDELT_BASE = "https://api.gdeltproject.org/api/v2"
 TIMEOUT = 20.0
@@ -81,7 +82,7 @@ async def get_gdelt_event_timeline(entity: str, mode: str = "timelinevol") -> li
             return []
 
 
-async def scrape_gdelt(query: str) -> tuple[str, list[dict]]:
+async def scrape_gdelt(query: str, entity_type: str = "event") -> tuple[str, list[dict]]:
     """
     Search GDELT for events matching a query and format as readable text.
     Returns (raw_text, articles_found).

@@ -10,6 +10,7 @@ from app.services.scraper.rate_limiter import (
     NOMINATIM_LIMITER,
     retry_with_backoff,
 )
+from app.services.entity_cache import get_cached, write_cached
 
 OSM_NOMINATIM = "https://nominatim.openstreetmap.org"
 OSM_SEARCH_URL = f"{OSM_NOMINATIM}/search"
@@ -80,11 +81,17 @@ async def get_osm_details(place_id: str) -> dict:
             return {}
 
 
-async def scrape_osm(place_name: str) -> tuple[str, list[dict]]:
+async def scrape_osm(place_name: str, entity_type: str = "place") -> tuple[str, list[dict]]:
     """
     Full OSM scrape for a place name.
     Returns (raw_text, places_found).
     """
+    # CHECK CACHE FIRST
+    cached = get_cached(place_name, entity_type)
+    if cached:
+        raw_content, meta = cached
+        return raw_content, meta.get("places_found", [])
+
     places = await search_osm(place_name, max_results=5)
     if not places:
         # Fallback: try GeoNames if Nominatim returns nothing
@@ -106,8 +113,11 @@ async def scrape_osm(place_name: str) -> tuple[str, list[dict]]:
             details = await get_osm_details(p["place_id"])
             extratags = details.get("extratags", {})
             if extratags:
-                for key in ["population", "wikipedia", "landmark", "building", "amenity"]:
+                for key in ["population", "wikipedia", "landmark", "building"]:
                     if key in extratags:
                         raw_parts.append(f"  {key.capitalize()}: {extratags[key]}")
 
-    return "\n\n".join(raw_parts), places
+    result = "\n---\n".join(raw_parts)
+    # WRITE TO CACHE
+    write_cached(place_name, entity_type, result, f"OpenStreetMap: {place_name}")
+    return result, places

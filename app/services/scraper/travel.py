@@ -7,10 +7,12 @@ to Wikipedia summary (the caller handles this via _travel_fallback in places.py)
 """
 import httpx
 import re
+from app.services.scraper.crawl4ai import crawl4ai_scrape
+from app.services.entity_cache import get_cached, write_cached
 
-TRIPADVISOR_SEARCH = "https://www.tripadvisor.com/data/管控/graphql"
+TRIPADVISOR_SEARCH = "https://www.tripadvisor.com/data/control/graphql"
 TA_HEADERS = {
-    "User-Agent": "Mozilla/5.0 (compatible; ObsessedBot/1.0)",
+    "User-Agent": "Mozilla/5.0 (compatible; ObsessedTriviaBot/1.0)",
     "Accept": "application/json",
     "Referer": "https://www.tripadvisor.com/",
 }
@@ -32,15 +34,23 @@ async def scrape_tripadvisor_url(url: str) -> tuple[str, dict]:
     Scrape a TripAdvisor place URL using crawl4ai.
     Extracts: name, rating, review count, address, description, categories.
     """
-    from app.services.scraper.crawl4ai import crawl4ai_scrape
-
+    # CHECK CACHE FIRST
+    cached = get_cached(url, "place")
+    if cached:
+        raw_content, meta = cached
+        return raw_content, meta  # CACHE HIT
+    
     text, meta = await crawl4ai_scrape(url)
     if not text or len(text) < 50:
         return f"[TripAdvisor: scrape failed for {url}]", {}
 
     text = re.sub(r"\[\d+\]", "", text)
     lines = [l.strip() for l in text.split("\n") if len(l.strip()) > 15 and not l.startswith("TripAdvisor Review:")]
-    return "\n".join(lines[:50]), meta
+    result = "\n".join(lines[:50])
+    
+    # WRITE TO CACHE
+    write_cached(url, "place", result, meta.get("title", ""))
+    return result, meta
 
 
 async def scrape_travel_blog(url: str) -> tuple[str, dict]:
@@ -50,16 +60,25 @@ async def scrape_travel_blog(url: str) -> tuple[str, dict]:
     Returns (raw_text, metadata_dict).
     On failure, returns an error message string (caller handles fallback).
     """
-    from app.services.scraper.crawl4ai import crawl4ai_scrape
-
+    # CHECK CACHE FIRST
+    cached = get_cached(url, "place")
+    if cached:
+        raw_content, meta = cached
+        return raw_content, meta  # CACHE HIT
+    
     try:
         text, meta = await crawl4ai_scrape(url)
         if not text or len(text) < 50:
             return f"[Travel blog: scrape failed for {url}]", {}
-        text = re.sub(r"\[\d+]\.", "\n", text)
+
+        text = re.sub(r"\[\d+\].", "\n", text)
         text = re.sub(r"\s+", " ", text).strip()
         lines = [l.strip() for l in text.split("\n") if len(l.strip()) > 30]
-        return "\n".join(lines[:50]), meta
+        result = "\n".join(lines[:50])
+        
+        # WRITE TO CACHE
+        write_cached(url, "place", result, meta.get("title", ""))
+        return result, meta
     except Exception as e:
         return f"[Travel blog: error for {url} — {e}]", {}
 
@@ -69,13 +88,22 @@ async def scrape_generic_place(url: str) -> tuple[str, dict]:
     Generic place scraper — tries crawl4ai on any URL.
     Returns (markdown_text, metadata_dict).
     """
-    from app.services.scraper.crawl4ai import crawl4ai_scrape
-
+    # CHECK CACHE FIRST
+    cached = get_cached(url, "place")
+    if cached:
+        raw_content, meta = cached
+        return raw_content, meta  # CACHE HIT
+    
     try:
         text, meta = await crawl4ai_scrape(url)
         if not text:
             return f"[Places scrape: no content from {url}]", {}
+
         lines = text.split("\n")
-        return "\n".join(lines[:100]), meta
+        result = "\n".join(lines[:100])
+        
+        # WRITE TO CACHE
+        write_cached(url, "place", result, meta.get("title", ""))
+        return result, meta
     except Exception as e:
         return f"[Places scrape: error for {url} — {e}]", {}
