@@ -7,7 +7,7 @@ class Settings(BaseSettings):
     app_name: str = "Obsessed"
     database_url: str = f"sqlite+aiosqlite:///{BASE_DIR}/data/trivia.db"
     litellm_base: str = "http://10.0.0.100:4000"
-    litellm_api_key: str = "sk-vantage"
+    litellm_api_key: str | None = None  # read from LITELLM_API_KEY env var or .env
     question_count: int = 50
     question_timeout: int = 30  # seconds per question
     ws_heartbeat: int = 30

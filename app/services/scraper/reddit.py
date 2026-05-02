@@ -1,8 +1,9 @@
 import asyncio, httpx, json, re
 from typing import Optional
+import os
 
 LITELLM_BASE = "http://10.0.0.100:4000"
-LITELLM_API_KEY = "sk-vantage"
+LITELLM_API_KEY = os.environ.get("LITELLM_API_KEY", "")
 CATEGORIES = ["history", "entertainment", "geography", "science", "sports", "art_literature"]
 
 async def scrape_reddit(handle: str) -> tuple[str, list[dict]]:

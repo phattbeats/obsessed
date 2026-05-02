@@ -7,6 +7,8 @@ import asyncio
 from app.services.scraper.wikipedia import scrape_wikipedia, search_wikipedia
 from app.services.scraper.gdelt import scrape_gdelt
 from app.services.scraper.crawl4ai import crawl4ai_scrape
+from app.config import settings
+import os
 
 # ─── WikiNews ───────────────────────────────────────────────────────────────────
 async def scrape_wikinvas(query: str) -> tuple[str, dict]:
@@ -130,6 +132,8 @@ Rules:
     user_prompt = f"Facts about {event_name}:\n{raw_content[:8000]}"
 
     try:
+        api_key = settings.litellm_api_key or os.environ.get("LITELLM_API_KEY", "")
+        headers = {"Authorization": f"Bearer {api_key}"}
         async with httpx.AsyncClient(timeout=60.0) as client:
             resp = await client.post(
                 "http://10.0.0.100:4000/chat/completions",
@@ -142,7 +146,7 @@ Rules:
                     "temperature": 0.8,
                     "max_tokens": 4000,
                 },
-                headers={"Authorization": "Bearer sk-vantage"},
+                headers=headers,
             )
             resp.raise_for_status()
             content = resp.json()["choices"][0]["message"]["content"]

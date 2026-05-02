@@ -7,6 +7,8 @@ import asyncio
 from app.services.scraper.wikipedia import scrape_wikipedia, search_wikipedia
 from app.services.scraper.wikidata import scrape_wikidata, search_wikidata, scrape_wikidata_by_query
 from app.services.scraper.openlibrary import scrape_openlibrary_by_query
+from app.config import settings
+import os
 
 
 async def scrape_things(
@@ -91,6 +93,8 @@ Rules:
     user_prompt = f"Facts about {thing_name}:\n{raw_content[:8000]}"
 
     try:
+        api_key = settings.litellm_api_key or os.environ.get("LITELLM_API_KEY", "")
+        headers = {"Authorization": f"Bearer {api_key}"}
         async with httpx.AsyncClient(timeout=60.0) as client:
             resp = await client.post(
                 "http://10.0.0.100:4000/chat/completions",
@@ -103,7 +107,7 @@ Rules:
                     "temperature": 0.8,
                     "max_tokens": 4000,
                 },
-                headers={"Authorization": "Bearer sk-vantage"},
+                headers=headers,
             )
             resp.raise_for_status()
             content = resp.json()["choices"][0]["message"]["content"]

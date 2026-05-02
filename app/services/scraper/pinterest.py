@@ -1,12 +1,13 @@
 import json, re
 from typing import Optional
+import os
 
 # CRAWL4AI integration
 CRAWL4AI_URL = "http://crawl4ai:11235"
 CRAWL4AI_TOKEN = "Phatt-tech-2026"
 
 LITELLM_BASE = "http://10.0.0.100:4000"
-LITELLM_API_KEY = "sk-vantage"
+LITELLM_API_KEY = os.environ.get("LITELLM_API_KEY", "")
 
 
 async def scrape_pinterest(handle: str) -> tuple[str, list[dict]]:

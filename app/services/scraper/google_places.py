@@ -4,6 +4,24 @@ Primary sources: Wikipedia, OpenStreetMap, Google Places, travel blogs.
 Each source feeds into the shared question-generation pipeline.
 """
 import asyncio
+import os
+from app.config import settings
+from app.services.scraper.wikipedia import scrape_wikipedia, search_wikipedia
+from app.services.scraper.osm import scrape_osm, search_osm
+from app.services.scraper.places import scrape_places as scrape_google_places
+from app.services.scraper.travel import (
+    scrape_tripadvisor_url,
+    scrape_travel_blog,
+    scrape_generic_place,
+)
+
+import asyncio
+from app.services.scraper.wikipedia import scrape_wikipedia, search_wikipedia
+from app.services.scraper.osm import scrape_osm, search_osm
+from app.services.scraper.places import scrape_places as scrape_google_places
+import asyncio
+import os
+from app.config import settings
 from app.services.scraper.wikipedia import scrape_wikipedia, search_wikipedia
 from app.services.scraper.osm import scrape_osm, search_osm
 from app.services.scraper.places import scrape_places as scrape_google_places
@@ -92,6 +110,8 @@ Rules:
     user_prompt = f"Facts about {place_name}:\n{raw_content[:8000]}"
 
     try:
+        api_key = settings.litellm_api_key or os.environ.get("LITELLM_API_KEY", "")
+        headers = {"Authorization": f"Bearer {api_key}"}
         async with httpx.AsyncClient(timeout=60.0) as client:
             resp = await client.post(
                 "http://10.0.0.100:4000/chat/completions",
@@ -104,7 +124,7 @@ Rules:
                     "temperature": 0.8,
                     "max_tokens": 4000,
                 },
-                headers={"Authorization": "Bearer sk-vantage"},
+                headers=headers,
             )
             resp.raise_for_status()
             content = resp.json()["choices"][0]["message"]["content"]

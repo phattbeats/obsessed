@@ -1,9 +1,10 @@
 import httpx, json, re
 from typing import Optional
+import os
 
 FLARESOLVERR_URL = "http://10.0.0.100:8191/v1"
 LITELLM_BASE = "http://10.0.0.100:4000"
-LITELLM_API_KEY = "sk-vantage"
+LITELLM_API_KEY = os.environ.get("LITELLM_API_KEY", "")
 
 
 async def scrape_instagram(handle: str) -> tuple[str, dict]:
