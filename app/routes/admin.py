@@ -204,6 +204,29 @@ async def rescrape_profile(profile_id: int):
         db.close()
 
 
+@router.post("/cache/delete/all")
+def cache_delete_all():
+    """Delete ALL cached entity content. Irreversible."""
+    from app.services.entity_cache import delete_all_cached
+    count = delete_all_cached()
+    return {"deleted": count, "message": f"Deleted {count} cached entries."}
+
+
+@router.post("/cache/delete/by-date")
+def cache_delete_by_date(from_ts: int, to_ts: int):
+    """Delete cached entries scraped between from_ts and to_ts (unix timestamps)."""
+    from app.services.entity_cache import delete_cached_by_date
+    count = delete_cached_by_date(from_ts, to_ts)
+    return {"deleted": count, "from": from_ts, "to": to_ts}
+
+
+@router.get("/cache/stats")
+def cache_stats():
+    """Return cache statistics: total entries and per-type breakdown."""
+    from app.services.entity_cache import count_cached
+    return count_cached()
+
+
 @router.post("/games/{room_code}/clear")
 def clear_game(room_code: str):
     """

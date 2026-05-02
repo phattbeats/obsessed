@@ -114,7 +114,21 @@ class PlayerStats(Base):
     total_asked = Column(Integer, default=0)
     last_played_at = Column(Integer, default=0)
 
-def init_db():
+
+class EntityCache(Base):
+    """Shared entity cache — scraped content persists across all profiles."""
+    __tablename__ = "entity_cache"
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    entity_name = Column(String(500), nullable=False)
+    entity_type = Column(String(20), nullable=False)   # person|place|thing|event
+    raw_content = Column(Text, default="")             # up to 200K chars
+    scraped_at = Column(Integer, default=lambda: int(datetime.utcnow().timestamp()))
+    source_url = Column(String(500), default="")
+
+    def __repr__(self):
+        return f"<EntityCache {self.entity_type}:{self.entity_name}>"
+
+
     Base.metadata.create_all(bind=engine)
     # Seed categories
     conn = sqlite3.connect(DB_PATH)

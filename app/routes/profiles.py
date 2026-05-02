@@ -185,8 +185,20 @@ async def trigger_scrape(profile_id: int):
         p.scrape_status = "scraping"
         p.scrape_error = ""
         db.commit()
-        
+
         raw_parts = []
+        raw = ""
+
+        # ── Cache check ──────────────────────────────────────────────────────
+        from app.services.entity_cache import get_cached, write_cached
+        cache_hit = get_cached(p.name, p.entity_type)
+        if cache_hit:
+            raw, _ = cache_hit
+            p.scrape_status = "done"
+            db.commit()
+            return  # skip scraping, use cached content
+
+        # ── Scrape ────────────────────────────────────────────────────────────
         if p.reddit_handle:
             text, _ = await scrape_reddit(p.reddit_handle)
             raw_parts.append(text)
@@ -236,9 +248,13 @@ async def trigger_scrape(profile_id: int):
             text, _ = await scrape_events(gdelt_query=p.gdelt_query)
             if text and not text.startswith("[Events: no data"):
                 raw_parts.append(text)
-        
+
         raw = "\n".join(raw_parts)
-        p.raw_content = raw[: settings.content_max_chars]  # cap configurable via CONTENT_MAX_CHARS
+        p.raw_content = raw[: settings.content_max_chars]
+
+        # ── Write to cache ───────────────────────────────────────────────────
+        if raw.strip():
+            write_cached(p.name, p.entity_type, raw)
 
         # Estimate content quality from scraped chunks
         import re as _re
@@ -261,11 +277,11 @@ async def trigger_scrape(profile_id: int):
         if p.content_quality == "insufficient":
             scrape_warning = f"Not enough content. Need at least 15 facts, got {len(chunks)}. Add more handles or use manual entry."
         elif p.content_quality == "limited":
-            scrape_warning = f"Limited content ({len(chunks)} facts) — generating shortened 25-question game."
+            scrape_warning = f"Limited content ({len(chunks)} facts) - generating shortened 25-question game."
 
         # Trigger question generation
         await _generate_questions_async(p.id, raw, p.name, budget=p.question_budget)
-        
+
         return {"ok": True, "status": "done", "warning": scrape_warning, "content_quality": p.content_quality, "content_chunks": p.content_chunks}
     except Exception as e:
         p.scrape_status = "failed"
@@ -292,7 +308,7 @@ async def _generate_questions_async(profile_id: int, raw_content: str, name: str
                 result = await gen_llm(profile_id, raw_content, name)
                 questions = result
                 # Extract usage from the LiteLLM response if available
-                # gen_llm doesn't return usage directly — estimate from output length
+                # gen_llm doesn't return usage directly - estimate from output length
                 # One call per generate_questions invocation
                 total_calls = 1
                 est_tokens = len(raw_content) // 4 + 2000  # rough estimate
