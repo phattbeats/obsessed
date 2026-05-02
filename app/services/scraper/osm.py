@@ -87,6 +87,11 @@ async def scrape_osm(place_name: str) -> tuple[str, list[dict]]:
     """
     places = await search_osm(place_name, max_results=5)
     if not places:
+        # Fallback: try GeoNames if Nominatim returns nothing
+        from app.services.scraper.geonames import scrape_geonames
+        text, fallback_places = await scrape_geonames(place_name)
+        if fallback_places:
+            return text, fallback_places
         return f"[OpenStreetMap: no results for '{place_name}']", []
 
     raw_parts = []

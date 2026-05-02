@@ -69,6 +69,7 @@ async def scrape_events(
 
     raw_parts = []
     entries = []
+    failed_sources = []
 
     # Wikipedia (primary — description, date, location, participants)
     if wikipedia_query:
@@ -76,31 +77,49 @@ async def scrape_events(
         if text and not text.startswith("[Wikipedia error"):
             raw_parts.append(text)
             entries.append({"source": "wikipedia", "label": meta.get("title", wikipedia_query)})
+        else:
+            failed_sources.append("wikipedia")
 
     # GDELT (global events, mentions, coverage timeline)
+    # Non-fatal: if GDELT is down, Wikipedia already has the core event data
     if gdelt_query:
-        text, gdelt_entries = await scrape_gdelt(gdelt_query)
-        if text and not text.startswith("[GDELT: no results") and not text.startswith("[GDELT: no readable"):
-            raw_parts.append(text)
-            entries.append({"source": "gdelt", "label": gdelt_query, "articles": gdelt_entries})
+        try:
+            text, gdelt_entries = await scrape_gdelt(gdelt_query)
+            if text and not text.startswith("[GDELT: no results") and not text.startswith("[GDELT: no readable"):
+                raw_parts.append(text)
+                entries.append({"source": "gdelt", "label": gdelt_query, "articles": gdelt_entries})
+            else:
+                failed_sources.append("gdelt")
+        except Exception:
+            failed_sources.append("gdelt")
 
-    # Wikipedia news search (recent coverage via Wikipedia search)
+    # Wikipedia news search (recent coverage via Wikipedia search) — always runs when gdelt_query given
     if gdelt_query:
         text, meta = await scrape_wikinvas(gdelt_query)
         if text and not text.startswith("[WikiNews") and len(text) > 50:
             raw_parts.append(text)
             entries.append({"source": "wikinews", "label": gdelt_query})
+        else:
+            failed_sources.append("wikinews")
 
     # Generic news URL via crawl4ai
     if news_url:
-        text, meta = await crawl4ai_scrape(news_url)
-        if text and len(text) > 50:
-            title = (meta or {}).get("title", news_url)
-            raw_parts.append(f"[News Source: {title}]\n{text[:5000]}")
-            entries.append({"source": "generic", "label": title})
+        try:
+            text, meta = await crawl4ai_scrape(news_url)
+            if text and len(text) > 50:
+                title = (meta or {}).get("title", news_url)
+                raw_parts.append(f"[News Source: {title}]\n{text[:5000]}")
+                entries.append({"source": "generic", "label": title})
+            else:
+                failed_sources.append("generic_news")
+        except Exception:
+            failed_sources.append("generic_news")
 
     if not raw_parts:
         return "[Events: no data retrieved — check inputs]", []
+
+    if failed_sources:
+        raw_parts.append(f"[Sources unavailable: {', '.join(failed_sources)}]")
 
     return "\n\n---\n\n".join(raw_parts), entries
 
