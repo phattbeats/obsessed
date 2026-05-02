@@ -2,11 +2,13 @@
 GDELT scraper for EVENTS entity type.
 Global DB of world events — dates, locations, actors, themes.
 Free API, no auth required. Rate limit: 1 req/s.
+
+Rate-limit aware: uses GDELT_LIMITER instead of hard sleeps.
 """
 import httpx
-import asyncio
 import re
 from datetime import datetime
+from app.services.scraper.rate_limiter import GDELT_LIMITER, retry_with_backoff
 
 GDELT_BASE = "https://api.gdeltproject.org/api/v2"
 TIMEOUT = 20.0
@@ -16,24 +18,24 @@ async def search_gdelt(query: str, max_events: int = 20) -> list[dict]:
     """
     Search GDELT for events matching a query.
     Returns list of {event_id, date, slug, country, lat, lon, num_sources, tone}.
-    Uses the Timeline Snapshots API (slices by time).
     """
-    await asyncio.sleep(1.1)  # be kind
-    try:
-        async with httpx.AsyncClient(timeout=TIMEOUT) as client:
-            # Use the Search API with a text query
-            r = await client.get(
-                f"{GDELT_BASE}/search/search",
-                params={
-                    "format": "json",
-                    "query": query,
-                    "mode": "artlist",
-                    "maxevents": max_events,
-                    "sort": "DateDesc",
-                },
+    async with GDELT_LIMITER:
+        try:
+            resp = await retry_with_backoff(
+                lambda: httpx.AsyncClient(timeout=TIMEOUT).get(
+                    f"{GDELT_BASE}/search/search",
+                    params={
+                        "format": "json",
+                        "query": query,
+                        "mode": "artlist",
+                        "maxevents": max_events,
+                        "sort": "DateDesc",
+                    },
+                ),
+                max_retries=3,
             )
-            r.raise_for_status()
-            data = r.json()
+            resp.raise_for_status()
+            data = resp.json()
             events = []
             for art in data.get("articles", [])[:max_events]:
                 events.append({
@@ -44,8 +46,8 @@ async def search_gdelt(query: str, max_events: int = 20) -> list[dict]:
                     "language": art.get("language", ""),
                 })
             return events
-    except Exception:
-        return []
+        except Exception:
+            return []
 
 
 async def get_gdelt_event_timeline(entity: str, mode: str = "timelinevol") -> list[dict]:
@@ -54,28 +56,29 @@ async def get_gdelt_event_timeline(entity: str, mode: str = "timelinevol") -> li
     mode: timelinevol | timelinetone | timelinecountry | timelinegloc
     Returns list of {date, value} snapshots.
     """
-    await asyncio.sleep(1.1)
-    try:
-        async with httpx.AsyncClient(timeout=TIMEOUT) as client:
-            r = await client.get(
-                f"{GDELT_BASE}/timeline/timeline",
-                params={
-                    "format": "json",
-                    "theme": entity,
-                    "mode": mode,
-                    "start": "20180101000000",
-                    "end": "20260101000000",
-                },
+    async with GDELT_LIMITER:
+        try:
+            resp = await retry_with_backoff(
+                lambda: httpx.AsyncClient(timeout=TIMEOUT).get(
+                    f"{GDELT_BASE}/timeline/timeline",
+                    params={
+                        "format": "json",
+                        "theme": entity,
+                        "mode": mode,
+                        "start": "20180101000000",
+                        "end": "20260101000000",
+                    },
+                ),
+                max_retries=3,
             )
-            r.raise_for_status()
-            d = r.json()
-            # Parse array of {date, value} points
+            resp.raise_for_status()
+            d = resp.json()
             return [
                 {"date": p.get("date", ""), "value": p.get("value", 0)}
                 for p in d.get("timeline", [])[:50]
             ]
-    except Exception:
-        return []
+        except Exception:
+            return []
 
 
 async def scrape_gdelt(query: str) -> tuple[str, list[dict]]:

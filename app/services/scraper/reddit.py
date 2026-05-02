@@ -1,22 +1,36 @@
+"""
+Reddit scraper for PEOPLE entity type.
+Scrapes Reddit user submitted + comments pages.
+Rate-limit aware: uses REDDIT_LIMITER to prevent 429s.
+"""
 import asyncio, httpx, json, re
 from typing import Optional
 import os
 from app.config import settings
+from app.services.scraper.rate_limiter import REDDIT_LIMITER, retry_with_backoff
 
 LITELLM_BASE = "http://10.0.0.100:4000"
 LITELLM_API_KEY = os.environ.get("LITELLM_API_KEY", "")
 CATEGORIES = ["history", "entertainment", "geography", "science", "sports", "art_literature"]
 
+
 async def scrape_reddit(handle: str) -> tuple[str, list[dict]]:
     """Scrape Reddit user submitted + comments. Returns (raw_text, posts)."""
     raw = []
     headers = {"User-Agent": "Mozilla/5.0 (compatible; ObsessedBot/1.0)"}
-    async with httpx.AsyncClient(timeout=30.0, headers=headers) as client:
+
+    async with REDDIT_LIMITER:
         for endpoint in [f"/u/{handle}/submitted.json", f"/u/{handle}/comments.json"]:
             try:
-                r = await client.get(f"https://www.reddit.com{endpoint}?limit=100")
-                r.raise_for_status()
-                data = r.json()
+                resp = await retry_with_backoff(
+                    lambda: httpx.AsyncClient(timeout=30.0, headers=headers).get(
+                        f"https://www.reddit.com{endpoint}?limit=100"
+                    ),
+                    max_retries=3,
+                    base_delay=2.0,
+                )
+                resp.raise_for_status()
+                data = resp.json()
                 posts = data.get("data", {}).get("children", [])
                 for post in posts:
                     d = post["data"]
@@ -25,7 +39,7 @@ async def scrape_reddit(handle: str) -> tuple[str, list[dict]]:
                         raw.append(f"[Reddit {d.get('subreddit','').lower()}] {text}")
             except Exception:
                 pass
-            await asyncio.sleep(2.1)  # rate limit
+
     return "\n".join(raw), raw
 
 
@@ -59,6 +73,7 @@ Rules:
     user_prompt = f"Facts about {name}:\n{raw_content[: settings.content_max_chars]}"
 
     try:
+        api_key = LITELLM_API_KEY or settings.litellm_api_key
         async with httpx.AsyncClient(timeout=60.0) as client:
             resp = await client.post(
                 f"{LITELLM_BASE}/chat/completions",
@@ -71,11 +86,10 @@ Rules:
                     "temperature": 0.8,
                     "max_tokens": 4000,
                 },
-                headers={"Authorization": f"Bearer {LITELLM_API_KEY}"},
+                headers={"Authorization": f"Bearer {api_key}"},
             )
             resp.raise_for_status()
             content = resp.json()["choices"][0]["message"]["content"]
-            # Strip markdown code blocks if present
             content = re.sub(r"^```json\s*", "", content.strip())
             content = re.sub(r"\s*```$", "", content.strip())
             questions = json.loads(content)

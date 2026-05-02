@@ -2,9 +2,14 @@
 OpenStreetMap scraper for PLACES entity type.
 Provides authoritative lat/lon coordinates, place type, and structured address data.
 Uses Nominatim (official OSM geocoder) — rate limited to 1 req/s.
+
+Rate-limit aware: uses NOMINATIM_LIMITER to enforce 1 req/s without hard sleeps.
 """
 import httpx
-import asyncio
+from app.services.scraper.rate_limiter import (
+    NOMINATIM_LIMITER,
+    retry_with_backoff,
+)
 
 OSM_NOMINATIM = "https://nominatim.openstreetmap.org"
 OSM_SEARCH_URL = f"{OSM_NOMINATIM}/search"
@@ -15,23 +20,25 @@ async def search_osm(query: str, max_results: int = 5) -> list[dict]:
     """
     Search OpenStreetMap via Nominatim for a place.
     Returns list of {place_id, osm_type, display_name, lat, lon, type, class}.
-    Rate limited: 1 req/s.
+    Rate limited: 1 req/s via NOMINATIM_LIMITER (no hard sleep).
     """
-    await asyncio.sleep(1.1)  # Nominatim requires max 1 req/s
-    try:
-        async with httpx.AsyncClient(timeout=15.0) as client:
-            r = await client.get(
-                OSM_SEARCH_URL,
-                params={
-                    "q": query,
-                    "format": "json",
-                    "limit": max_results,
-                    "addressdetails": 1,
-                },
-                headers={"User-Agent": "ObsessedTriviaBot/1.0 (phatt.tech)"},
+    async with NOMINATIM_LIMITER:
+        try:
+            resp = await retry_with_backoff(
+                lambda: httpx.AsyncClient(timeout=15.0).get(
+                    OSM_SEARCH_URL,
+                    params={
+                        "q": query,
+                        "format": "json",
+                        "limit": max_results,
+                        "addressdetails": 1,
+                    },
+                    headers={"User-Agent": "ObsessedTriviaBot/1.0 (phatt.tech)"},
+                ),
+                max_retries=3,
             )
-            r.raise_for_status()
-            data = r.json()
+            resp.raise_for_status()
+            data = resp.json()
             results = []
             for item in data[:max_results]:
                 results.append({
@@ -44,8 +51,8 @@ async def search_osm(query: str, max_results: int = 5) -> list[dict]:
                     "type_details": item.get("type", ""),
                 })
             return results
-    except Exception as e:
-        return []
+        except Exception:
+            return []
 
 
 async def get_osm_details(place_id: str) -> dict:
@@ -53,22 +60,24 @@ async def get_osm_details(place_id: str) -> dict:
     Fetch full details for an OSM place by place_id.
     Returns {type, population, wikipedia, landmark, building details, etc.}
     """
-    await asyncio.sleep(1.1)
-    try:
-        async with httpx.AsyncClient(timeout=15.0) as client:
-            r = await client.get(
-                OSM_DETAILS_URL,
-                params={
-                    "place_id": place_id,
-                    "format": "json",
-                    "extratags": 1,
-                },
-                headers={"User-Agent": "ObsessedTriviaBot/1.0 (phatt.tech)"},
+    async with NOMINATIM_LIMITER:
+        try:
+            resp = await retry_with_backoff(
+                lambda: httpx.AsyncClient(timeout=15.0).get(
+                    OSM_DETAILS_URL,
+                    params={
+                        "place_id": place_id,
+                        "format": "json",
+                        "extratags": 1,
+                    },
+                    headers={"User-Agent": "ObsessedTriviaBot/1.0 (phatt.tech)"},
+                ),
+                max_retries=3,
             )
-            r.raise_for_status()
-            return r.json()
-    except Exception:
-        return {}
+            resp.raise_for_status()
+            return resp.json()
+        except Exception:
+            return {}
 
 
 async def scrape_osm(place_name: str) -> tuple[str, list[dict]]:
@@ -88,7 +97,6 @@ async def scrape_osm(place_name: str) -> tuple[str, list[dict]]:
             f"  Coordinates: {p.get('lat')}, {p.get('lon')}"
         )
 
-        # Fetch extra details for first/best result
         if p.get("place_id"):
             details = await get_osm_details(p["place_id"])
             extratags = details.get("extratags", {})

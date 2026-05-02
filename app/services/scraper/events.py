@@ -3,9 +3,7 @@ Events scraper — aggregates multiple sources for EVENTS entity type.
 Sources: Wikipedia, GDELT (global events DB), WikiNews, crawl4ai for generic URLs.
 Each source feeds into the shared question-generation pipeline.
 """
-import asyncio
-from app.services.scraper.wikipedia import scrape_wikipedia, search_wikipedia
-from app.services.scraper.gdelt import scrape_gdelt
+from app.services.scraper.rate_limiter import EVENTS_LIMITER, retry_with_backoff
 from app.services.scraper.crawl4ai import crawl4ai_scrape
 from app.config import settings
 import os
@@ -17,21 +15,23 @@ async def scrape_wikinvas(query: str) -> tuple[str, dict]:
     Uses Wikipedia API with 'news' operator for recent event coverage.
     """
     import httpx
-    await asyncio.sleep(1.0)
-    try:
-        async with httpx.AsyncClient(timeout=15.0) as client:
-            r = await client.get(
-                "https://en.wikipedia.org/w/api.php",
-                params={
-                    "action": "query",
-                    "list": "search",
-                    "srsearch": f"{query} event 2024 OR {query} 2023 OR {query} 2025",
-                    "format": "json",
-                    "srlimit": 5,
-                },
+    async with EVENTS_LIMITER:
+        try:
+            resp = await retry_with_backoff(
+                lambda: httpx.AsyncClient(timeout=15.0).get(
+                    "https://en.wikipedia.org/w/api.php",
+                    params={
+                        "action": "query",
+                        "list": "search",
+                        "srsearch": f"{query} event 2024 OR {query} 2023 OR {query} 2025",
+                        "format": "json",
+                        "srlimit": 5,
+                    },
+                ),
+                max_retries=3,
             )
-            r.raise_for_status()
-            data = r.json()
+            resp.raise_for_status()
+            data = resp.json()
             results = []
             for item in data.get("query", {}).get("search", []):
                 snippet = item.get("snippet", "")
@@ -47,8 +47,8 @@ async def scrape_wikinvas(query: str) -> tuple[str, dict]:
             for item in results[:5]:
                 text_parts.append(f"- {item['title']}: {item['snippet']}")
             return "\n".join(text_parts), {"results": results}
-    except Exception as e:
-        return f"[WikiNews error: {e}]", {}
+        except Exception as e:
+            return f"[WikiNews error: {e}]", {}
 
 
 async def scrape_events(
@@ -64,6 +64,9 @@ async def scrape_events(
     raw_text: combined content from all sources
     entries_found: list of {source, label} for each successful source
     """
+    from app.services.scraper.wikipedia import scrape_wikipedia
+    from app.services.scraper.gdelt import scrape_gdelt
+
     raw_parts = []
     entries = []
 

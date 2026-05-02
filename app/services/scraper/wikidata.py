@@ -4,9 +4,9 @@ Provides structured entity data (types, properties, relationships) via SPARQL.
 No auth required — public endpoint. Rate limited to 1 req/s on SPARQL.
 """
 import httpx
-import asyncio
 import re
 import json
+from app.services.scraper.rate_limiter import WIKIDATA_LIMITER, retry_with_backoff
 
 WD_API = "https://www.wikidata.org/wiki/Special:EntityData"
 WD_SPARQL = "https://query.wikidata.org/sparql"
@@ -32,7 +32,6 @@ async def search_wikidata(query: str, max_results: int = 5) -> list[dict]:
     Search Wikidata by label (like "iPhone" or "The Beatles").
     Returns list of {entity_id, label, description}.
     """
-    await asyncio.sleep(1.1)  # be kind to the endpoint
     query_sparql = f'''
     SELECT ?item ?itemLabel ?itemDescription WHERE {{
       ?item ?label "{query}"@en.
@@ -42,21 +41,21 @@ async def search_wikidata(query: str, max_results: int = 5) -> list[dict]:
     }}
     LIMIT {max_results}
     '''
-    try:
-        async with httpx.AsyncClient(timeout=25.0) as client:
-            r = await client.get(
-                WD_SPARQL,
-                params={
-                    "query": query_sparql,
-                    "format": "json",
-                },
-                headers={
-                    "User-Agent": "ObsessedTriviaBot/1.0 (phatt.tech)",
-                    "Accept": "application/sparql-results+json",
-                },
+    async with WIKIDATA_LIMITER:
+        try:
+            resp = await retry_with_backoff(
+                lambda: httpx.AsyncClient(timeout=25.0).get(
+                    WD_SPARQL,
+                    params={"query": query_sparql, "format": "json"},
+                    headers={
+                        "User-Agent": "ObsessedTriviaBot/1.0 (phatt.tech)",
+                        "Accept": "application/sparql-results+json",
+                    },
+                ),
+                max_retries=3,
             )
-            r.raise_for_status()
-            data = r.json()
+            resp.raise_for_status()
+            data = resp.json()
             results = []
             for binding in data.get("results", {}).get("bindings", []):
                 uri = binding.get("item", {}).get("value", "")
@@ -67,8 +66,8 @@ async def search_wikidata(query: str, max_results: int = 5) -> list[dict]:
                     "description": binding.get("itemDescription", {}).get("value", ""),
                 })
             return results
-    except Exception:
-        return []
+        except Exception:
+            return []
 
 
 def _extract_property_value(claims: dict, prop_id: str) -> str:
