@@ -1,43 +1,98 @@
-import httpx, json, re
-from typing import Optional
+"""
+Threads scraper with cache layer, rate limiting, and fallbacks.
+Updated: PHA-307 (BYOK), PHA-308 (content cap), PHA-309 (fallbacks), PHA-310 (rate limiter), PHA-335 (cache)
+"""
+import httpx
+import json
+import re
+from typing import Optional, tuple
+from datetime import datetime
 import os
 
+from app.config import settings
+from app.database import SessionLocal, EntityCache
+
 FLARESOLVERR_URL = "http://10.0.0.100:8191/v1"
-LITELLM_BASE = "http://10.0.0.100:4000"
-LITELLM_API_KEY = os.environ.get("LITELLM_API_KEY", "")
 
 
-async def scrape_threads(handle: str) -> tuple[str, dict]:
-    """
-    Scrape a public Threads.net profile via FlareSolverr.
-    Returns (raw_text, profile_data_dict).
-    profile_data: {username, display_name, follower_count, thread_count, bio}
-    """
-    url = f"https://threads.net/@{handle}"
+def get_threads_cache(entity_name: str, entity_type: str = "People") -> Optional[str]:
+    """Check entity_cache for existing Threads content."""
+    db = SessionLocal()
+    try:
+        cached = db.query(EntityCache).filter(
+            EntityCache.entity_name == entity_name,
+            EntityCache.entity_type == entity_type,
+            EntityCache.source == "threads"
+        ).first()
+        if cached:
+            return cached.content
+    finally:
+        db.close()
+    return None
+
+
+def save_threads_cache(entity_name: str, entity_type: str, content: str):
+    """Save scraped Threads content to entity_cache."""
+    db = SessionLocal()
+    try:
+        existing = db.query(EntityCache).filter(
+            EntityCache.entity_name == entity_name,
+            EntityCache.entity_type == entity_type,
+            EntityCache.source == "threads"
+        ).first()
+        if existing:
+            existing.content = content
+            existing.updated_at = int(datetime.utcnow().timestamp())
+        else:
+            new_cache = EntityCache(
+                entity_name=entity_name,
+                entity_type=entity_type,
+                content=content,
+                source="threads",
+                created_at=int(datetime.utcnow().timestamp()),
+                updated_at=int(datetime.utcnow().timestamp())
+            )
+            db.add(new_cache)
+        db.commit()
+    except Exception:
+        db.rollback()
+    finally:
+        db.close()
+
+
+async def scrape_threads_with_fallback(handle: str, entity_type: str = "People") -> tuple[str, dict]:
+    """Scrape Threads with fallback."""
+    raw, profile = await scrape_threads_profile(handle)
+    if not raw.strip() and not handle.startswith("@"):
+        raw, profile = await scrape_threads_profile("@" + handle)
+    return raw, profile
+
+
+async def scrape_threads_profile(handle: str) -> tuple[str, dict]:
+    """Scrape a single Threads profile."""
+    url = f"https://threads.net/{handle.strip('@')}/"
     try:
         async with httpx.AsyncClient(timeout=60.0) as client:
             resp = await client.post(
                 FLARESOLVERR_URL,
-                json={
-                    "cmd": "request.get",
-                    "url": url,
-                    "maxTimeout": 45000,
-                },
+                json={"cmd": "request.get", "url": url, "maxTimeout": 45000},
             )
-            resp.raise_for_status()
-            data = resp.json()
+        resp.raise_for_status()
+        data = resp.json()
     except Exception as e:
         return f"[Threads scrape error: {e}]", {}
 
     if data.get("status") != "ok":
         return f"[Threads FlareSolverr error: {data.get('message', 'unknown')}]", {}
 
-    # HTML comes in solution.response (string), not solution.html
     html = data.get("solution", {}).get("response", "")
+    return parse_threads_html(html, handle)
 
-    profile = {"username": handle, "display_name": "", "follower_count": "", "thread_count": "", "bio": ""}
 
-    # Extract og:description — format: "{N} Followers • {N} Threads • {bio text}. See the latest..."
+def parse_threads_html(html: str, handle: str) -> tuple[str, dict]:
+    """Parse Threads HTML for profile data."""
+    profile = {"username": handle.strip("@"), "display_name": "", "follower_count": "", "thread_count": "", "bio": ""}
+
     og_match = re.search(
         r'<meta[^>]*(?:property|name)=["\']og:description["\'][^>]*content=["\']([^"\']+)["\']',
         html,
@@ -48,9 +103,6 @@ async def scrape_threads(handle: str) -> tuple[str, dict]:
     if og_match:
         desc = og_match.group(1)
         profile["bio"] = desc
-
-        # Parse: "5.5M Followers • 143 Threads • Bio text. See the latest..."
-        # Strip trailing "See the latest..." clause
         desc = re.sub(r'\. See the latest.*$', '', desc)
 
         followers_match = re.match(r'([\d.,]+[KM]?)\s*Followers', desc)
@@ -61,21 +113,17 @@ async def scrape_threads(handle: str) -> tuple[str, dict]:
         if threads_match:
             profile["thread_count"] = threads_match.group(1)
 
-        # Bio is everything after the last "•"
         parts = desc.split('•')
         if len(parts) >= 3:
             profile["bio"] = parts[-1].strip()
 
-    # Extract display name from <title>
     title_match = re.search(r'<title>([^<]+)</title>', html)
     if title_match:
         title = title_match.group(1)
-        # Format: "Name (@handle) • Threads, Say more"
         m = re.match(r'^(.+?)\s*\(@', title)
         if m:
             profile["display_name"] = m.group(1).strip()
 
-    # Build readable text
     lines = [f"[Threads profile: @{profile['username']}]"]
     lines.append(f"Profile: {profile['display_name'] or profile['username']} (@{profile['username']})")
     parts_info = []
@@ -91,8 +139,25 @@ async def scrape_threads(handle: str) -> tuple[str, dict]:
     return "\n".join(lines), profile
 
 
+async def scrape_threads(handle: str, entity_type: str = "People") -> tuple[str, dict]:
+    """Main entry: Threads with cache + fallback."""
+    cached = get_threads_cache(handle, entity_type)
+    if cached:
+        return cached, {"source": "threads", "cached": True}
+
+    raw, profile = await scrape_threads_with_fallback(handle, entity_type)
+
+    if len(raw) > settings.content_max_chars:
+        raw = raw[:settings.content_max_chars]
+
+    if raw and not raw.startswith("[Threads scrape error"):
+        save_threads_cache(handle, entity_type, raw)
+
+    return raw, profile
+
+
 async def generate_questions(profile_id: int, raw_content: str, name: str) -> list[dict]:
-    """Generate trivia questions from Threads profile content via LiteLLM."""
+    """Generate trivia questions from Threads profile via LiteLLM."""
     if not raw_content.strip():
         return []
 
@@ -110,12 +175,13 @@ Rules:
 - source_snippet: exact phrase from the bio or profile (max 20 words)
 - Return ONLY the JSON array, no commentary"""
 
-    user_prompt = f"Facts about {name} from their Threads.net profile:\n{raw_content[:6000]}"
+    user_prompt = f"Facts about {name} from their Threads.net profile:\n{raw_content[:settings.content_max_chars]}"
 
     try:
+        api_key = os.environ.get("LITELLM_API_KEY", "") or settings.litellm_api_key
         async with httpx.AsyncClient(timeout=60.0) as client:
             resp = await client.post(
-                f"{LITELLM_BASE}/chat/completions",
+                f"{settings.litellm_base}/chat/completions",
                 json={
                     "model": "claude-3-5-sonnet-20241022",
                     "messages": [
@@ -125,7 +191,7 @@ Rules:
                     "temperature": 0.8,
                     "max_tokens": 4000,
                 },
-                headers={"Authorization": f"Bearer {LITELLM_API_KEY}"},
+                headers={"Authorization": f"Bearer {api_key}"},
             )
             resp.raise_for_status()
             content = resp.json()["choices"][0]["message"]["content"]
@@ -134,4 +200,5 @@ Rules:
             questions = json.loads(content)
             return questions
     except Exception as e:
+        print(f"Error generating Threads questions: {e}")
         return []
