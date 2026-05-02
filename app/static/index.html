@@ -32,62 +32,164 @@
       <label>Guest Name</label>
       <input name="name" placeholder="Who is this about?" required>
     </div>
-    <div class="form-group">
-      <label>Bio / Notes</label>
-      <textarea name="bio" placeholder="Optional context about this person..."></textarea>
+    <div class="form-group" id="fg-entity-type">
+      <label>Entity Type</label>
+      <select name="entity_type" id="entity-type-selector" style="background:var(--surface);border:2px solid var(--surface-elevated);color:var(--white);font-family:var(--font-body);font-size:16px;padding:0.5rem;border-radius:4px;width:100%">
+        <option value="person">👤 Person</option>
+        <option value="place">📍 Place</option>
+        <option value="thing">💡 Thing</option>
+        <option value="event">📅 Event</option>
+      </select>
+      <p style="font-size:12px;color:var(--text-secondary);margin-top:0.3rem">Choose the type of subject. The form adapts to show relevant data sources.</p>
     </div>
-    <div class="row-2">
-      <div class="form-group">
-        <label>Reddit Handle</label>
-        <input name="reddit_handle" placeholder="username (no @)">
+
+    <!-- ===== PERSON ===== -->
+    <div class="entity-fields" data-for="person">
+      <div class="form-group" id="fg-bio">
+        <label>Bio / Notes</label>
+        <textarea name="bio" placeholder="Optional context about this person..."></textarea>
+      </div>
+      <div class="row-2">
+        <div class="form-group">
+          <label>Reddit Handle</label>
+          <input name="reddit_handle" placeholder="username (no @)">
+        </div>
+        <div class="form-group">
+          <label>Twitter / X Handle</label>
+          <input name="twitter_handle" placeholder="username (no @)">
+        </div>
+      </div>
+      <div class="row-2">
+        <div class="form-group">
+          <label>Steam ID</label>
+          <input name="steam_id" placeholder="Steam username or ID">
+        </div>
+        <div class="form-group">
+          <label>Discord Handle</label>
+          <input name="discord_handle" placeholder="username#0000">
+        </div>
+      </div>
+      <div class="row-2">
+        <div class="form-group">
+          <label>Pinterest Handle</label>
+          <input name="pinterest_handle" placeholder="username (no @)">
+        </div>
+        <div class="form-group">
+          <label>Threads Handle</label>
+          <input name="threads_handle" placeholder="username (no @)">
+        </div>
+        <div class="form-group">
+          <label>Instagram Handle</label>
+          <input name="instagram_handle" placeholder="username (no @)">
+        </div>
+      </div>
+      <div class="form-group" id="fg-google-places">
+        <label>Businesses You Have Reviewed on Google</label>
+        <input name="google_places_handle" placeholder="Business names, comma-separated">
       </div>
       <div class="form-group">
-        <label>Twitter / X Handle</label>
-        <input name="twitter_handle" placeholder="username (no @)">
-      </div>
-    </div>
-    <div class="row-2">
-      <div class="form-group">
-        <label>Steam ID</label>
-        <input name="steam_id" placeholder="Steam username or ID">
+        <label>Manual Link</label>
+        <input name="manual_link" placeholder="Link to bio or profile page">
       </div>
       <div class="form-group">
-        <label>Discord Handle</label>
-        <input name="discord_handle" placeholder="username#0000">
+        <label>Manual Facts</label>
+        <textarea name="manual_facts" placeholder="One fact per line. Paste what you know about this person..."></textarea>
       </div>
     </div>
-    <div class="row-2">
+
+    <!-- ===== PLACE ===== -->
+    <div class="entity-fields" data-for="place" style="display:none">
       <div class="form-group">
-        <label>Pinterest Handle</label>
-        <input name="pinterest_handle" placeholder="username (no @)">
-      </div>
-      <div class="form-group">
-        <label>Threads Handle</label>
-        <input name="threads_handle" placeholder="username (no @)">
+        <label>Bio / Notes</label>
+        <textarea name="bio" placeholder="Optional context about this place..."></textarea>
       </div>
       <div class="form-group">
-        <label>Instagram Handle</label>
-        <input name="instagram_handle" placeholder="username (no @)">
+        <label>Wikipedia / Wikidata Query</label>
+        <input name="wikipedia_handle" placeholder="Place name or historic location">
+      </div>
+      <div class="form-group">
+        <label>OpenStreetMap Query</label>
+        <input name="osm_query" placeholder="City or landmark name">
+      </div>
+      <div class="form-group">
+        <label>Travel Blog or TripAdvisor URL</label>
+        <input name="travel_url" placeholder="https://...">
+      </div>
+      <div class="form-group">
+        <label>Businesses You Have Reviewed on Google</label>
+        <input name="google_places_handle" placeholder="Business names, comma-separated">
+      </div>
+      <div class="form-group">
+        <label>Manual Link</label>
+        <input name="manual_link" placeholder="Link to Wikipedia or other reference page">
+      </div>
+      <div class="form-group">
+        <label>Manual Facts</label>
+        <textarea name="manual_facts" placeholder="One fact per line. Paste what you know about this place..."></textarea>
       </div>
     </div>
-    <div class="form-group">
-      <label>Manual Link</label>
-      <input name="manual_link" placeholder="Link to bio or profile page">
+
+    <!-- ===== THING ===== -->
+    <div class="entity-fields" data-for="thing" style="display:none">
+      <div class="form-group">
+        <label>Bio / Notes</label>
+        <textarea name="bio" placeholder="Optional context about this thing, object, or work..."></textarea>
+      </div>
+      <div class="form-group">
+        <label>Wikidata Query</label>
+        <input name="wikidata_query" placeholder="e.g., Mona Lisa or Eiffel Tower">
+      </div>
+      <div class="form-group">
+        <label>OpenLibrary Query</label>
+        <input name="openlibrary_query" placeholder="e.g., The Great Gatsby">
+      </div>
+      <div class="form-group">
+        <label>Wikipedia / Wikidata Query</label>
+        <input name="wikipedia_handle" placeholder="Object, invention, or work name">
+      </div>
+      <div class="form-group">
+        <label>Manual Link</label>
+        <input name="manual_link" placeholder="Link to Wikipedia or other reference page">
+      </div>
+      <div class="form-group">
+        <label>Manual Facts</label>
+        <textarea name="manual_facts" placeholder="One fact per line. Paste what you know about this thing..."></textarea>
+      </div>
     </div>
-    <div class="form-group">
-      <label>Manual Facts</label>
-      <textarea name="manual_facts" placeholder="One fact per line. Paste what you know about this person..."></textarea>
+
+    <!-- ===== EVENT ===== -->
+    <div class="entity-fields" data-for="event" style="display:none">
+      <div class="form-group">
+        <label>Bio / Notes</label>
+        <textarea name="bio" placeholder="Optional context about this event..."></textarea>
+      </div>
+      <div class="form-group">
+        <label>Wikipedia / Wikidata Query</label>
+        <input name="wikipedia_handle" placeholder="Event name or historic occurrence">
+      </div>
+      <div class="form-group">
+        <label>Wikidata Query</label>
+        <input name="wikidata_query" placeholder="e.g., Olympic Games 2024">
+      </div>
+      <div class="form-group">
+        <label>GDELT Events Query</label>
+        <input name="gdelt_query" placeholder="e.g., Climate Summit 2023">
+      </div>
+      <div class="form-group">
+        <label>Manual Link</label>
+        <input name="manual_link" placeholder="Link to Wikipedia or news article">
+      </div>
+      <div class="form-group">
+        <label>Manual Facts</label>
+        <textarea name="manual_facts" placeholder="One fact per line. Paste what you know about this event..."></textarea>
+      </div>
     </div>
-    <div class="form-group">
-      <label>Businesses You Have Reviewed on Google</label>
-      <input name="google_places_handle" placeholder="Business names, comma-separated">
-    </div>
+
     <button type="submit" class="btn primary">Save Profile</button>
   </form>
   <div id="profile-list" style="margin-top: 1rem;"></div>
 </div>
 
-<!-- LOBBY -->
 <div id="screen-lobby" class="screens">
   <div class="screen-header">
     <button class="back-btn" onclick="exitLobby()">←</button>
@@ -104,6 +206,7 @@
 
 <!-- GAME PLAY -->
 <div id="screen-game" class="screens">
+  <div id="profile-context" style="font-size:14px;color:var(--accent);text-align:center;margin-bottom:0.5rem;"></div>
   <div id="wedge-board" class="wedge-board" style="margin-bottom: 1rem;"></div>
   <div id="category-badge" class="category-badge">HISTORY</div>
   <div id="question-progress">Question 1 / 50</div>
@@ -136,6 +239,32 @@
 <div id="toast"></div>
 
 <script src="/static/js/app.js"></script>
-<script>loadProfiles(); loadLeaderboard();</script>
+<script>
+loadProfiles();
+loadLeaderboard();
+
+// ── Entity type switching ──────────────────────────────────────────────────────
+const entitySelector = document.getElementById('entity-type-selector');
+
+function switchEntityType() {
+  const type = entitySelector ? entitySelector.value : 'person';
+  document.querySelectorAll('.entity-fields').forEach(section => {
+    section.style.display = section.getAttribute('data-for') === type ? '' : 'none';
+  });
+}
+
+if (entitySelector) {
+  entitySelector.addEventListener('change', switchEntityType);
+}
+// Init on page load
+switchEntityType();
+
+// Also re-init when returning to profile screen
+const _origShowScreen = showScreen;
+window.showScreen = function(screen) {
+  _origShowScreen(screen);
+  if (screen === 'profile') switchEntityType();
+};
+</script>
 </body>
 </html>

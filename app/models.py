@@ -22,6 +22,7 @@ class ProfileCreate(BaseModel):
     gdelt_query: str = ""
     manual_link: str = ""
     manual_facts: str = ""
+    entity_type: str = "person"
     question_budget: int = 50
     consent_obtained: bool = False
     content_quality: str = ""
@@ -46,6 +47,7 @@ class ProfileUpdate(BaseModel):
     gdelt_query: Optional[str] = None
     manual_link: Optional[str] = None
     manual_facts: Optional[str] = None
+    entity_type: Optional[str] = None
     llm_calls: Optional[int] = None
     llm_spend_cents: Optional[int] = None
     question_budget: Optional[int] = None
@@ -82,6 +84,7 @@ class ProfileResponse(BaseModel):
     consent_obtained: bool
     content_quality: str
     content_chunks: int
+    entity_type: str
     created_at: int
     updated_at: int
 

@@ -3,6 +3,8 @@ let currentProfile = null;
 let currentGame = null;
 let myPlayerId = localStorage.getItem('obsessed_pid') || (localStorage.setItem('obsessed_pid', 'p_' + Math.random().toString(36).slice(2)), localStorage.getItem('obsessed_pid'));
 let myPlayerName = localStorage.getItem('obsessed_name') || '';
+let myProfileName = '';
+let myProfileType = 'person';
 let myRoomCode = null;
 let pollInterval = null;
 let timerInterval = null;
@@ -36,7 +38,7 @@ async function loadProfiles() {
   list.innerHTML = profiles.map(p => `
     <div class="profile-card" onclick="selectProfile(${p.id})">
       <h3>${esc(p.name)}</h3>
-      <div class="meta">@${esc(p.reddit_handle || p.twitter_handle || '—')}</div>
+      <div class="meta">${p.entity_type ? p.entity_type.toUpperCase() : 'PERSON'} • @${esc(p.reddit_handle || p.twitter_handle || '—')}</div>
       <div class="meta">${p.question_count} questions</div>
       ${p.consent_obtained ? '<span style="color:var(--correct);font-size:12px;font-weight:700">✓ CONSENT</span>' : '<span style="color:var(--wrong);font-size:12px;font-weight:700">⚠ GUEST CONSENT REQUIRED</span>'}
       <span class="status-badge status-${p.scrape_status}">${p.scrape_status}</span>
@@ -94,6 +96,13 @@ async function selectProfile(id) {
 }
 
 async function createGame(profileId) {
+  // Fetch profile for display context
+  const profRes = await fetch(API + '/api/profiles/' + profileId);
+  let prof = null;
+  if (profRes.ok) prof = await profRes.json();
+  myProfileName = prof ? prof.name : '';
+  myProfileType = prof ? (prof.entity_type || 'person') : 'person';
+
   const res = await fetch(API + '/api/games', {
     method: 'POST', headers: {'Content-Type': 'application/json'},
     body: JSON.stringify({ profile_id: profileId }),
@@ -110,6 +119,14 @@ async function createGame(profileId) {
   });
   if (!joinRes.ok) return toast('Error joining game');
   const player = await joinRes.json();
+
+  // Show profile context on game screen
+  const ctx = document.getElementById('profile-context');
+  if (ctx && myProfileName) {
+    const emoji = {person:'👤',place:'📍',thing:'💡',event:'📅'}[myProfileType] || '👤';
+    ctx.textContent = `${emoji} ${myProfileName} (${myProfileType.toUpperCase()})`;
+  }
+
   showScreen('lobby');
   document.getElementById('room-code-display').textContent = myRoomCode;
 }

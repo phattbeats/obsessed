@@ -31,6 +31,7 @@ class Profile(Base):
     wikidata_query = Column(String(500), default="")  # Wikidata search query (for things)
     openlibrary_query = Column(String(500), default="")  # OpenLibrary search query (for things)
     gdelt_query = Column(String(500), default="")  # GDELT events search query (for events)
+    entity_type = Column(String(20), default="person")  # person|place|thing|event
     manual_link = Column(String(500), default="")
     manual_facts = Column(Text, default="")
     scrape_status = Column(String(50), default="pending")  # pending|scraping|done|failed
