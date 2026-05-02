@@ -2,23 +2,70 @@
 Reddit scraper for PEOPLE entity type.
 Scrapes Reddit user submitted + comments pages.
 Rate-limit aware: uses REDDIT_LIMITER to prevent 429s.
+Cache-aware: checks/writes entity_cache before/after scrape.
 """
 import asyncio, httpx, json, re
-from typing import Optional
-import os
+from typing import Optional, tuple
 from app.config import settings
 from app.services.scraper.rate_limiter import REDDIT_LIMITER, retry_with_backoff
+from app.database import SessionLocal, EntityCache
 
 LITELLM_BASE = "http://10.0.0.100:4000"
-LITELLM_API_KEY = os.environ.get("LITELLM_API_KEY", "")
 CATEGORIES = ["history", "entertainment", "geography", "science", "sports", "art_literature"]
 
 
-async def scrape_reddit(handle: str) -> tuple[str, list[dict]]:
-    """Scrape Reddit user submitted + comments. Returns (raw_text, posts)."""
-    raw = []
-    headers = {"User-Agent": "Mozilla/5.0 (compatible; ObsessedBot/1.0)"}
+def get_reddit_cache(entity_name: str, entity_type: str = "People") -> Optional[str]:
+    """Check entity_cache for existing Reddit content."""
+    db = SessionLocal()
+    try:
+        cached = db.query(EntityCache).filter(
+            EntityCache.entity_name == entity_name,
+            EntityCache.entity_type == entity_type,
+            EntityCache.source == "reddit"
+        ).first()
+        if cached:
+            return cached.content
+    finally:
+        db.close()
+    return None
 
+
+def save_reddit_cache(entity_name: str, entity_type: str, content: str):
+    """Save scraped Reddit content to entity_cache."""
+    db = SessionLocal()
+    try:
+        existing = db.query(EntityCache).filter(
+            EntityCache.entity_name == entity_name,
+            EntityCache.entity_type == entity_type,
+            EntityCache.source == "reddit"
+        ).first()
+        if existing:
+            existing.content = content
+            existing.updated_at = int(datetime.utcnow().timestamp())
+        else:
+            from datetime import datetime
+            new_cache = EntityCache(
+                entity_name=entity_name,
+                entity_type=entity_type,
+                content=content,
+                source="reddit",
+                created_at=int(datetime.utcnow().timestamp()),
+                updated_at=int(datetime.utcnow().timestamp())
+            )
+            db.add(new_cache)
+        db.commit()
+    except Exception:
+        db.rollback()
+    finally:
+        db.close()
+
+
+async def scrape_reddit_with_fallback(handle: str) -> str:
+    """Scrape Reddit with fallback: profile -> search."""
+    raw = []
+    headers = {"User-Agent": "Mozilla/5.0 (compatible; ObsessedBot/2.0)"}
+
+    # Try user profile first
     async with REDDIT_LIMITER:
         for endpoint in [f"/u/{handle}/submitted.json", f"/u/{handle}/comments.json"]:
             try:
@@ -40,7 +87,50 @@ async def scrape_reddit(handle: str) -> tuple[str, list[dict]]:
             except Exception:
                 pass
 
-    return "\n".join(raw), raw
+    # Fallback: search for user if profile scraping failed
+    if not raw:
+        try:
+            async with REDDIT_LIMITER:
+                resp = await retry_with_backoff(
+                    lambda: httpx.AsyncClient(timeout=30.0, headers=headers).get(
+                        f"https://www.reddit.com/search.json?q=author:{handle}&limit=100"
+                    ),
+                    max_retries=3,
+                    base_delay=2.0,
+                )
+                resp.raise_for_status()
+                data = resp.json()
+                posts = data.get("data", {}).get("children", [])
+                for post in posts:
+                    d = post["data"]
+                    text = d.get("selftext") or d.get("title", "")
+                    if text:
+                        raw.append(f"[Reddit search] {text}")
+        except Exception:
+            pass
+
+    return "\n".join(raw)
+
+
+async def scrape_reddit(handle: str, entity_type: str = "People") -> tuple[str, list[dict]]:
+    """Scrape Reddit user submitted + comments. Returns (raw_text, posts)."""
+    # Check cache first
+    cached = get_reddit_cache(handle, entity_type)
+    if cached:
+        return cached, [{"source": "reddit", "cached": True}]
+
+    # Scrape with fallback
+    raw = await scrape_reddit_with_fallback(handle)
+
+    # Cap content
+    if len(raw) > settings.content_max_chars:
+        raw = raw[:settings.content_max_chars]
+
+    # Save to cache
+    if raw:
+        save_reddit_cache(handle, entity_type, raw)
+
+    return raw, [{"source": "reddit", "cached": False}]
 
 
 def clean_text(text: str) -> str:
