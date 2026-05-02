@@ -1,6 +1,7 @@
 import asyncio, httpx, json, re
 from typing import Optional
 import os
+from app.config import settings
 
 LITELLM_BASE = "http://10.0.0.100:4000"
 LITELLM_API_KEY = os.environ.get("LITELLM_API_KEY", "")
@@ -55,7 +56,7 @@ Rules:
 - Return ONLY the JSON array, no commentary
 - If you cannot generate a question for a category, skip it"""
 
-    user_prompt = f"Facts about {name}:\n{raw_content[:8000]}"
+    user_prompt = f"Facts about {name}:\n{raw_content[: settings.content_max_chars]}"
 
     try:
         async with httpx.AsyncClient(timeout=60.0) as client:

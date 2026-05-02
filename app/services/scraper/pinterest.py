@@ -1,6 +1,7 @@
 import json, re
 from typing import Optional
 import os
+from app.config import settings
 
 # CRAWL4AI integration
 CRAWL4AI_URL = "http://crawl4ai:11235"
@@ -112,7 +113,7 @@ Rules:
 - source_snippet: exact board name or pin description (max 20 words)
 - Return ONLY the JSON array, no commentary"""
 
-    user_prompt = f"Facts about {name} from their Pinterest profile:\n{raw_content[:8000]}"
+    user_prompt = f"Facts about {name} from their Pinterest profile:\n{raw_content[: settings.content_max_chars]}"
 
     try:
         import httpx

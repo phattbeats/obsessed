@@ -95,7 +95,7 @@ Rules:
 - source_snippet: the exact phrase from the input that inspired this question (max 20 words)
 - Return ONLY the JSON array, no commentary"""
 
-    user_prompt = f"Facts about {place_name}:\n{raw_content[:8000]}"
+    user_prompt = f"Facts about {place_name}:\n{raw_content[: settings.content_max_chars]}"
 
     try:
         api_key = settings.litellm_api_key or os.environ.get("LITELLM_API_KEY", "")

@@ -238,7 +238,7 @@ async def trigger_scrape(profile_id: int):
                 raw_parts.append(text)
         
         raw = "\n".join(raw_parts)
-        p.raw_content = raw[:50000]  # cap at 50k chars
+        p.raw_content = raw[: settings.content_max_chars]  # cap configurable via CONTENT_MAX_CHARS
 
         # Estimate content quality from scraped chunks
         import re as _re
