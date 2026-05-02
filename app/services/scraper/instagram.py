@@ -4,6 +4,7 @@ from datetime import datetime
 import os
 
 from app.config import settings
+from app.services.scraper.rate_limiter import generic_limiter
 from app.database import SessionLocal, EntityCache
 
 FLARESOLVERR_URL = "http://10.0.0.100:8191/v1"
@@ -69,10 +70,11 @@ async def scrape_instagram_profile(handle: str) -> tuple[str, dict]:
     # (keeping original parse logic)
     try:
         async with httpx.AsyncClient(timeout=60.0) as client:
-            resp = await client.post(
-                FLARESOLVERR_URL,
-                json={"cmd": "request.get", "url": url, "maxTimeout": 45000},
-            )
+            async with generic_limiter.throttle():
+                resp = await client.post(
+                    FLARESOLVERR_URL,
+                    json={"cmd": "request.get", "url": url, "maxTimeout": 45000},
+                )
             resp.raise_for_status()
             data = resp.json()
     except Exception as e:
@@ -186,12 +188,13 @@ Rules:
 - source_snippet: exact phrase from the profile (max 20 words)
 - Return ONLY the JSON array, no commentary"""
 
-    user_prompt = f"Facts about {name} from their Instagram profile:\n{raw_content[:6000]}"
+    user_prompt = f"Facts about {name} from their Instagram profile:\n{raw_content[:settings.content_max_chars]}"
 
     try:
+        api_key = os.environ.get("LITELLM_API_KEY", "") or settings.litellm_api_key
         async with httpx.AsyncClient(timeout=60.0) as client:
             resp = await client.post(
-                f"{LITELLM_BASE}/chat/completions",
+                f"{settings.litellm_base}/chat/completions",
                 json={
                     "model": "claude-3-5-sonnet-20241022",
                     "messages": [
@@ -201,7 +204,7 @@ Rules:
                     "temperature": 0.8,
                     "max_tokens": 4000,
                 },
-                headers={"Authorization": f"Bearer {LITELLM_API_KEY}"},
+                headers={"Authorization": f"Bearer {api_key}"},
             )
             resp.raise_for_status()
             content = resp.json()["choices"][0]["message"]["content"]
@@ -210,4 +213,5 @@ Rules:
             questions = json.loads(content)
             return questions
     except Exception as e:
+        print(f"Error generating Instagram questions: {e}")
         return []

@@ -10,6 +10,7 @@ from datetime import datetime
 import os
 
 from app.config import settings
+from app.services.scraper.rate_limiter import generic_limiter
 from app.database import SessionLocal, EntityCache
 
 FLARESOLVERR_URL = "http://10.0.0.100:8191/v1"
@@ -73,10 +74,11 @@ async def scrape_threads_profile(handle: str) -> tuple[str, dict]:
     url = f"https://threads.net/{handle.strip('@')}/"
     try:
         async with httpx.AsyncClient(timeout=60.0) as client:
-            resp = await client.post(
-                FLARESOLVERR_URL,
-                json={"cmd": "request.get", "url": url, "maxTimeout": 45000},
-            )
+            async with generic_limiter.throttle():
+                resp = await client.post(
+                    FLARESOLVERR_URL,
+                    json={"cmd": "request.get", "url": url, "maxTimeout": 45000},
+                )
         resp.raise_for_status()
         data = resp.json()
     except Exception as e:

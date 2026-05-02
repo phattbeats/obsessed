@@ -163,10 +163,10 @@ Rules:
     user_prompt = f"Facts about {name}:\n{raw_content[: settings.content_max_chars]}"
 
     try:
-        api_key = LITELLM_API_KEY or settings.litellm_api_key
+        api_key = os.environ.get("LITELLM_API_KEY", "") or settings.litellm_api_key
         async with httpx.AsyncClient(timeout=60.0) as client:
             resp = await client.post(
-                f"{LITELLM_BASE}/chat/completions",
+                f"{settings.litellm_base}/chat/completions",
                 json={
                     "model": "claude-3-5-sonnet-20241022",
                     "messages": [
@@ -185,4 +185,5 @@ Rules:
             questions = json.loads(content)
             return questions
     except Exception as e:
+        print(f"Error generating Reddit questions: {e}")
         return []
