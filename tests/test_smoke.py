@@ -96,3 +96,29 @@ async def test_gamestate_resume_fields():
     # Verify no extra fields are required
     assert hasattr(gs, 'current_q')
     assert hasattr(gs, 'players')
+
+
+@pytest.mark.asyncio
+async def test_scrape_nonexistent_profile_returns_404():
+    """Regression: nonexistent profile /scrape returns 404, not 500 (Bug A, PHA-504)."""
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as ac:
+        r = await ac.post("/api/profiles/9999/scrape")
+    assert r.status_code == 404, f"Expected 404, got {r.status_code}: {r.text}"
+    assert r.json()["detail"] == "Profile not found"
+
+
+@pytest.mark.asyncio
+async def test_profile_list_includes_entity_type():
+    """Regression guard: entity_type field present in profile list (Bug A, PHA-504)."""
+    transport = ASGITransport(app=app)
+    payload = {"name": "Cache Test", "entity_type": "place"}
+    async with AsyncClient(transport=transport, base_url="http://test") as ac:
+        p = await ac.post("/api/profiles", json=payload)
+        profile_id = p.json()["id"]
+        listing = await ac.get("/api/profiles")
+    assert listing.status_code == 200
+    bodies = listing.json()
+    matches = [x for x in bodies if x["id"] == profile_id]
+    assert matches, "Created profile not in list"
+    assert matches[0].get("entity_type") == "place", f"entity_type missing/wrong: {matches[0]}"

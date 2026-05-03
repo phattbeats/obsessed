@@ -200,9 +200,14 @@ async def trigger_scrape(profile_id: int):
         cache_hit = get_cached(p.name, p.entity_type)
         if cache_hit:
             raw, _ = cache_hit
+            # Persist cached content into the profile record
+            p.raw_content = raw[: settings.content_max_chars]
             p.scrape_status = "done"
+            p.updated_at = int(__import__("datetime").datetime.utcnow().timestamp())
             db.commit()
-            return  # skip scraping, use cached content
+            # Still run question generation from the cached content
+            await _generate_questions_async(p.id, raw, p.name, budget=p.question_budget)
+            return {"ok": True, "status": "done", "warning": None, "content_quality": p.content_quality or "adequate", "content_chunks": p.content_chunks or 0}
 
         # ── Scrape ────────────────────────────────────────────────────────────
         if p.reddit_handle:
@@ -289,10 +294,13 @@ async def trigger_scrape(profile_id: int):
         await _generate_questions_async(p.id, raw, p.name, budget=p.question_budget)
 
         return {"ok": True, "status": "done", "warning": scrape_warning, "content_quality": p.content_quality, "content_chunks": p.content_chunks}
+    except HTTPException:
+        raise
     except Exception as e:
-        p.scrape_status = "failed"
-        p.scrape_error = str(e)[:500]
-        db.commit()
+        if p is not None:
+            p.scrape_status = "failed"
+            p.scrape_error = str(e)[:500]
+            db.commit()
         raise HTTPException(status_code=500, detail=str(e))
     finally:
         db.close()
