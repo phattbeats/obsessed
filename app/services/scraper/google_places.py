@@ -8,7 +8,6 @@ import os
 from app.config import settings
 from app.services.scraper.wikipedia import scrape_wikipedia, search_wikipedia
 from app.services.scraper.osm import scrape_osm, search_osm
-from app.services.scraper.places import scrape_places as scrape_google_places
 from app.services.scraper.travel import (
     scrape_tripadvisor_url,
     scrape_travel_blog,
@@ -18,13 +17,11 @@ from app.services.scraper.travel import (
 import asyncio
 from app.services.scraper.wikipedia import scrape_wikipedia, search_wikipedia
 from app.services.scraper.osm import scrape_osm, search_osm
-from app.services.scraper.places import scrape_places as scrape_google_places
 import asyncio
 import os
 from app.config import settings
 from app.services.scraper.wikipedia import scrape_wikipedia, search_wikipedia
 from app.services.scraper.osm import scrape_osm, search_osm
-from app.services.scraper.places import scrape_places as scrape_google_places
 from app.services.scraper.travel import (
     scrape_tripadvisor_url,
     scrape_travel_blog,
@@ -62,11 +59,9 @@ async def scrape_places(
         if text and not text.startswith("[OpenStreetMap: no results"):
             raw_parts.append(text)
 
-    # Google Places (rating, reviews, address, types)
-    if google_places_query:
-        text, _ = await scrape_google_places(google_places_query)
-        if text and not text.startswith("[Google Places"):
-            raw_parts.append(text)
+    # Note: google_places_query support deferred — uses Wikipedia+OSM as primary
+    # Google Places API requires API key; add LITELLM_GOOGLE_PLACES_KEY to use
+    pass
 
     # Travel blog / TripAdvisor URL
     if travel_url:
