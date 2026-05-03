@@ -26,10 +26,10 @@ jobs:
           TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
           if [ -n "$TAG" ]; then
             echo "version=$TAG" >> $GITHUB_OUTPUT
-            echo "tags=phattbeats/obsessed:$TAG,phattbeats/obsessed:latest,phattbeats/obsessed:$SHA" >> $GITHUB_OUTPUT
+            echo "tags=therealphatt/obsessed:$TAG,therealphatt/obsessed:latest,therealphatt/obsessed:$SHA" >> $GITHUB_OUTPUT
           else
             echo "version=$SHA" >> $GITHUB_OUTPUT
-            echo "tags=phattbeats/obsessed:$SHA,phattbeats/obsessed:latest" >> $GITHUB_OUTPUT
+            echo "tags=therealphatt/obsessed:$SHA,therealphatt/obsessed:latest" >> $GITHUB_OUTPUT
           fi
 
       - name: Set up QEMU for multi-arch
