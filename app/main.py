@@ -16,6 +16,9 @@ app.add_middleware(
     allow_methods=["*"], allow_headers=["*"],
 )
 
+# Static assets (CSS/JS/images)
+app.mount("/static", StaticFiles(directory=os.path.join(BASE_DIR, "static")), name="static")
+
 # API routes
 app.include_router(profiles.router)
 app.include_router(games.router)
