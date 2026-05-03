@@ -32,6 +32,34 @@ jobs:
       - name: Run pytest (smoke + schema gate)
         run: pytest -q
 
+  # ui-test runs on demand (workflow_dispatch) or when 'ui-test' is in the commit message.
+  # It tests against the live PHATT-RAID container at 10.0.0.100:10198, so it cannot
+  # run in a standard push CI — the container is not reachable from GitHub runners.
+  ui-test:
+    needs: []   # runs independently; build job does not block on it
+    runs-on: ubuntu-latest
+    if: ${{ github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, 'ui-test') }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          pip install playwright pytest pytest-asyncio httpx
+          playwright install chromium --with-deps
+
+      - name: Run Playwright UI tests
+        env:
+          PLAYWRIGHT_BASE_URL: http://10.0.0.100:10198
+        run: |
+          pytest tests/ui/test_trivia_game.py -v --tb=short
+
   build:
     needs: test
     runs-on: ubuntu-latest
