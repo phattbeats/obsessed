@@ -8,6 +8,11 @@ from app.services.scraper.rate_limiter import generic_limiter
 from app.database import SessionLocal, EntityCache
 
 FLARESOLVERR_URL = "http://10.0.0.100:8191/v1"
+INSTAGRAM_SOURCE_PREFIX = "https://www.instagram.com/"
+
+
+def _instagram_source_url(handle: str) -> str:
+    return f"https://www.instagram.com/{handle.strip('@/')}/"
 
 
 def get_instagram_cache(entity_name: str, entity_type: str = "People") -> Optional[str]:
@@ -17,10 +22,10 @@ def get_instagram_cache(entity_name: str, entity_type: str = "People") -> Option
         cached = db.query(EntityCache).filter(
             EntityCache.entity_name == entity_name,
             EntityCache.entity_type == entity_type,
-            EntityCache.source == "instagram"
+            EntityCache.source_url.like(f"{INSTAGRAM_SOURCE_PREFIX}%"),
         ).first()
         if cached:
-            return cached.content
+            return cached.raw_content
     finally:
         db.close()
     return None
@@ -30,20 +35,22 @@ def save_instagram_cache(entity_name: str, entity_type: str, content: str):
     """Save scraped Instagram content to entity_cache."""
     db = SessionLocal()
     try:
+        source_url = _instagram_source_url(entity_name)
         existing = db.query(EntityCache).filter(
             EntityCache.entity_name == entity_name,
             EntityCache.entity_type == entity_type,
-            EntityCache.source == "instagram"
+            EntityCache.source_url.like(f"{INSTAGRAM_SOURCE_PREFIX}%"),
         ).first()
         if existing:
-            existing.content = content
-            existing.updated_at = int(datetime.utcnow().timestamp())
+            existing.raw_content = content
+            existing.scraped_at = int(datetime.utcnow().timestamp())
+            existing.source_url = source_url
         else:
             new_cache = EntityCache(
-                entity_name=entity_name, entity_type=entity_type,
-                content=content, source="instagram",
-                created_at=int(datetime.utcnow().timestamp()),
-                updated_at=int(datetime.utcnow().timestamp())
+                entity_name=entity_name,
+                entity_type=entity_type,
+                raw_content=content,
+                source_url=source_url,
             )
             db.add(new_cache)
         db.commit()

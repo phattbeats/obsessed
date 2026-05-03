@@ -5,12 +5,19 @@ Rate-limit aware: uses REDDIT_LIMITER to prevent 429s.
 Cache-aware: checks/writes entity_cache before/after scrape.
 """
 import asyncio, httpx, json, os, re
+from datetime import datetime
 from typing import Optional, Tuple
 from app.config import settings
 from app.services.scraper.rate_limiter import REDDIT_LIMITER, retry_with_backoff
 from app.database import SessionLocal, EntityCache
 
 CATEGORIES = ["history", "entertainment", "geography", "science", "sports", "art_literature"]
+
+REDDIT_SOURCE_PREFIX = "https://www.reddit.com/"
+
+
+def _reddit_source_url(handle: str) -> str:
+    return f"https://www.reddit.com/u/{handle.lstrip('@/')}"
 
 
 def get_reddit_cache(entity_name: str, entity_type: str = "People") -> Optional[str]:
@@ -20,10 +27,10 @@ def get_reddit_cache(entity_name: str, entity_type: str = "People") -> Optional[
         cached = db.query(EntityCache).filter(
             EntityCache.entity_name == entity_name,
             EntityCache.entity_type == entity_type,
-            EntityCache.source == "reddit"
+            EntityCache.source_url.like(f"{REDDIT_SOURCE_PREFIX}%"),
         ).first()
         if cached:
-            return cached.content
+            return cached.raw_content
     finally:
         db.close()
     return None
@@ -33,23 +40,22 @@ def save_reddit_cache(entity_name: str, entity_type: str, content: str):
     """Save scraped Reddit content to entity_cache."""
     db = SessionLocal()
     try:
+        source_url = _reddit_source_url(entity_name)
         existing = db.query(EntityCache).filter(
             EntityCache.entity_name == entity_name,
             EntityCache.entity_type == entity_type,
-            EntityCache.source == "reddit"
+            EntityCache.source_url.like(f"{REDDIT_SOURCE_PREFIX}%"),
         ).first()
         if existing:
-            existing.content = content
-            existing.updated_at = int(datetime.utcnow().timestamp())
+            existing.raw_content = content
+            existing.scraped_at = int(datetime.utcnow().timestamp())
+            existing.source_url = source_url
         else:
-            from datetime import datetime
             new_cache = EntityCache(
                 entity_name=entity_name,
                 entity_type=entity_type,
-                content=content,
-                source="reddit",
-                created_at=int(datetime.utcnow().timestamp()),
-                updated_at=int(datetime.utcnow().timestamp())
+                raw_content=content,
+                source_url=source_url,
             )
             db.add(new_cache)
         db.commit()
