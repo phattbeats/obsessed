@@ -40,6 +40,7 @@ def _profile(p: Profile) -> ProfileResponse:
         consent_obtained=bool(p.consent_obtained),
         content_quality=p.content_quality or "",
         content_chunks=p.content_chunks or 0,
+        entity_type=p.entity_type or "person",
         created_at=p.created_at, updated_at=p.updated_at,
     )
 
@@ -58,6 +59,7 @@ def create_profile(data: ProfileCreate):
                     gdelt_query=getattr(data, "gdelt_query", "") or "",
                     manual_link=data.manual_link,
                     manual_facts=data.manual_facts,
+                    entity_type=getattr(data, "entity_type", "person") or "person",
                     llm_calls=0, llm_spend_cents=0,
                     question_budget=getattr(data, "question_budget", 50) or 50,
                     consent_obtained=getattr(data, "consent_obtained", False) or False,

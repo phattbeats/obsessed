@@ -2,6 +2,14 @@
 
 All notable changes to Obsessed are documented here.
 
+## [1.0.2] — 2026-05-03
+
+### Fixed
+
+- `POST /api/profiles` 500 — `ProfileResponse` requires `entity_type` but `_profile()` in `app/routes/profiles.py` did not pass it, and `create_profile` did not propagate `data.entity_type` to the new row. Both now pass through `entity_type` (default `"person"`). (`PHA-342`)
+
+---
+
 ## [1.0.1] — 2026-05-03
 
 ### Fixed
