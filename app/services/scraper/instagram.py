@@ -1,5 +1,5 @@
 import httpx, json, re
-from typing import Optional, tuple
+from typing import Optional, Tuple
 from datetime import datetime
 import os
 
