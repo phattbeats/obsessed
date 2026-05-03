@@ -10,8 +10,7 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 COPY app/ ./app/
-
-RUN mkdir -p /app/data
+COPY data/ ./data/ 2>/dev/null || true
 
 ENV PYTHONUNBUFFERED=1
 EXPOSE 8000

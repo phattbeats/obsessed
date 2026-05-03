@@ -2,6 +2,19 @@
 
 All notable changes to Obsessed are documented here.
 
+## [1.0.1] — 2026-05-03
+
+### Fixed
+
+- `openlibrary.py` + `wikidata.py`: malformed stubs rewritten — orphaned `async with` and `write_cached` definitions outside try blocks removed
+- `places.py` ↔ `google_places.py`: circular import broken, duplicate `aggregate_*` function definitions removed
+- `rate_limiter.py`: missing `generic_limiter` export added (fallback path)
+- `things.py`: missing `scrape_openlibrary_by_query` alias added
+- `__init__.py` (database): `init_db()` moved to module level — was nested inside class body causing `NameError`
+- `typing`: `tuple` → `Tuple` for Python 3.12 compatibility
+
+---
+
 ## [1.0.0] — 2026-05-02
 
 ### Added
@@ -23,6 +36,6 @@ All notable changes to Obsessed are documented here.
 
 ### Deployment
 
-- Docker image: `docker.io/phattbeatts/obsessed:latest` (GitHub Actions on every main push)
+- Docker image: `docker.io/therealphatt/obsessed:latest` (GitHub Actions on every main push)
 - Multi-arch: `linux/amd64`, `linux/arm64`
 - Unraid: pull latest from Docker Hub → `docker-compose up -d`

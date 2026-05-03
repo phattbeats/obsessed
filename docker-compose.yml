@@ -1,7 +1,7 @@
 services:
   obsessed:
     build: .
-    image: phattbeatts/obsessed:latest
+    image: therealphatt/obsessed:latest
     ports:
       - "8000:8000"
     volumes:
