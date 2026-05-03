@@ -10,7 +10,30 @@ env:
   IMAGE_NAME: ${{ secrets.DOCKERHUB_USER }}/obsessed
 
 jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install test dependencies
+        run: |
+          python -m pip install --upgrade pip
+          # Skip playwright/lxml (heavy native builds, not exercised by smoke tests).
+          grep -v -i 'playwright\|lxml' requirements.txt > /tmp/reqs-ci.txt
+          pip install -r /tmp/reqs-ci.txt pytest==8.3.3 pytest-asyncio==0.24.0
+
+      - name: Run pytest (smoke + schema gate)
+        run: pytest -q
+
   build:
+    needs: test
     runs-on: ubuntu-latest
     permissions:
       contents: read
