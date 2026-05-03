@@ -3,7 +3,6 @@ WebSocket connection manager for Obsessed real-time game events.
 One room = one game. All players in the same room receive broadcast events.
 """
 from fastapi import WebSocket
-from typing import dict
 
 # room_code -> set of (player_id, websocket)
 _rooms: dict[str, dict[str, WebSocket]] = {}
