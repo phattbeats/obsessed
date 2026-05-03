@@ -7,9 +7,6 @@ from app.config import settings
 CRAWL4AI_URL = "http://crawl4ai:11235"
 CRAWL4AI_TOKEN = "Phatt-tech-2026"
 
-LITELLM_BASE = "http://10.0.0.100:4000"
-LITELLM_API_KEY = os.environ.get("LITELLM_API_KEY", "")
-
 
 async def scrape_pinterest(handle: str) -> tuple[str, list[dict]]:
     """
@@ -117,9 +114,10 @@ Rules:
 
     try:
         import httpx
+        api_key = settings.litellm_api_key or os.environ.get("LITELLM_API_KEY", "")
         async with httpx.AsyncClient(timeout=60.0) as client:
             resp = await client.post(
-                f"{LITELLM_BASE}/chat/completions",
+                f"{settings.litellm_base}/chat/completions",
                 json={
                     "model": "claude-3-5-sonnet-20241022",
                     "messages": [
@@ -129,7 +127,7 @@ Rules:
                     "temperature": 0.8,
                     "max_tokens": 4000,
                 },
-                headers={"Authorization": f"Bearer {LITELLM_API_KEY}"},
+                headers={"Authorization": f"Bearer {api_key}"},
             )
             resp.raise_for_status()
             content = resp.json()["choices"][0]["message"]["content"]

@@ -4,13 +4,12 @@ Scrapes Reddit user submitted + comments pages.
 Rate-limit aware: uses REDDIT_LIMITER to prevent 429s.
 Cache-aware: checks/writes entity_cache before/after scrape.
 """
-import asyncio, httpx, json, re
+import asyncio, httpx, json, os, re
 from typing import Optional, Tuple
 from app.config import settings
 from app.services.scraper.rate_limiter import REDDIT_LIMITER, retry_with_backoff
 from app.database import SessionLocal, EntityCache
 
-LITELLM_BASE = "http://10.0.0.100:4000"
 CATEGORIES = ["history", "entertainment", "geography", "science", "sports", "art_literature"]
 
 

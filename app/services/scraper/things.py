@@ -97,7 +97,7 @@ Rules:
         headers = {"Authorization": f"Bearer {api_key}"}
         async with httpx.AsyncClient(timeout=60.0) as client:
             resp = await client.post(
-                "http://10.0.0.100:4000/chat/completions",
+                f"{settings.litellm_base}/chat/completions",
                 json={
                     "model": "claude-3-5-sonnet-20241022",
                     "messages": [

@@ -4,6 +4,8 @@ services:
     image: therealphatt/obsessed:latest
     ports:
       - "8000:8000"
+    env_file:
+      - .env
     volumes:
       - obsessed-data:/app/data
     restart: unless-stopped

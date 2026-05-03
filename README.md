@@ -5,7 +5,7 @@ Multi-player trivia game with AI-generated questions. Players join a room using 
 ## Tech Stack
 
 - **Backend:** FastAPI + SQLAlchemy + SQLite
-- **AI:** LiteLLM proxy (`http://10.0.0.100:4000`) for question generation
+- **AI:** LiteLLM proxy (set `LITELLM_BASE` and `LITELLM_API_KEY` in `.env` — BYOK) for question generation
 - **Scrapers:** Reddit, Pinterest, Threads, Instagram, Wikipedia, OSM, Wikidata, OpenLibrary, GDELT, crawl4ai
 - **Cache:** Entity-cache layer (SQLite, persists across profiles)
 - **Container:** Docker + docker-compose on phatt-RAID (Unraid)
@@ -76,7 +76,8 @@ docker-compose up -d
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `LITELLM_API_KEY` | — | API key for LiteLLM proxy |
+| `LITELLM_API_KEY` | — | API key for LiteLLM proxy (BYOK) |
+| `LITELLM_BASE` | `http://localhost:4000` | LiteLLM proxy base URL — point at any OpenAI-compatible endpoint |
 | `CONTENT_MAX_CHARS` | `200000` | Max chars per scraped source |
 | `DATABASE_URL` | SQLite `data/trivia.db` | Database connection |
 
