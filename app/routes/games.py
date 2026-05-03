@@ -274,7 +274,7 @@ async def start_game(room_code: str):
                 "category": q.category,
                 "category_color": CATEGORY_COLORS.get(q.category, "#ffffff"),
                 "question_text": q.question_text,
-                "options": q.wrong_answers,
+                "options": [q.correct_answer] + list(q.wrong_answers),
                 "timer_seconds": remaining,
             })
         return {"ok": True, "total_questions": len(gs.questions)}
@@ -293,8 +293,9 @@ def get_question(room_code: str):
     elapsed = _time_module.time() - gs.question_started_at
     remaining = max(0, int(gs.question_time_limit - elapsed))
     
-    # Only wrong answers shown to players — correct answer revealed after submit
-    options = q.wrong_answers
+    # Shuffle a copy so the cached question object is not mutated.
+    # Options always include the correct answer + all wrong answers.
+    options = [q.correct_answer] + list(q.wrong_answers)
     random.shuffle(options)
 
     return QuestionDisplay(
@@ -401,7 +402,7 @@ async def next_question(room_code: str):
                 raise HTTPException(status_code=404, detail="Game not found")
             # Reconstruct minimal game state from DB for resume
             from app.services.game_engine import GameState
-            gs = GameState(profile_id=g.profile_id, num_questions=g.total_questions)
+            gs = GameState(room_code=room_code, profile_id=g.profile_id, total_q=g.total_questions)
             gs.status = g.status
             gs.current_q = g.current_question
             GAMES[room_code] = gs
@@ -435,7 +436,7 @@ async def next_question(room_code: str):
                 "category": q.category,
                 "category_color": CATEGORY_COLORS.get(q.category, "#ffffff"),
                 "question_text": q.question_text,
-                "options": q.wrong_answers,
+                "options": [q.correct_answer] + list(q.wrong_answers),
                 "timer_seconds": gs.question_time_limit,
             })
     return {"ok": True, "current_question": gs.current_q + 1, "status": gs.status}
