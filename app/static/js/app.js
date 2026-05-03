@@ -100,6 +100,62 @@ function toast(msg) {
 }
 
 // ── Profile management ────────────────────────────────────────────────────────
+// ── Profile form submission ──────────────────────────────────────────────────
+async function submitProfile(event) {
+  event.preventDefault();
+  const form = document.getElementById('profile-form');
+  const btn = form.querySelector('button[type=submit]');
+  btn.disabled = true;
+  btn.textContent = 'Saving...';
+  try {
+    const fd = new FormData(form);
+    const body = {};
+    for (const [key, value] of fd.entries()) {
+      if (value.trim()) body[key] = value.trim();
+    }
+    body.question_budget = 50;
+    const res = await fetch(API + '/api/profiles', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      toast('Error: ' + (data.detail || 'Unknown error'));
+      return;
+    }
+    toast('Profile created');
+    form.reset();
+    loadProfiles();
+    showScreen('home');
+  } catch (err) {
+    toast('Error: ' + err.message);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Save Profile';
+  }
+}
+
+async function triggerScrape(profileId, event) {
+  if (event) event.stopPropagation();
+  const btn = document.getElementById('scrape-btn-' + profileId);
+  if (btn) { btn.disabled = true; btn.textContent = 'Scraping...'; }
+  try {
+    const res = await fetch(API + '/api/profiles/' + profileId + '/scrape', { method: 'POST' });
+    const data = await res.json();
+    if (!res.ok) {
+      toast('Scrape failed: ' + (data.detail || 'Unknown error'));
+      return;
+    }
+    toast('Scrape complete' + (data.warning ? ' — ' + data.warning : ''));
+    loadProfiles();
+  } catch (err) {
+    toast('Scrape error: ' + err.message);
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = 'Scrape'; }
+  }
+}
+
 async function loadProfiles() {
   const res = await fetch(API + '/api/profiles');
   if (!res.ok) return;
@@ -112,6 +168,7 @@ async function loadProfiles() {
       <div class="meta">${p.entity_type ? p.entity_type.toUpperCase() : 'PERSON'} • @${esc(p.reddit_handle || p.twitter_handle || '—')}</div>
       <div class="meta">${p.question_count} questions</div>
       ${p.consent_obtained ? '<span style="color:var(--correct);font-size:12px;font-weight:700">✓ CONSENT</span>' : '<span style="color:var(--wrong);font-size:12px;font-weight:700">⚠ GUEST CONSENT REQUIRED</span>'}
+      ${(p.scrape_status === 'pending' || p.scrape_status === 'failed' || p.scrape_status === null) && p.consent_obtained ? `<button id="scrape-btn-${p.id}" class="btn" style="margin-top:0.5rem;font-size:14px;padding:0.5rem;color:var(--accent)" onclick="triggerScrape(${p.id}, event)">Scrape</button>` : ''}
       <span class="status-badge status-${p.scrape_status}">${p.scrape_status}</span>
       ${p.content_quality ? `<span style="font-size:11px;font-weight:700;color:${p.content_quality==='insufficient'?'var(--wrong)':p.content_quality==='limited'?'var(--accent)':p.content_quality==='rich'?'var(--correct)':'var(--text-secondary)'}">${p.content_quality.toUpperCase()} (${p.content_chunks||0} facts)</span>` : ''}
       ${p.scrape_status === 'done' && p.consent_obtained ? `<button class="btn" style="margin-top:0.5rem;font-size:14px;padding:0.5rem" onclick="event.stopPropagation(); createGame(${p.id})">Host Game</button>` : ''}
