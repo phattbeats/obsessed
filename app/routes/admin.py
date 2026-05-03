@@ -11,6 +11,7 @@ from app.services.scraper.reddit import scrape_reddit
 from app.services.scraper.instagram import scrape_instagram
 from app.services.scraper.pinterest import scrape_pinterest
 from app.services.scraper.threads import scrape_threads
+from app.services.scraper.places import scrape_places
 import json
 
 router = APIRouter(prefix="/api/admin", tags=["admin"])
@@ -171,6 +172,8 @@ async def rescrape_profile(profile_id: int):
                 scrape_tasks.append(("pinterest", scrape_pinterest(p.pinterest_handle)))
             if p.threads_handle:
                 scrape_tasks.append(("threads", scrape_threads(p.threads_handle)))
+            if p.google_places_handle:
+                scrape_tasks.append(("places", scrape_places(p.google_places_handle)))
 
             # asyncio.gather runs all concurrently
             results = await asyncio.gather(
@@ -192,7 +195,7 @@ async def rescrape_profile(profile_id: int):
 
             combined = "\n".join(content_parts) if content_parts else ""
             p.scrape_status = "done" if combined else "pending"
-            p.content = combined  # actually save the scraped content
+            p.raw_content = combined  # actually save the scraped content
             p.content_chunks = len(content_parts)
         except Exception as e:
             p.scrape_status = "error"
