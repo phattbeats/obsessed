@@ -14,6 +14,11 @@ from app.services.scraper.rate_limiter import generic_limiter
 from app.database import SessionLocal, EntityCache
 
 FLARESOLVERR_URL = "http://10.0.0.100:8191/v1"
+THREADS_SOURCE_PREFIX = "https://threads.net/"
+
+
+def _threads_source_url(handle: str) -> str:
+    return f"https://threads.net/{handle.strip('@/')}/"
 
 
 def get_threads_cache(entity_name: str, entity_type: str = "People") -> Optional[str]:
@@ -23,10 +28,10 @@ def get_threads_cache(entity_name: str, entity_type: str = "People") -> Optional
         cached = db.query(EntityCache).filter(
             EntityCache.entity_name == entity_name,
             EntityCache.entity_type == entity_type,
-            EntityCache.source == "threads"
+            EntityCache.source_url.like(f"{THREADS_SOURCE_PREFIX}%"),
         ).first()
         if cached:
-            return cached.content
+            return cached.raw_content
     finally:
         db.close()
     return None
@@ -36,22 +41,22 @@ def save_threads_cache(entity_name: str, entity_type: str, content: str):
     """Save scraped Threads content to entity_cache."""
     db = SessionLocal()
     try:
+        source_url = _threads_source_url(entity_name)
         existing = db.query(EntityCache).filter(
             EntityCache.entity_name == entity_name,
             EntityCache.entity_type == entity_type,
-            EntityCache.source == "threads"
+            EntityCache.source_url.like(f"{THREADS_SOURCE_PREFIX}%"),
         ).first()
         if existing:
-            existing.content = content
-            existing.updated_at = int(datetime.utcnow().timestamp())
+            existing.raw_content = content
+            existing.scraped_at = int(datetime.utcnow().timestamp())
+            existing.source_url = source_url
         else:
             new_cache = EntityCache(
                 entity_name=entity_name,
                 entity_type=entity_type,
-                content=content,
-                source="threads",
-                created_at=int(datetime.utcnow().timestamp()),
-                updated_at=int(datetime.utcnow().timestamp())
+                raw_content=content,
+                source_url=source_url,
             )
             db.add(new_cache)
         db.commit()
