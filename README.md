@@ -55,7 +55,8 @@ Supported entity types: `person`, `place`, `thing`, `event`.
 | POST | `/api/profiles/{id}/generate` | Trigger question generation |
 | GET/POST | `/api/games` | Game management |
 | POST | `/api/games/{room_code}/join` | Join a game |
-| WS | `/ws/game/{room_code}` | WebSocket for live game events |
+| WS | `/ws/{room_code}/{player_id}` | WebSocket for live game events |
+| GET | `/api/games/{room_code}/question` | Get current question |
 | GET | `/api/admin/overview` | Ops stats |
 | POST | `/api/admin/cache/delete/all` | Clear entity cache |
 | GET | `/api/admin/cache/stats` | Cache statistics |
@@ -81,6 +82,14 @@ docker-compose up -d
 | `CONTENT_MAX_CHARS` | `200000` | Max chars per scraped source |
 | `DATABASE_URL` | SQLite `data/trivia.db` | Database connection |
 
-## Categories
+## WebSocket Events
 
-history · entertainment · geography · science · sports · art_literature
+Connect to `/ws/{room_code}/{player_id}` for real-time game events. The server broadcasts:
+- `player_joined` — new player entered the lobby
+- `game_started` — game moved from lobby to active
+- `new_question` — question text, options, timer, category badge
+- `answer_result` — correct/incorrect with live player scores
+- `question_advance` — scores update between questions
+- `game_over` — game finished, players see final results
+
+Client sends `{"type":"ping"}` to keep connection alive. Auto-reconnect on disconnect (3s backoff).
