@@ -17,6 +17,7 @@ app.add_middleware(
 )
 
 # Static assets (CSS/JS/images)
+# Static files mount — CSS/JS/fonts at /static/*
 app.mount("/static", StaticFiles(directory=os.path.join(BASE_DIR, "static")), name="static")
 
 # API routes
@@ -29,9 +30,11 @@ app.include_router(sos.router)
 app.include_router(auditor.router)
 app.include_router(admin.router)
 
+
 @app.get("/api/health")
 def health():
     return {"status": "ok", "app": "Obsessed"}
+
 
 @app.get("/", response_class=HTMLResponse)
 @app.get("/index.html", response_class=HTMLResponse)
@@ -40,35 +43,13 @@ def serve_index():
     with open(path, "r") as f:
         return f.read()
 
-@app.get("/host.html", response_class=HTMLResponse)
-def serve_host():
-    path = os.path.join(BASE_DIR, "static", "host.html")
-    with open(path, "r") as f:
-        return f.read()
-
-@app.get("/play.html", response_class=HTMLResponse)
-def serve_play():
-    path = os.path.join(BASE_DIR, "static", "play.html")
-    with open(path, "r") as f:
-        return f.read()
-
-@app.get("/profile.html", response_class=HTMLResponse)
-def serve_profile():
-    path = os.path.join(BASE_DIR, "static", "profile.html")
-    with open(path, "r") as f:
-        return f.read()
-
-@app.get("/history.html", response_class=HTMLResponse)
-def serve_history():
-    path = os.path.join(BASE_DIR, "static", "history.html")
-    with open(path, "r") as f:
-        return f.read()
 
 @app.get("/admin.html", response_class=HTMLResponse)
 def serve_admin():
     path = os.path.join(BASE_DIR, "static", "admin.html")
     with open(path, "r") as f:
         return f.read()
+
 
 if __name__ == "__main__":
     import uvicorn
