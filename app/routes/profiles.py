@@ -1,5 +1,6 @@
 import asyncio
 from fastapi import APIRouter, HTTPException
+from app.config import settings
 from app.database import SessionLocal, Profile, Question
 from app.models import ProfileCreate, ProfileUpdate, ProfileResponse, QuestionResponse
 from app.services.scraper.reddit import scrape_reddit, generate_questions
