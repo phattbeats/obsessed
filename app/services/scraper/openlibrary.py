@@ -88,3 +88,13 @@ async def scrape_openlibrary(key: str, entity_type: str = "thing") -> tuple[str,
             return raw_content, meta
     except Exception as e:
         return f"[OpenLibrary scrape error for {key}: {e}]", {}
+
+
+# Alias used by things.py
+async def scrape_openlibrary_by_query(query: str) -> tuple[str, list[dict]]:
+    """Wrapper for things.py — searches OpenLibrary and returns formatted text."""
+    results = await search_openlibrary(query, max_results=10)
+    if not results:
+        return "[OpenLibrary: no results]", []
+    lines = [f"[{r['title']}] by {r['author']} ({r.get('year','')})" for r in results]
+    return "\n".join(lines), results
