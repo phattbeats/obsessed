@@ -1,4 +1,3 @@
-sha: 826a3f607f453b81cccc80cfea0633ead9fb4e3b
 name: Build and Push to Docker Hub
 
 on:
