@@ -10,6 +10,7 @@ from app.services.game_engine import (
     GAMES, GameState, TriviaQuestion, PlayerState,
     get_or_create_game, generate_room_code, cleanup_game,
 )
+from app.websocket import broadcast, send_to
 from datetime import datetime
 
 router = APIRouter(prefix="/api/games", tags=["games"])
@@ -155,7 +156,7 @@ def get_game(room_code: str):
         db.close()
 
 @router.post("/{room_code}/join", response_model=PlayerResponse)
-def join_game(room_code: str, data: PlayerJoin):
+async def join_game(room_code: str, data: PlayerJoin):
     db = SessionLocal()
     try:
         g = db.query(GameSession).filter(GameSession.room_code == room_code).first()
@@ -193,6 +194,17 @@ def join_game(room_code: str, data: PlayerJoin):
         
         gs = get_or_create_game(room_code, g.profile_id)
         gs.players[player_id] = PlayerState(player_id=player_id, player_name=data.player_name)
+        await broadcast(room_code, {
+            "type": "player_joined",
+            "player_id": player_id,
+            "player_name": data.player_name,
+            "player_count": len(gs.players),
+            "players": [
+                {"player_id": pid, "player_name": ps.player_name,
+                 "score": ps.score, "wedges": list(ps.wedges), "is_host": ps.is_host}
+                for pid, ps in gs.players.items()
+            ],
+        })
         
         return PlayerResponse(
             id=p.id, player_id=p.player_id, player_name=p.player_name,
@@ -202,7 +214,7 @@ def join_game(room_code: str, data: PlayerJoin):
         db.close()
 
 @router.post("/{room_code}/start")
-def start_game(room_code: str):
+async def start_game(room_code: str):
     db = SessionLocal()
     try:
         g = db.query(GameSession).filter(GameSession.room_code == room_code).first()
@@ -243,6 +255,28 @@ def start_game(room_code: str):
         
         g.status = "active"
         db.commit()
+
+        # Broadcast game start + first question to all players
+        await broadcast(room_code, {
+            "type": "game_started",
+            "room_code": room_code,
+            "player_count": len(gs.players),
+            "total_questions": len(gs.questions),
+        })
+        q = gs.current_question()
+        if q:
+            elapsed = _time_module.time() - gs.question_started_at
+            remaining = max(0, int(gs.question_time_limit - elapsed))
+            await broadcast(room_code, {
+                "type": "new_question",
+                "question_num": gs.current_q + 1,
+                "total_questions": len(gs.questions),
+                "category": q.category,
+                "category_color": CATEGORY_COLORS.get(q.category, "#ffffff"),
+                "question_text": q.question_text,
+                "options": q.wrong_answers,
+                "timer_seconds": remaining,
+            })
         return {"ok": True, "total_questions": len(gs.questions)}
     finally:
         db.close()
@@ -274,7 +308,7 @@ def get_question(room_code: str):
     )
 
 @router.post("/{room_code}/answer", response_model=AnswerResponse)
-def submit_answer(room_code: str, data: AnswerSubmit):
+async def submit_answer(room_code: str, data: AnswerSubmit):
     gs = GAMES.get(room_code)
     if not gs:
         raise HTTPException(status_code=404, detail="Game not found")
@@ -297,6 +331,19 @@ def submit_answer(room_code: str, data: AnswerSubmit):
         if g and p_row:
             _persist_answer(room_code, data.player_id, None, gs.current_q + 1,
                            data.answer_text, is_correct, data.time_taken_ms, pts)
+        # Broadcast answer result to all players (live score update)
+        await broadcast(room_code, {
+            "type": "answer_result",
+            "player_id": data.player_id,
+            "player_name": gs.players[data.player_id].player_name,
+            "is_correct": is_correct,
+            "correct_answer": q.correct_answer,
+            "points_earned": pts,
+            "player_scores": {
+                pid: {"player_name": ps.player_name, "score": ps.score, "wedges": list(ps.wedges)}
+                for pid, ps in gs.players.items()
+            },
+        })
         return AnswerResponse(
             player_id=data.player_id,
             player_name=gs.players[data.player_id].player_name,
@@ -343,7 +390,7 @@ def _finalize_game_stats(room_code: str):
     cleanup_game(room_code)
 
 @router.post("/{room_code}/next")
-def next_question(room_code: str):
+async def next_question(room_code: str):
     gs = GAMES.get(room_code)
     if not gs:
         # Resume from DB (container restart recovery)
@@ -374,8 +421,23 @@ def next_question(room_code: str):
             db.commit()
     finally:
         db.close()
+    # Broadcast new question (or game_over) to all players
     if gs.status == "finished":
+        await broadcast(room_code, {"type": "game_over", "room_code": room_code})
         _finalize_game_stats(room_code)
+    else:
+        q = gs.current_question()
+        if q:
+            await broadcast(room_code, {
+                "type": "new_question",
+                "question_num": gs.current_q + 1,
+                "total_questions": len(gs.questions),
+                "category": q.category,
+                "category_color": CATEGORY_COLORS.get(q.category, "#ffffff"),
+                "question_text": q.question_text,
+                "options": q.wrong_answers,
+                "timer_seconds": gs.question_time_limit,
+            })
     return {"ok": True, "current_question": gs.current_q + 1, "status": gs.status}
 
 @router.get("/{room_code}/scores")

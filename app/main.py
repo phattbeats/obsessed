@@ -1,8 +1,8 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, WebSocket
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, HTMLResponse
 from fastapi.middleware.cors import CORSMiddleware
-import os
+import os, json
 
 from app.database import init_db
 from app.routes import profiles, games, stats, news, court, sos, auditor, admin
@@ -29,6 +29,27 @@ app.include_router(court.router)
 app.include_router(sos.router)
 app.include_router(auditor.router)
 app.include_router(admin.router)
+
+# WebSocket endpoint for real-time game events
+@app.websocket("/ws/{room_code}/{player_id}")
+async def websocket_endpoint(websocket: WebSocket, room_code: str, player_id: str):
+    from app.websocket import connect, disconnect, broadcast
+    await connect(websocket, room_code, player_id)
+    try:
+        while True:
+            data = await websocket.receive_text()
+            # Client can send JSON pings; anything else we log and ignore
+            try:
+                msg = json.loads(data)
+                if msg.get("type") == "ping":
+                    await websocket.send_json({"type": "pong"})
+            except json.JSONDecodeError:
+                pass
+    except Exception:
+        pass
+    finally:
+        from app.websocket import disconnect as _disconnect
+        await _disconnect(room_code, player_id)
 
 
 @app.get("/api/health")

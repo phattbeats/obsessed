@@ -9,6 +9,71 @@ let myRoomCode = null;
 let pollInterval = null;
 let timerInterval = null;
 let timerSeconds = 30;
+let ws = null;
+let wsReconnectTimer = null;
+
+// ── WebSocket ────────────────────────────────────────────────────────────────
+function connectWS(room_code) {
+  if (ws) {
+    ws.close();
+    ws = null;
+  }
+  const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+  const host = location.host;
+  const url = `${proto}//${host}/ws/${room_code}/${myPlayerId}`;
+  ws = new WebSocket(url);
+  
+  ws.onopen = () => {
+    console.log('[WS] connected to', room_code);
+    clearTimeout(wsReconnectTimer);
+  };
+  
+  ws.onmessage = (evt) => {
+    try {
+      const msg = JSON.parse(evt.data);
+      handleWSMessage(msg);
+    } catch (e) {
+      console.warn('[WS] failed to parse:', evt.data);
+    }
+  };
+  
+  ws.onclose = () => {
+    console.log('[WS] disconnected');
+    // Auto-reconnect if still in a game room
+    if (myRoomCode) {
+      clearTimeout(wsReconnectTimer);
+      wsReconnectTimer = setTimeout(() => connectWS(myRoomCode), 3000);
+    }
+  };
+  
+  ws.onerror = (err) => {
+    console.warn('[WS] error', err);
+  };
+}
+
+function handleWSMessage(msg) {
+  switch (msg.type) {
+    case 'pong': break;
+    case 'player_joined':
+      updateLobbyPlayers(msg.players || []);
+      break;
+    case 'game_started':
+      showScreen('game');
+      break;
+    case 'new_question':
+      renderQuestionWS(msg);
+      break;
+    case 'answer_result':
+      showAnswerResultWS(msg);
+      break;
+    case 'question_advance':
+      // Score update between questions — could update a live scoreboard
+      break;
+    case 'game_over':
+      showResultsWS();
+      break;
+  }
+}
 
 // ── Screen management ────────────────────────────────────────────────────────
 function showScreen(name) {
@@ -17,8 +82,14 @@ function showScreen(name) {
   const el = document.getElementById(map[name]);
   if (el) el.classList.add('active');
   if (name !== 'game') { clearInterval(pollInterval); clearInterval(timerInterval); }
-  if (name === 'lobby') startLobbyPoll();
-  if (name === 'game') startGamePoll();
+  if (name === 'lobby') {
+    connectWS(myRoomCode);
+    startLobbyPoll(); // fallback polling — can be reduced or removed once WS is stable
+  }
+  if (name === 'game') {
+    if (myRoomCode) connectWS(myRoomCode);
+    startGamePoll();
+  }
 }
 
 // ── Toast ────────────────────────────────────────────────────────────────────
@@ -48,96 +119,64 @@ async function loadProfiles() {
     </div>`).join('');
 }
 
-async function requestConsentLink(profileId) {
-  const res = await fetch(API + '/api/profiles/' + profileId + '/consent-link');
-  if (!res.ok) return toast('Error generating link');
-  const data = await res.json();
-  const fullUrl = window.location.origin + data.consent_link;
-  const msg = 'Send this to your guest:\n' + fullUrl;
-  if (navigator.clipboard) {
-    navigator.clipboard.writeText(fullUrl).then(() => toast('Consent link copied!')).catch(() => toast(msg));
-  } else {
-    prompt('Copy this consent link:', fullUrl);
-  }
-}
-
-async function submitProfile(e) {
-  e.preventDefault();
-  const fd = new FormData(e.target);
-  const data = Object.fromEntries(fd.entries());
-  const res = await fetch(API + '/api/profiles', {
-    method: 'POST', headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify(data),
-  });
-  if (!res.ok) return toast('Error saving profile');
+// ── Profile selection ────────────────────────────────────────────────────────
+async function selectProfile(profileId) {
+  const res = await fetch(API + '/api/profiles/' + profileId);
+  if (!res.ok) return;
   const p = await res.json();
   currentProfile = p;
-  toast('Profile saved!');
-  e.target.reset();
-  loadProfiles();
-  if (p.scrape_status === 'pending') {
-    // Auto-scrape if handles provided
-    if (data.reddit_handle || data.manual_facts || data.threads_handle || data.pinterest_handle || data.instagram_handle || data.manual_link) {
-      toast('Scraping in background...');
-      const scrapeRes = await fetch(API + `/api/profiles/${p.id}/scrape`, { method: 'POST' });
-      const scrapeData = await scrapeRes.json().catch(() => ({}));
-      if (scrapeData.warning) toast('⚠ ' + scrapeData.warning);
-      else if (scrapeRes.ok) toast('Scraping complete!');
-      loadProfiles();
-    }
-  }
-}
-
-async function selectProfile(id) {
-  const res = await fetch(API + `/api/profiles/${id}`);
-  if (!res.ok) return;
-  currentProfile = await res.json();
+  myProfileName = p.name;
+  myProfileType = p.entity_type || 'person';
   showScreen('profile');
 }
 
 async function createGame(profileId) {
-  // Fetch profile for display context
-  const profRes = await fetch(API + '/api/profiles/' + profileId);
-  let prof = null;
-  if (profRes.ok) prof = await profRes.json();
-  myProfileName = prof ? prof.name : '';
-  myProfileType = prof ? (prof.entity_type || 'person') : 'person';
-
   const res = await fetch(API + '/api/games', {
-    method: 'POST', headers: {'Content-Type': 'application/json'},
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ profile_id: profileId }),
   });
-  if (!res.ok) return toast('Error creating game');
+  if (!res.ok) return;
   const game = await res.json();
   myRoomCode = game.room_code;
-  myPlayerName = prompt('Your name:', myPlayerName || localStorage.getItem('obsessed_name') || 'Player');
-  if (!myPlayerName) return;
-  localStorage.setItem('obsessed_name', myPlayerName);
-  const joinRes = await fetch(API + `/api/games/${myRoomCode}/join`, {
-    method: 'POST', headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({ player_name: myPlayerName, player_id: myPlayerId }),
-  });
-  if (!joinRes.ok) return toast('Error joining game');
-  const player = await joinRes.json();
-
-  // Show profile context on game screen
-  const ctx = document.getElementById('profile-context');
-  if (ctx && myProfileName) {
-    const emoji = {person:'👤',place:'📍',thing:'💡',event:'📅'}[myProfileType] || '👤';
-    ctx.textContent = `${emoji} ${myProfileName} (${myProfileType.toUpperCase()})`;
-  }
-
   showScreen('lobby');
-  document.getElementById('room-code-display').textContent = myRoomCode;
+  startLobbyPoll();
 }
 
+async function joinGame() {
+  const roomEl = document.getElementById('room-code-input');
+  const nameEl = document.getElementById('player-name-input');
+  const roomCode = roomEl ? roomEl.value.trim() : '';
+  const playerName = nameEl ? nameEl.value.trim() : '';
+  if (!roomCode || !playerName) { toast('Enter room code and name'); return; }
+  myPlayerName = playerName;
+  localStorage.setItem('obsessed_name', playerName);
+  const res = await fetch(API + `/api/games/${roomCode}/join`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ player_id: myPlayerId, player_name: playerName }),
+  });
+  if (!res.ok) { toast('Room not found or game already started'); return; }
+  const result = await res.json();
+  myRoomCode = roomCode;
+  showScreen('lobby');
+  startLobbyPoll();
+}
+
+async function requestConsentLink(profileId) {
+  const res = await fetch(API + '/api/profiles/' + profileId + '/consent-link');
+  if (!res.ok) return;
+  toast('Consent link sent');
+}
+
+// ── Lobby ─────────────────────────────────────────────────────────────────────
 function exitLobby() {
   clearInterval(pollInterval);
+  if (ws) { ws.close(); ws = null; }
   myRoomCode = null;
   showScreen('profile');
 }
 
-// ── Lobby polling ────────────────────────────────────────────────────────────
 async function startLobbyPoll() {
   if (!myRoomCode) return;
   await pollLobby();
@@ -149,15 +188,19 @@ async function pollLobby() {
   const res = await fetch(API + `/api/games/${myRoomCode}`);
   if (!res.ok) return;
   const game = await res.json();
-  const list = document.getElementById('lobby-players');
-  if (list) {
-    list.innerHTML = game.players.map(p => `
-      <div class="player-entry ${p.is_host ? 'host-tag' : ''}">${esc(p.player_name)} ${p.is_host ? '👑' : ''}</div>`).join('');
-  }
+  updateLobbyPlayers(game.players || []);
   if (game.status === 'active') {
     clearInterval(pollInterval);
     showScreen('game');
     loadQuestion();
+  }
+}
+
+function updateLobbyPlayers(players) {
+  const list = document.getElementById('lobby-players');
+  if (list) {
+    list.innerHTML = (players || []).map(p => `
+      <div class="player-entry ${p.is_host ? 'host-tag' : ''}">${esc(p.player_name)} ${p.is_host ? '👑' : ''}</div>`).join('');
   }
 }
 
@@ -175,6 +218,35 @@ async function loadQuestion() {
   }
   const q = await res.json();
   renderQuestion(q);
+}
+
+// ── WS-driven question renderer (used by WebSocket new_question events) ───────
+function renderQuestionWS(q) {
+  document.getElementById('question-progress').textContent = `Question ${q.question_num} / ${q.total_questions}`;
+  document.getElementById('question-text').textContent = q.question_text;
+  const badge = document.getElementById('category-badge');
+  badge.textContent = q.category.replace('_', ' ').toUpperCase();
+  badge.style.background = q.category_color;
+  const grid = document.getElementById('answer-grid');
+  grid.innerHTML = (q.options || []).map(opt => `
+    <button class="answer-btn" onclick="submitAnswer(this, '${esc(opt)}')">${esc(opt)}</button>`).join('');
+  startTimerWS(q.timer_seconds || 30);
+}
+
+function startTimerWS(seconds) {
+  timerSeconds = seconds;
+  const fill = document.getElementById('timer-fill');
+  clearInterval(timerInterval);
+  fill.style.width = '100%';
+  fill.className = '';
+  timerInterval = setInterval(() => {
+    timerSeconds--;
+    const pct = (timerSeconds / 30) * 100;
+    fill.style.width = pct + '%';
+    if (timerSeconds <= 5) fill.className = 'crit';
+    else if (timerSeconds <= 10) fill.className = 'warn';
+    if (timerSeconds <= 0) { clearInterval(timerInterval); submitAnswer(null, '__timeout__'); }
+  }, 1000);
 }
 
 function renderQuestion(q) {
@@ -203,6 +275,17 @@ function renderQuestion(q) {
   }, 1000);
 }
 
+// ── WS-driven answer result ───────────────────────────────────────────────────
+function showAnswerResultWS(msg) {
+  const opts = document.querySelectorAll('.answer-btn');
+  opts.forEach(b => {
+    if (b.textContent === msg.correct_answer) b.classList.add('correct');
+    else if (b.textContent === msg.answer_text && !msg.is_correct) b.classList.add('wrong');
+    b.disabled = true;
+  });
+  toast(msg.is_correct ? `+${msg.points_earned} pts!` : 'Wrong!');
+}
+
 async function submitAnswer(btn, answer) {
   clearInterval(timerInterval);
   const startMs = (30 - timerSeconds) * 1000;
@@ -211,13 +294,6 @@ async function submitAnswer(btn, answer) {
   const res = await fetch(API + `/api/games/${myRoomCode}/answer`, {
     method: 'POST', headers: {'Content-Type': 'application/json'},
     body: JSON.stringify({ player_id: myPlayerId, answer_text: answer, time_taken_ms: startMs }),
-  });
-  
-  // Reveal correct answer regardless
-  document.querySelectorAll('.answer-btn').forEach(b => {
-    if (b.textContent === answer || answer === '__timeout__') {
-      // We'll show the result after we know
-    }
   });
   
   if (res.ok) {
@@ -232,7 +308,6 @@ async function submitAnswer(btn, answer) {
   }
   
   setTimeout(async () => {
-    // Advance to next
     await fetch(API + `/api/games/${myRoomCode}/next`, { method: 'POST' });
     const nextRes = await fetch(API + `/api/games/${myRoomCode}/question`);
     if (nextRes.ok) {
@@ -243,8 +318,27 @@ async function submitAnswer(btn, answer) {
   }, 2000);
 }
 
+// ── WS-driven results screen ──────────────────────────────────────────────────
+function showResultsWS() {
+  clearInterval(pollInterval);
+  if (ws) { ws.close(); ws = null; }
+  showScreen('results');
+  fetch(API + `/api/games/${myRoomCode}/scores`).then(async res => {
+    if (!res.ok) return;
+    const scores = await res.json();
+    const winner = scores[0];
+    document.getElementById('winner-display').textContent = winner ? `🏆 ${esc(winner.player_name)} wins!` : 'No winner';
+    document.getElementById('final-scores').innerHTML = scores.map((s, i) => `
+      <div class="score-row ${i === 0 ? 'top' : ''}">
+        <span>${i+1}. ${esc(s.player_name)}</span>
+        <span class="score-val">${s.score.toLocaleString()}</span>
+      </div>`).join('');
+  });
+}
+
 async function showResults() {
   clearInterval(pollInterval);
+  if (ws) { ws.close(); ws = null; }
   showScreen('results');
   const res = await fetch(API + `/api/games/${myRoomCode}/scores`);
   if (!res.ok) return;
@@ -259,7 +353,6 @@ async function showResults() {
 }
 
 async function startGamePoll() {
-  // Already in-game, just refresh question
   loadQuestion();
 }
 
