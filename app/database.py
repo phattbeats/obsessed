@@ -129,6 +129,11 @@ class EntityCache(Base):
         return f"<EntityCache {self.entity_type}:{self.entity_name}>"
 
 
+
+
+
+def init_db():
+    """Initialize database tables and seed data."""
     Base.metadata.create_all(bind=engine)
     # Seed categories
     conn = sqlite3.connect(DB_PATH)
