@@ -78,7 +78,7 @@ function handleWSMessage(msg) {
 // ── Screen management ────────────────────────────────────────────────────────
 function showScreen(name) {
   document.querySelectorAll('.screens').forEach(s => s.classList.remove('active'));
-  const map = { home: 'screen-home', profile: 'screen-profile', lobby: 'screen-lobby', game: 'screen-game', results: 'screen-results', history: 'screen-history' };
+  const map = { home: 'screen-home', profile: 'screen-profile', lobby: 'screen-lobby', game: 'screen-game', results: 'screen-results', history: 'screen-history', settings: 'screen-settings' };
   const el = document.getElementById(map[name]);
   if (el) el.classList.add('active');
   if (name !== 'game') { clearInterval(pollInterval); clearInterval(timerInterval); }
