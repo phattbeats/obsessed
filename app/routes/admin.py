@@ -27,7 +27,7 @@ def ops_overview():
         total_profiles = db.query(Profile).count()
         profiles = db.query(Profile).order_by(Profile.created_at.desc()).all()
 
-        scrape_status_counts = {"pending": 0, "running": 0, "done": 0, "error": 0}
+        scrape_status_counts = {"pending": 0, "scraping": 0, "done": 0, "failed": 0}
         for p in profiles:
             status = p.scrape_status or "pending"
             if status in scrape_status_counts:
@@ -37,7 +37,7 @@ def ops_overview():
         active_games = db.query(GameSession).filter(
             GameSession.status.in_(["lobby", "active"])
         ).count()
-        recent_cutoff = datetime.now() - timedelta(days=7)
+        recent_cutoff = int((datetime.utcnow() - timedelta(days=7)).timestamp())
         recent_games = db.query(GameSession).filter(
             GameSession.created_at >= recent_cutoff
         ).count()
@@ -157,7 +157,7 @@ async def rescrape_profile(profile_id: int):
         if not p:
             raise HTTPException(status_code=404, detail="Profile not found")
 
-        p.scrape_status = "running"
+        p.scrape_status = "scraping"
         p.scrape_error = None
         db.commit()
 
@@ -186,9 +186,9 @@ async def rescrape_profile(profile_id: int):
                 result = results[i]
                 if isinstance(result, Exception):
                     p.scrape_error = f"{source} error: {result}"
-                    p.scrape_status = "error"
+                    p.scrape_status = "failed"
                     db.commit()
-                    return {"ok": False, "profile_id": profile_id, "status": "error", "error": str(result)}
+                    return {"ok": False, "profile_id": profile_id, "status": "failed", "error": str(result)}
                 content_str, _ = result
                 if content_str:
                     content_parts.append(content_str)
@@ -198,7 +198,7 @@ async def rescrape_profile(profile_id: int):
             p.raw_content = combined  # actually save the scraped content
             p.content_chunks = len(content_parts)
         except Exception as e:
-            p.scrape_status = "error"
+            p.scrape_status = "failed"
             p.scrape_error = str(e)
 
         db.commit()
