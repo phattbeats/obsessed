@@ -2,6 +2,20 @@
 
 All notable changes to Obsessed are documented here.
 
+## [1.0.3] — 2026-05-03
+
+### Fixed
+- `create_profile` now wires `threads_handle`, `instagram_handle`, `google_places_handle` — these were declared in model and schema but silently dropped at insert time. (`PHA-404`)
+- Admin `/rescrape`: wrote to non-existent `p.content` field (fixed → `p.raw_content`), missing `google_places_handle` in scrape tasks, missing `scrape_places` import. (`PHA-404`)
+- Static files mount at `/static` added to `main.py` — `/static/css/style.css` and `/static/js/app.js` were returning 404. (`PHA-406`)
+- Deleted 4 redirect-loop stub HTML files (`host.html`, `play.html`, `profile.html`, `history.html`) — each meta-refreshed to itself, causing infinite loops. (`PHA-406`)
+
+### Changed
+- **WebSocket real-time game events** (`/ws/{room_code}/{player_id}`): lobby player list, game start, question delivery, answer results, and game-over now push to all players via WebSocket broadcast. 4 route handlers promoted to `async def` with `broadcast()` calls. Frontend `app.js` gains WS client with 3s auto-reconnect. (`PHA-407`)
+- Game routes refactored as `async def` throughout (`join_game`, `start_game`, `submit_answer`, `next_question`) to support `await broadcast()`. (`PHA-407`)
+
+---
+
 ## [1.0.2] — 2026-05-03
 
 ### Fixed
