@@ -104,3 +104,4 @@ WIKIDATA_LIMITER = RateLimiter(max_concurrent=1, min_interval=1.1)  # 1 req/s
 GDELT_LIMITER = RateLimiter(max_concurrent=1, min_interval=1.1)     # 1 req/s
 EVENTS_LIMITER = RateLimiter(max_concurrent=1, min_interval=1.0)   # 1 req/s
 GOOGLE_LIMITER = RateLimiter(max_concurrent=1, min_interval=1.0)     # 1 req/s (Places API quota)
+generic_limiter = RateLimiter(max_concurrent=3, min_interval=0.5)   # shared fallback
