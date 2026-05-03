@@ -197,12 +197,8 @@ async def scrape_wikidata(entity_id: str, entity_type: str = "thing") -> tuple[s
             meta["wikipedia_title"] = wikipedia_title
 
         # P180 = described by source
+        write_cached(entity_id, entity_type, "\n".join(raw_parts), meta.get("label", ""))
         return "\n".join(raw_parts), meta
-
-    # WRITE TO CACHE
-    write_cached(entity_id, entity_type, "\n".join(raw_parts), meta.get("label", ""))
-
-    return "\n".join(raw_parts), meta
 
     except Exception as e:
         return f"[Wikidata parse error for {entity_id}: {e}]", {}

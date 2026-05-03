@@ -1,9 +1,5 @@
-"""
-OpenLibrary scraper for THINGS entity type — books, authors, publishers.
-Free API, no auth, good structured data on published works.
-"""
 import httpx
-import re
+
 from app.services.entity_cache import get_cached, write_cached
 
 OL_API = "https://openlibrary.org"
@@ -15,15 +11,14 @@ async def search_openlibrary(query: str, max_results: int = 3) -> list[dict]:
     Returns list of {key, title, author, year, cover_i}.
     """
     try:
-        async with httpx.AsyncClient
+        # CHECK CACHE FIRST
+        key = query
+        entity_type = "thing"
+        cached = get_cached(key, entity_type)
+        if cached:
+            raw_content, meta = cached
+            return eval(raw_content)  # CACHE HIT
 
-    # CHECK CACHE FIRST
-    cached = get_cached(key, entity_type)
-    if cached:
-        raw_content, meta = cached
-        return raw_content, meta  # CACHE HIT
-
-try:
         async with httpx.AsyncClient(timeout=15.0) as client:
             r = await client.get(
                 f"{OL_API}/search.json",
@@ -34,7 +29,7 @@ try:
             results = []
             for doc in data.get("docs", [])[:max_results]:
                 results.append({
-                    "key": doc.get("key", ""),  # e.g. "/works/OL123W"
+                    "key": doc.get("key", ""),
                     "title": doc.get("title", ""),
                     "author": ", ".join(doc.get("author_name", [])[:2]),
                     "year": doc.get("first_publish_year", ""),
@@ -44,6 +39,7 @@ try:
                     "pages": doc.get("number_of_pages_median", 0),
                     "language": doc.get("language", [""])[0],
                 })
+            write_cached(key, entity_type, repr(results), "")
             return results
     except Exception:
         return []
@@ -55,15 +51,12 @@ async def scrape_openlibrary(key: str, entity_type: str = "thing") -> tuple[str,
     Returns (raw_text, metadata).
     """
     try:
-        async with httpx.AsyncClient
+        # CHECK CACHE FIRST
+        cached = get_cached(key, entity_type)
+        if cached:
+            raw_content, meta = cached
+            return raw_content, meta  # CACHE HIT
 
-    # CHECK CACHE FIRST
-    cached = get_cached(key, entity_type)
-    if cached:
-        raw_content, meta = cached
-        return raw_content, meta  # CACHE HIT
-
-try:
         async with httpx.AsyncClient(timeout=15.0) as client:
             r = await client.get(f"{OL_API}{key}.json")
             if r.status_code != 200:
@@ -76,7 +69,6 @@ try:
                 "description": "",
             }
 
-            # Extract description (can be string or dict with 'value')
             desc = d.get("description", {})
             if isinstance(desc, dict):
                 meta["description"] = desc.get("value", "")
@@ -87,75 +79,12 @@ try:
             if meta["description"]:
                 raw_parts.append(meta["description"])
 
-            # Subjects / topics
-            subjects = d.get("subjects", []) or d.get("subject_places", []) or d.get("subject_times", []) or []
+            subjects = d.get("subject", [])[:10]
             if subjects:
-                raw_parts.append(f"Topics: {', '.join(subjects[:8])}")
+                raw_parts.append("Subjects: " + ", ".join(subjects))
 
-            # Author links
-            authors = d.get("authors", [])
-            if authors:
-                author_names = []
-                for a in authors[:3]:
-                    author_key = a.get("key", "")
-                    if author_key:
-                        # Try to fetch author name
-                        try:
-                            ar = await client.get(f"{OL_API}{author_key}.json")
-                            if ar.status_code == 200:
-                                ad = ar.json()
-                                author_names.append(ad.get("name", author_key))
-                        except Exception:
-                            author_names.append(author_key.split("/")[-1])
-                if author_names:
-                    raw_parts.append(f"Authors: {', '.join(author_names)}")
-
-            # Cover image
-            cover_i = d.get("covers", [None])[0]
-            if cover_i:
-                meta["cover_url"] = f"https://covers.openlibrary.org/b/id/{cover_i}-L.jpg"
-
-            # First published
-            created = d.get("created", {})
-            if created:
-                date = created.get("value", "")[:10] if isinstance(created, dict) else str(created)[:10]
-                if date:
-                    raw_parts.append(f"Created: {date}")
-
-            return "\n".join(raw_parts), meta
-
-    # WRITE TO CACHE
-    write_cached(key, entity_type, "\n".join(raw_parts), meta.get("key", ""))
-
-    return "\n".join(raw_parts), meta
-
+            raw_content = "\n".join(raw_parts)
+            write_cached(key, entity_type, raw_content, meta.get("key", ""))
+            return raw_content, meta
     except Exception as e:
         return f"[OpenLibrary scrape error for {key}: {e}]", {}
-
-
-async def scrape_openlibrary_by_query(query: str) -> tuple[str, list[dict]]:
-    """
-    Search OpenLibrary for a query, then scrape the top result.
-    Returns (raw_text, entries_found).
-    """
-    if not query:
-        return "[OpenLibrary: empty query]", []
-
-    search_results = await search_openlibrary(query, max_results=3)
-    if not search_results:
-        return f"[OpenLibrary: no results for '{query}']", []
-
-    raw_parts = []
-    entries = []
-    for result in search_results[:2]:
-        key = result.get("key", "")
-        if key:
-            text, meta = await scrape_openlibrary(key)
-            if text and not text.startswith("[OpenLibrary: not found"):
-                raw_parts.append(text)
-                entries.append({**result, "meta": meta})
-
-    if not raw_parts:
-        return f"[OpenLibrary: scrape failed for '{query}']", []
-
-    return "\n\n".join(raw_parts), entries
