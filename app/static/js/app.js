@@ -6,6 +6,7 @@ let myPlayerName = localStorage.getItem('obsessed_name') || '';
 let myProfileName = '';
 let myProfileType = 'person';
 let myRoomCode = null;
+let selectedThings = [];  // [{profile_id, num_questions}]
 let pollInterval = null;
 let timerInterval = null;
 let timerSeconds = 30;
@@ -171,7 +172,7 @@ async function loadProfiles() {
       ${(p.scrape_status === 'pending' || p.scrape_status === 'failed' || p.scrape_status === null) && p.consent_obtained ? `<button id="scrape-btn-${p.id}" class="btn" style="margin-top:0.5rem;font-size:14px;padding:0.5rem;color:var(--accent)" onclick="triggerScrape(${p.id}, event)">Scrape</button>` : ''}
       <span class="status-badge status-${p.scrape_status}">${p.scrape_status}</span>
       ${p.content_quality ? `<span style="font-size:11px;font-weight:700;color:${p.content_quality==='insufficient'?'var(--wrong)':p.content_quality==='limited'?'var(--accent)':p.content_quality==='rich'?'var(--correct)':'var(--text-secondary)'}">${p.content_quality.toUpperCase()} (${p.content_chunks||0} facts)</span>` : ''}
-      ${p.scrape_status === 'done' && p.consent_obtained ? `<button class="btn" style="margin-top:0.5rem;font-size:14px;padding:0.5rem" onclick="event.stopPropagation(); createGame(${p.id})">Host Game</button>` : ''}
+      ${p.scrape_status === 'done' && p.consent_obtained ? `<button class="btn" style="margin-top:0.5rem;font-size:14px;padding:0.5rem" onclick="event.stopPropagation(); showThingsModal([${p.id}])">Host Game</button>` : ''}
       ${p.scrape_status === 'done' && !p.consent_obtained ? `<button class="btn" style="margin-top:0.5rem;font-size:14px;padding:0.5rem;color:var(--accent)" onclick="event.stopPropagation(); requestConsentLink(${p.id})">Send to Guest</button>` : ''}
     </div>`).join('');
 }
@@ -194,6 +195,58 @@ async function createGame(profileId) {
     body: JSON.stringify({ profile_id: profileId }),
   });
   if (!res.ok) return;
+  const game = await res.json();
+  myRoomCode = game.room_code;
+  showScreen('lobby');
+  startLobbyPoll();
+}
+
+function showThingsModal(preSelectedProfileIds) {
+  selectedThings = preSelectedProfileIds.map(pid => ({ profile_id: pid, num_questions: 50 }));
+  const modal = document.getElementById('things-modal');
+  renderThingsList();
+  modal.style.display = 'flex';
+}
+
+function closeThingsModal() {
+  document.getElementById('things-modal').style.display = 'none';
+  selectedThings = [];
+}
+
+function renderThingsList() {
+  const list = document.getElementById('things-list');
+  if (!list) return;
+  if (selectedThings.length === 0) {
+    list.innerHTML = '<p style="color:var(--text-secondary);font-size:14px">No profiles selected.</p>';
+    return;
+  }
+  list.innerHTML = selectedThings.map((t, i) => `
+    <div style="display:flex;align-items:center;gap:0.5rem;margin-bottom:0.5rem;padding:0.5rem;background:var(--surface);border-radius:4px">
+      <span style="color:var(--accent);font-weight:700">${i + 1}.</span>
+      <span style="flex:1;color:var(--white)">Profile #${t.profile_id}</span>
+      <input type="number" value="${t.num_questions}" min="5" max="100"
+        style="width:60px;background:var(--surface-elevated);color:var(--white);border:1px solid var(--accent);padding:0.25rem;text-align:center"
+        onchange="selectedThings[${i}].num_questions = parseInt(this.value) || 50">
+      <span style="color:var(--text-secondary);font-size:12px">questions</span>
+      <button onclick="removeThing(${i})" style="background:none;border:none;color:var(--wrong);font-size:16px;cursor:pointer;padding:0 0.25rem">×</button>
+    </div>
+  `).join('');
+}
+
+function removeThing(index) {
+  selectedThings.splice(index, 1);
+  renderThingsList();
+}
+
+async function submitThingsGame() {
+  if (selectedThings.length === 0) { toast('Select at least one profile'); return; }
+  closeThingsModal();
+  const res = await fetch(API + '/api/games', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ things: selectedThings }),
+  });
+  if (!res.ok) { toast('Failed to create game'); return; }
   const game = await res.json();
   myRoomCode = game.room_code;
   showScreen('lobby');
