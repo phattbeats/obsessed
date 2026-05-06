@@ -133,3 +133,87 @@ async def test_profile_list_includes_entity_type():
     matches = [x for x in bodies if x["id"] == profile_id]
     assert matches, "Created profile not in list"
     assert matches[0].get("entity_type") == "place", f"entity_type missing/wrong: {matches[0]}"
+
+
+# ── PHA-577 multi-thing tests ────────────────────────────────────────────────
+
+@pytest.mark.asyncio
+async def test_things_game_create_and_start():
+    """Multi-thing game (2 profiles) — create, join, start, questions load."""
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as ac:
+        # Create two profiles
+        p1 = await ac.post("/api/profiles", json={"name": "Thing A", "entity_type": "person"})
+        p2 = await ac.post("/api/profiles", json={"name": "Thing B", "entity_type": "person"})
+        pid1, pid2 = p1.json()["id"], p2.json()["id"]
+
+        # Set consent on both (required)
+        await ac.post(f"/api/profiles/{pid1}/consent")
+        await ac.post(f"/api/profiles/{pid2}/consent")
+
+        # Create a game with 2 things
+        game = await ac.post("/api/games", json={
+            "things": [{"profile_id": pid1, "num_questions": 10}, {"profile_id": pid2, "num_questions": 10}]
+        })
+        assert game.status_code == 200, f"game create failed: {game.text}"
+        body = game.json()
+        assert body.get("things") is not None, "things field should be returned"
+        assert len(body["things"]) == 2
+
+        room = body["room_code"]
+
+        # Join a player
+        player = await ac.post(f"/api/games/{room}/join", json={
+            "player_id": "test_player_1", "player_name": "Alice"
+        })
+        assert player.status_code == 200
+
+        # Start the game
+        start = await ac.post(f"/api/games/{room}/start")
+        assert start.status_code == 200, f"start failed: {start.text}"
+        start_body = start.json()
+        assert start_body["ok"] is True
+        assert start_body["total_questions"] > 0, "should have loaded questions from both profiles"
+
+
+@pytest.mark.asyncio
+async def test_single_profile_id_game_still_works():
+    """Regression: single profile_id game (backward compat) unchanged."""
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as ac:
+        p = await ac.post("/api/profiles", json={"name": "Solo Thing", "entity_type": "person"})
+        pid = p.json()["id"]
+        await ac.post(f"/api/profiles/{pid}/consent")
+
+        game = await ac.post("/api/games", json={"profile_id": pid})
+        assert game.status_code == 200, f"single-profile game failed: {game.text}"
+        body = game.json()
+        assert body.get("things") is None, "things should be null for single profile_id"
+        room = body["room_code"]
+
+        player = await ac.post(f"/api/games/{room}/join", json={
+            "player_id": "solo_player", "player_name": "Bob"
+        })
+        assert player.status_code == 200
+
+        start = await ac.post(f"/api/games/{room}/start")
+        assert start.status_code == 200, f"start failed: {start.text}"
+
+
+@pytest.mark.asyncio
+async def test_things_empty_array_fails():
+    """things=[] should return 400."""
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as ac:
+        r = await ac.post("/api/games", json={"things": []})
+    assert r.status_code == 400, f"expected 400 for empty things, got {r.status_code}"
+
+
+@pytest.mark.asyncio
+async def test_things_beyondule_max_fails():
+    """More than 10 things should return 400."""
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as ac:
+        things = [{"profile_id": i, "num_questions": 10} for i in range(1, 15)]
+        r = await ac.post("/api/games", json={"things": things})
+    assert r.status_code == 400, f"expected 400 for >10 things, got {r.status_code}"
