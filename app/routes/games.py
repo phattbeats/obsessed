@@ -112,7 +112,28 @@ def create_game(data: GameCreate):
                 raise HTTPException(status_code=404, detail="Profile not found")
             if not p.consent_obtained:
                 raise HTTPException(status_code=403, detail="Consent not obtained from guest. Generate a consent link first.")
-        g = GameSession(room_code=room_code, profile_id=data.profile_id)
+        # Validate consent for all profile_ids (single or multi)
+        profile_ids = []
+        if data.things:
+            profile_ids = [t.profile_id for t in data.things]
+            if len(profile_ids) > 10:
+                raise HTTPException(status_code=400, detail="Maximum 10 things per game")
+            for pid in profile_ids:
+                p = db.query(Profile).filter(Profile.id == pid).first()
+                if not p:
+                    raise HTTPException(status_code=404, detail=f"Profile {pid} not found")
+                if not p.consent_obtained:
+                    raise HTTPException(status_code=403, detail=f"Consent not obtained for profile {pid}")
+        elif data.profile_id:
+            profile_ids = [data.profile_id]
+            p = db.query(Profile).filter(Profile.id == data.profile_id).first()
+            if not p:
+                raise HTTPException(status_code=404, detail="Profile not found")
+            if not p.consent_obtained:
+                raise HTTPException(status_code=403, detail="Consent not obtained from guest. Generate a consent link first.")
+        
+        things_json = json.dumps([t.model_dump() for t in data.things]) if data.things else None
+        g = GameSession(room_code=room_code, profile_id=data.profile_id, things=things_json)
         db.add(g)
         db.commit()
         db.refresh(g)
@@ -122,6 +143,7 @@ def create_game(data: GameCreate):
             status=g.status, current_question=g.current_question,
             total_questions=g.total_questions, players=[],
             created_at=g.created_at,
+            things=json.loads(things_json) if things_json else None,
         )
     finally:
         db.close()
@@ -228,12 +250,26 @@ async def start_game(room_code: str):
                 raise HTTPException(status_code=403, detail="Guest consent not obtained. Generate a consent link first.")
 
         # Load questions
-        qs = db.query(Question).filter(Question.profile_id == g.profile_id).all()
-        if not qs:
-            raise HTTPException(status_code=400, detail="No questions available for this profile")
-        
-        random.shuffle(qs)
-        selected = qs[:g.total_questions]
+        # Load questions from all things' profile_ids, merge pools
+        if g.things:
+            thing_list = json.loads(g.things)
+            all_qs = []
+            for thing in thing_list:
+                pid = thing.get("profile_id")
+                n = thing.get("num_questions", 50)
+                qs = db.query(Question).filter(Question.profile_id == pid).all()
+                if qs:
+                    all_qs.extend(qs)
+            if not all_qs:
+                raise HTTPException(status_code=400, detail="No questions available for these profiles")
+            random.shuffle(all_qs)
+            selected = all_qs[:g.total_questions]
+        else:
+            qs = db.query(Question).filter(Question.profile_id == g.profile_id).all()
+            if not qs:
+                raise HTTPException(status_code=400, detail="No questions available for this profile")
+            random.shuffle(qs)
+            selected = qs[:g.total_questions]
         
         gs = get_or_create_game(room_code, g.profile_id)
         gs.questions = [TriviaQuestion(

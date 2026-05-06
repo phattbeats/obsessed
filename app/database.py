@@ -71,6 +71,7 @@ class GameSession(Base):
     status = Column(String(50), default="lobby")  # lobby|active|finished
     current_question = Column(Integer, default=0)
     total_questions = Column(Integer, default=50)
+    things = Column(Text, default="[]")  # JSON list of {profile_id, num_questions}
     created_at = Column(Integer, default=lambda: int(datetime.utcnow().timestamp()))
     players = relationship("Player", back_populates="game", cascade="all, delete-orphan")
     answers = relationship("Answer", back_populates="game", cascade="all, delete-orphan")

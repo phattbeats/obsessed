@@ -104,13 +104,19 @@ class QuestionResponse(BaseModel):
         from_attributes = True
 
 # ─── Game ──────────────────────────────────────────────────────────────────────
+class ThingInput(BaseModel):
+    profile_id: int
+    num_questions: int = 50
+
 class GameCreate(BaseModel):
     profile_id: Optional[int] = None
+    things: Optional[list[ThingInput]] = None
 
 class GameResponse(BaseModel):
     id: int
     room_code: str
     profile_id: Optional[int]
+    things: Optional[list[dict]] = None  # from GameSession.things
     status: str
     current_question: int
     total_questions: int
