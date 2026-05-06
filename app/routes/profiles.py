@@ -149,6 +149,20 @@ def get_profile_stats(profile_id: int):
 
 CONSENT_SECRET = b"obsessed-consent-2026"
 
+@router.post("/{profile_id}/consent")
+def set_consent(profile_id: int):
+    """Direct consent flag for testing / internal use."""
+    db = SessionLocal()
+    try:
+        p = db.query(Profile).filter(Profile.id == profile_id).first()
+        if not p:
+            raise HTTPException(status_code=404, detail="Profile not found")
+        p.consent_obtained = True
+        db.commit()
+        return {"ok": True}
+    finally:
+        db.close()
+
 @router.get("/{profile_id}/consent-link")
 def generate_consent_link(profile_id: int):
     """Generate a signed consent URL for the guest to visit."""
