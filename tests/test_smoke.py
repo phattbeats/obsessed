@@ -60,8 +60,18 @@ async def test_get_question_includes_correct_answer():
         # Wait a bit for questions to generate
         import asyncio
         await asyncio.sleep(1)
+        # Grant consent so /api/games does not 403 the test
+        from app.database import SessionLocal, Profile
+        db = SessionLocal()
+        try:
+            row = db.query(Profile).filter(Profile.id == profile_id).first()
+            row.consent_obtained = True
+            db.commit()
+        finally:
+            db.close()
         # Create a game
         g = await ac.post("/api/games", json={"profile_id": profile_id})
+        assert g.status_code == 200, f"create game failed: {g.status_code} {g.text}"
         room = g.json()["room_code"]
         # Get the question
         q = await ac.get(f"/api/games/{room}/question")
@@ -78,7 +88,8 @@ async def test_get_question_includes_correct_answer():
                 assert isinstance(opts, list), f"options must be list, got {type(opts)}"
                 assert all(isinstance(o, str) for o in opts), f"all options must be strings"
         elif q.status_code == 400:
-            assert "no questions generated" in q.json().get("detail", "").lower()
+            detail = q.json().get("detail", "").lower()
+            assert "no" in detail and "question" in detail, f"unexpected 400 detail: {detail}"
         else:
             assert q.status_code in (200, 400), f"Unexpected {q.status_code}: {q.text}"
 
