@@ -184,91 +184,79 @@ def verify_consent(token: str):
 @router.post("/{profile_id}/scrape")
 async def trigger_scrape(profile_id: int):
     db = SessionLocal()
+    p = db.query(Profile).filter(Profile.id == profile_id).first()
+    if not p:
+        db.close()
+        raise HTTPException(status_code=404, detail="Profile not found")
     try:
-        p = db.query(Profile).filter(Profile.id == profile_id).first()
-        if not p:
-            raise HTTPException(status_code=404, detail="Profile not found")
         p.scrape_status = "scraping"
         p.scrape_error = ""
         db.commit()
 
-        raw_parts = []
-        raw = ""
+        raw_parts: list[str] = []
+        scraper_errors: list[str] = []
+
+        async def _safe(label: str, coro):
+            try:
+                text, _ = await coro
+                if text and not text.startswith(f"[{label}"):
+                    raw_parts.append(text)
+            except Exception as exc:
+                scraper_errors.append(f"{label}: {exc}")
 
         # ── Cache check ──────────────────────────────────────────────────────
         from app.services.entity_cache import get_cached, write_cached
         cache_hit = get_cached(p.name, p.entity_type)
+        cached_raw = ""
         if cache_hit:
-            raw, _ = cache_hit
-            # Persist cached content into the profile record
-            p.raw_content = raw[: settings.content_max_chars]
-            p.scrape_status = "done"
-            p.updated_at = int(__import__("datetime").datetime.utcnow().timestamp())
-            db.commit()
-            # Still run question generation from the cached content
-            await _generate_questions_async(p.id, raw, p.name, budget=p.question_budget)
-            return {"ok": True, "status": "done", "warning": None, "content_quality": p.content_quality or "adequate", "content_chunks": p.content_chunks or 0}
+            cached_raw, _ = cache_hit
 
-        # ── Scrape ────────────────────────────────────────────────────────────
-        if p.reddit_handle:
-            text, _ = await scrape_reddit(p.reddit_handle)
-            raw_parts.append(text)
-        if p.pinterest_handle:
-            text, _ = await scrape_pinterest(p.pinterest_handle)
-            raw_parts.append(text)
-        if p.threads_handle:
-            text, _ = await scrape_threads(p.threads_handle)
-            raw_parts.append(text)
-        if p.instagram_handle:
-            text, _ = await scrape_instagram(p.instagram_handle)
-            raw_parts.append(text)
-        if p.manual_facts:
-            raw_parts.append(p.manual_facts)
-        if p.manual_link:
-            text, meta = await crawl4ai_scrape(p.manual_link)
-            if text and len(text) > 20:
-                raw_parts.append(text)
-        if p.google_places_handle:
-            text, _ = await scrape_places(google_places_query=p.google_places_handle)
-            if text and not text.startswith("[Places: no data"):
-                raw_parts.append(text)
-        if p.wikipedia_handle:
-            from app.services.scraper.wikipedia import scrape_wikipedia
-            text, _ = await scrape_wikipedia(p.wikipedia_handle)
-            if text and not text.startswith("[Wikipedia error"):
-                raw_parts.append(text)
-        if p.osm_query:
-            from app.services.scraper.osm import scrape_osm
-            text, _ = await scrape_osm(p.osm_query)
-            if text and not text.startswith("[OpenStreetMap: no results"):
-                raw_parts.append(text)
-        if p.travel_url:
-            from app.services.scraper.travel import scrape_travel_blog
-            text, _ = await scrape_travel_blog(p.travel_url)
-            if text and len(text) > 50:
-                raw_parts.append(text)
-        if p.wikidata_query:
-            text, _ = await scrape_things(wikidata_query=p.wikidata_query)
-            if text and not text.startswith("[Things: no data"):
-                raw_parts.append(text)
-        if p.openlibrary_query:
-            text, _ = await scrape_things(openlibrary_query=p.openlibrary_query)
-            if text and not text.startswith("[Things: no data"):
-                raw_parts.append(text)
-        if p.gdelt_query:
-            text, _ = await scrape_events(gdelt_query=p.gdelt_query)
-            if text and not text.startswith("[Events: no data"):
-                raw_parts.append(text)
+        if cached_raw:
+            raw = cached_raw
+        else:
+            # ── Scrape ────────────────────────────────────────────────────────
+            if p.reddit_handle:
+                await _safe("Reddit", scrape_reddit(p.reddit_handle))
+            if p.pinterest_handle:
+                await _safe("Pinterest", scrape_pinterest(p.pinterest_handle))
+            if p.threads_handle:
+                await _safe("Threads", scrape_threads(p.threads_handle))
+            if p.instagram_handle:
+                await _safe("Instagram", scrape_instagram(p.instagram_handle))
+            if p.manual_facts:
+                raw_parts.append(p.manual_facts)
+            if p.manual_link:
+                try:
+                    text, _ = await crawl4ai_scrape(p.manual_link)
+                    if text and len(text) > 20 and not text.startswith("[crawl4ai"):
+                        raw_parts.append(text)
+                except Exception as exc:
+                    scraper_errors.append(f"crawl4ai: {exc}")
+            if p.google_places_handle:
+                await _safe("Places", scrape_places(google_places_query=p.google_places_handle))
+            if p.wikipedia_handle:
+                from app.services.scraper.wikipedia import scrape_wikipedia
+                await _safe("Wikipedia", scrape_wikipedia(p.wikipedia_handle))
+            if p.osm_query:
+                from app.services.scraper.osm import scrape_osm
+                await _safe("OpenStreetMap", scrape_osm(p.osm_query))
+            if p.travel_url:
+                from app.services.scraper.travel import scrape_travel_blog
+                await _safe("Travel", scrape_travel_blog(p.travel_url))
+            if p.wikidata_query:
+                await _safe("Things", scrape_things(wikidata_query=p.wikidata_query))
+            if p.openlibrary_query:
+                await _safe("Things", scrape_things(openlibrary_query=p.openlibrary_query))
+            if p.gdelt_query:
+                await _safe("Events", scrape_events(gdelt_query=p.gdelt_query))
 
-        raw = "\n".join(raw_parts)
+            raw = "\n".join(raw_parts)
+            if raw.strip():
+                write_cached(p.name, p.entity_type, raw)
+
         p.raw_content = raw[: settings.content_max_chars]
 
-        # ── Write to cache ───────────────────────────────────────────────────
-        if raw.strip():
-            write_cached(p.name, p.entity_type, raw)
-
         # Estimate content quality from scraped chunks
-        import re as _re
         chunks = [ch.strip() for ch in raw.split("\n\n") if len(ch.strip()) > 40]
         p.content_chunks = len(chunks)
         if len(chunks) < 15:
@@ -283,17 +271,28 @@ async def trigger_scrape(profile_id: int):
 
         p.scrape_status = "done"
         p.updated_at = int(__import__("datetime").datetime.utcnow().timestamp())
+        if scraper_errors:
+            p.scrape_error = "; ".join(scraper_errors)[:500]
         db.commit()
+
         scrape_warning = None
         if p.content_quality == "insufficient":
             scrape_warning = f"Not enough content. Need at least 15 facts, got {len(chunks)}. Add more handles or use manual entry."
         elif p.content_quality == "limited":
             scrape_warning = f"Limited content ({len(chunks)} facts) - generating shortened 25-question game."
 
-        # Trigger question generation
+        # Trigger question generation (cache hit included — questions live on Profile, not cache)
         await _generate_questions_async(p.id, raw, p.name, budget=p.question_budget)
 
-        return {"ok": True, "status": "done", "warning": scrape_warning, "content_quality": p.content_quality, "content_chunks": p.content_chunks}
+        return {
+            "ok": True,
+            "status": "done",
+            "warning": scrape_warning,
+            "content_quality": p.content_quality,
+            "content_chunks": p.content_chunks,
+            "cached": bool(cached_raw),
+            "scraper_errors": scraper_errors,
+        }
     except HTTPException:
         raise
     except Exception as e:

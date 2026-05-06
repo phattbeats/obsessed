@@ -5,7 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 import os, json
 
 from app.database import init_db
-from app.routes import profiles, games, stats, news, court, sos, auditor, admin
+from app.routes import profiles, games, stats, news, court, sos, auditor, admin, settings as settings_routes
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
@@ -29,6 +29,7 @@ app.include_router(court.router)
 app.include_router(sos.router)
 app.include_router(auditor.router)
 app.include_router(admin.router)
+app.include_router(settings_routes.router)
 
 # WebSocket endpoint for real-time game events
 @app.websocket("/ws/{room_code}/{player_id}")
