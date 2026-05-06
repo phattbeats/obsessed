@@ -17,6 +17,8 @@
   <div class="action-grid">
     <button class="btn primary" onclick="showScreen('profile')">New Game</button>
     <button class="btn" onclick="showScreen('history')">History</button>
+    <button class="btn" onclick="showScreen('settings')">Settings</button>
+    <a class="btn" href="/admin.html">Admin</a>
   </div>
   <div id="home-stats" class="stats-bar"></div>
 </div>
@@ -235,6 +237,17 @@
   <div id="leaderboard-content" style="padding: 1rem; width: 100%;"></div>
 </div>
 
+<!-- SETTINGS -->
+<div id="screen-settings" class="screens">
+  <div class="screen-header">
+    <button class="back-btn" onclick="showScreen('home')">←</button>
+    <h2>Settings</h2>
+  </div>
+  <div id="settings-content" style="padding: 1rem; width: 100%; max-width: 720px; margin: 0 auto;">
+    <div style="color: var(--text-secondary); text-align: center;">Loading…</div>
+  </div>
+</div>
+
 <!-- TOAST -->
 <div id="toast"></div>
 
@@ -264,7 +277,69 @@ const _origShowScreen = showScreen;
 window.showScreen = function(screen) {
   _origShowScreen(screen);
   if (screen === 'profile') switchEntityType();
+  if (screen === 'settings') loadSettings();
 };
+
+// ── Settings page ──────────────────────────────────────────────────────────────
+async function loadSettings() {
+  const target = document.getElementById('settings-content');
+  if (!target) return;
+  target.innerHTML = '<div style="color:var(--text-secondary);text-align:center">Loading…</div>';
+  try {
+    const res = await fetch('/api/settings');
+    if (!res.ok) {
+      target.innerHTML = '<div style="color:var(--wrong)">Settings unavailable (HTTP ' + res.status + ')</div>';
+      return;
+    }
+    const s = await res.json();
+    const dot = (ok) => '<span style="color:' + (ok ? 'var(--correct)' : 'var(--wrong)') + ';font-weight:700">' + (ok ? '● online' : '● unreachable') + '</span>';
+    const row = (k, v) => '<div style="display:flex;justify-content:space-between;padding:0.4rem 0;border-bottom:1px solid var(--surface-elevated)"><span style="color:var(--text-secondary)">' + esc(k) + '</span><span style="font-family:var(--font-mono);font-size:13px">' + v + '</span></div>';
+    const cacheTypes = Object.entries(s.cache.by_type || {}).map(([k, v]) => esc(k) + ': ' + v).join(' · ') || '—';
+    target.innerHTML =
+      '<div class="card" style="background:var(--surface);border:2px solid var(--surface-elevated);border-radius:12px;padding:1rem;margin-bottom:1rem">' +
+        '<h3 style="margin-bottom:0.5rem;color:var(--accent)">App</h3>' +
+        row('Name', esc(s.app.name)) + row('Version', esc(s.app.version)) +
+      '</div>' +
+      '<div class="card" style="background:var(--surface);border:2px solid var(--surface-elevated);border-radius:12px;padding:1rem;margin-bottom:1rem">' +
+        '<h3 style="margin-bottom:0.5rem;color:var(--accent)">LiteLLM (question generation)</h3>' +
+        row('Base URL', esc(s.litellm.base)) +
+        row('API key', s.litellm.api_key_set ? 'set' : 'missing') +
+        row('Status', dot(s.litellm.reachable) + (s.litellm.error ? ' <span style="color:var(--wrong);font-size:11px">' + esc(s.litellm.error) + '</span>' : '')) +
+      '</div>' +
+      '<div class="card" style="background:var(--surface);border:2px solid var(--surface-elevated);border-radius:12px;padding:1rem;margin-bottom:1rem">' +
+        '<h3 style="margin-bottom:0.5rem;color:var(--accent)">Crawl4AI (web scraping)</h3>' +
+        row('Base URL', esc(s.crawl4ai.base)) +
+        row('Status', dot(s.crawl4ai.reachable) + (s.crawl4ai.error ? ' <span style="color:var(--wrong);font-size:11px">' + esc(s.crawl4ai.error) + '</span>' : '')) +
+      '</div>' +
+      '<div class="card" style="background:var(--surface);border:2px solid var(--surface-elevated);border-radius:12px;padding:1rem;margin-bottom:1rem">' +
+        '<h3 style="margin-bottom:0.5rem;color:var(--accent)">Game defaults</h3>' +
+        row('Question count', s.questions.default_count) +
+        row('Question timeout', s.questions.timeout_seconds + 's') +
+        row('Categories', esc(s.questions.categories.join(', '))) +
+        row('WS heartbeat', s.websocket.heartbeat_seconds + 's') +
+        row('Content cap / source', s.content.max_chars_per_source.toLocaleString() + ' chars') +
+      '</div>' +
+      '<div class="card" style="background:var(--surface);border:2px solid var(--surface-elevated);border-radius:12px;padding:1rem;margin-bottom:1rem">' +
+        '<h3 style="margin-bottom:0.5rem;color:var(--accent)">Entity cache</h3>' +
+        row('Total entries', s.cache.total) +
+        row('By type', cacheTypes) +
+        '<button class="btn" style="margin-top:0.75rem;font-size:14px;padding:0.5rem 1rem" onclick="clearEntityCache()">Clear all cached content</button>' +
+      '</div>' +
+      '<p style="color:var(--text-secondary);font-size:12px;text-align:center;margin-top:0.5rem">Edit env vars (LITELLM_BASE, LITELLM_API_KEY, CONTENT_MAX_CHARS) and restart the container to change settings.</p>';
+  } catch (e) {
+    target.innerHTML = '<div style="color:var(--wrong)">Error loading settings: ' + esc(String(e)) + '</div>';
+  }
+}
+
+async function clearEntityCache() {
+  if (!confirm('Wipe ALL cached entity content? Future scrapes will refetch from source.')) return;
+  try {
+    const res = await fetch('/api/settings/cache/clear', { method: 'POST' });
+    const d = await res.json();
+    toast('Cleared ' + d.deleted + ' cache entries');
+    loadSettings();
+  } catch (e) { toast('Error: ' + e); }
+}
 </script>
 </body>
 </html>
