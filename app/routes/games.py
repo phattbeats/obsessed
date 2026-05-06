@@ -1,11 +1,12 @@
 import random, json
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, BackgroundTasks
 import time as _time_module
 from app.database import SessionLocal, Profile, Question, GameSession, Player, Answer, PlayerStats
 from app.models import (
     GameCreate, GameResponse, PlayerJoin, PlayerResponse,
     AnswerSubmit, AnswerResponse, QuestionDisplay,
 )
+from app.routes.profiles import trigger_scrape
 from app.services.game_engine import (
     GAMES, GameState, TriviaQuestion, PlayerState,
     get_or_create_game, generate_room_code, cleanup_game,
@@ -102,7 +103,7 @@ def _persist_answer(room_code: str, player_id: str, question_id: int,
         db.close()
 
 @router.post("", response_model=GameResponse)
-def create_game(data: GameCreate):
+def create_game(data: GameCreate, background_tasks: BackgroundTasks):
     room_code = generate_room_code()
     db = SessionLocal()
     try:
@@ -138,6 +139,13 @@ def create_game(data: GameCreate):
         db.commit()
         db.refresh(g)
         get_or_create_game(room_code, data.profile_id)
+
+        # Fire parallel scrapes for any thing profile that is still pending/scraping
+        if data.things:
+            for t in data.things:
+                p = db.query(Profile).filter(Profile.id == t.profile_id).first()
+                if p and p.scrape_status in ("pending", "scraping"):
+                    background_tasks.add_task(trigger_scrape, t.profile_id)
         return GameResponse(
             id=g.id, room_code=g.room_code, profile_id=g.profile_id,
             status=g.status, current_question=g.current_question,
