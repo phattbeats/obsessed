@@ -257,7 +257,6 @@ async def start_game(room_code: str):
             if profile and not profile.consent_obtained:
                 raise HTTPException(status_code=403, detail="Guest consent not obtained. Generate a consent link first.")
 
-        # Load questions
         # Load questions from all things' profile_ids, merge pools
         if g.things:
             thing_list = json.loads(g.things)
