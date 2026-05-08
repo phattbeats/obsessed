@@ -123,14 +123,33 @@ async def scrape_instagram_profile(handle: str) -> tuple[str, dict]:
     bio_match = re.search(r"@" + re.escape(clean_handle) + r"[^\n]*\n(.+?)\n\s*\*?\s*\*\*", markdown, re.DOTALL)
     if bio_match:
         bio_text = bio_match.group(1).strip()
-        # Strip icon/image markdown artifacts
         bio_text = re.sub(r"!\[.*?\]\(.*?\)", "", bio_text).strip()
         if bio_text:
             profile["bio"] = bio_text
 
-    # Recent post captions for richer trivia content
-    post_captions = re.findall(r"\n((?!Posted at|Comments|\!|\[).{20,300})\n", markdown)
-    captions_text = "\n".join(post_captions[:5]) if post_captions else ""
+    # Parse post blocks from profile listing
+    # Format: ![img](...) [ handle ](url)\nPosted at: ...\nN likes\nCaption\n[ N Comments](post_url)
+    post_blocks = re.findall(
+        r"!\[.*?\]\((https://kittygr\.am/mediaproxy[^)]+)\)\s*\[.*?\]\(https://kittygr\.am/[^\)]+\)\s*\n"
+        r"Posted at:\s*([\d\- :]+)\s*\n"
+        r"([\d,]+)\s+likes\s*\n"
+        r"([\s\S]*?)\n"
+        r"\[\s*([\d,]+)\s*Comments\]\((https://kittygr\.am/p/[^)]+)\)",
+        markdown,
+    )
+
+    posts = []
+    for img_url, posted_at, likes, caption, comment_count, post_url in post_blocks:
+        caption = caption.strip()
+        posts.append({
+            "image_url": img_url,
+            "posted_at": posted_at.strip(),
+            "likes": likes.replace(",", ""),
+            "caption": caption,
+            "comment_count": comment_count.replace(",", ""),
+            "post_url": post_url,
+        })
+    profile["posts_data"] = posts
 
     # Build readable text block
     lines = [f"[Instagram profile: @{profile['username']}]"]
@@ -150,11 +169,46 @@ async def scrape_instagram_profile(handle: str) -> tuple[str, dict]:
         lines.append(" · ".join(metrics))
     if profile["bio"]:
         lines.append(profile["bio"])
-    if captions_text:
+
+    if posts:
         lines.append("\nRecent posts:")
-        lines.append(captions_text)
+        for p in posts[:8]:
+            lines.append(f"  [{p['posted_at']}] {p['likes']} likes · {p['comment_count']} comments")
+            lines.append(f"  {p['caption']}")
+            lines.append(f"  Image: {p['image_url']}")
 
     return "\n".join(lines), profile
+
+
+async def _fetch_post_comments(post_url: str, client: httpx.AsyncClient) -> list[str]:
+    """Fetch individual comment texts from a Kittygram post page."""
+    try:
+        resp = await client.post(
+            CRAWL4AI_URL,
+            headers={"Authorization": f"Bearer {CRAWL4AI_TOKEN}"},
+            json={"urls": [post_url]},
+        )
+        resp.raise_for_status()
+        data = resp.json()
+    except Exception:
+        return []
+
+    result = (data.get("results") or [{}])[0]
+    if not result.get("success"):
+        return []
+
+    md = result.get("markdown") or ""
+    if isinstance(md, dict):
+        md = md.get("raw_markdown", "")
+
+    # Comments section starts at "## Comments"
+    comments_section = re.split(r"##\s*Comments", md, maxsplit=1)
+    if len(comments_section) < 2:
+        return []
+
+    # Each comment: "[ username ](url)\ncomment text"
+    comment_texts = re.findall(r"\]\(https://kittygr\.am/[^\)]+\)\s*\n([^\n!\[]{5,300})", comments_section[1])
+    return [c.strip() for c in comment_texts if c.strip()]
 
 
 async def scrape_instagram(handle: str, entity_type: str = "People") -> tuple[str, dict]:
