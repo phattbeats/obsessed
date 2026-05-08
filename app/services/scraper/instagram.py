@@ -7,7 +7,9 @@ from app.config import settings
 from app.services.scraper.rate_limiter import generic_limiter
 from app.database import SessionLocal, EntityCache
 
-FLARESOLVERR_URL = "http://10.0.0.100:8191/v1"
+KITTYGRAM_BASE = "https://kittygr.am"
+CRAWL4AI_URL = "http://crawl4ai:11235/crawl"
+CRAWL4AI_TOKEN = "Phatt-tech-2026"
 INSTAGRAM_SOURCE_PREFIX = "https://www.instagram.com/"
 
 
@@ -16,7 +18,6 @@ def _instagram_source_url(handle: str) -> str:
 
 
 def get_instagram_cache(entity_name: str, entity_type: str = "People") -> Optional[str]:
-    """Check entity_cache for existing Instagram content."""
     db = SessionLocal()
     try:
         cached = db.query(EntityCache).filter(
@@ -32,7 +33,6 @@ def get_instagram_cache(entity_name: str, entity_type: str = "People") -> Option
 
 
 def save_instagram_cache(entity_name: str, entity_type: str, content: str):
-    """Save scraped Instagram content to entity_cache."""
     db = SessionLocal()
     try:
         source_url = _instagram_source_url(entity_name)
@@ -61,40 +61,40 @@ def save_instagram_cache(entity_name: str, entity_type: str, content: str):
 
 
 async def scrape_instagram_with_fallback(handle: str, entity_type: str = "People") -> tuple[str, dict]:
-    """Scrape Instagram with fallback."""
-    # Try direct handle
     raw, profile = await scrape_instagram_profile(handle)
-    # Fallback: try with @
     if not raw.strip() and not handle.startswith("@"):
         raw, profile = await scrape_instagram_profile("@" + handle)
     return raw, profile
 
 
 async def scrape_instagram_profile(handle: str) -> tuple[str, dict]:
-    """Scrape a single Instagram profile."""
-    url = f"https://www.instagram.com/{handle.strip('@')}/"
-    # ... existing scraping code ...
-    # (keeping original parse logic)
+    """Fetch Instagram profile via Kittygram (no API key required)."""
+    clean_handle = handle.strip("@/")
+    kittygram_url = f"{KITTYGRAM_BASE}/{clean_handle}"
+
     try:
         async with httpx.AsyncClient(timeout=60.0) as client:
             async with generic_limiter.throttle():
                 resp = await client.post(
-                    FLARESOLVERR_URL,
-                    json={"cmd": "request.get", "url": url, "maxTimeout": 45000},
+                    CRAWL4AI_URL,
+                    headers={"Authorization": f"Bearer {CRAWL4AI_TOKEN}"},
+                    json={"urls": [kittygram_url]},
                 )
             resp.raise_for_status()
             data = resp.json()
     except Exception as e:
         return f"[Instagram scrape error: {e}]", {}
-    # ... rest of parsing ...
 
-    if data.get("status") != "ok":
-        return f"[Instagram FlareSolverr error: {data.get('message', 'unknown')}]", {}
+    result = (data.get("results") or [{}])[0]
+    if not result.get("success"):
+        return f"[Instagram scrape error: Kittygram fetch failed for @{clean_handle}]", {}
 
-    html = data.get("solution", {}).get("response", "")
+    markdown = result.get("markdown") or ""
+    if isinstance(markdown, dict):
+        markdown = markdown.get("raw_markdown", "")
 
     profile = {
-        "username": handle,
+        "username": clean_handle,
         "display_name": "",
         "followers": "",
         "following": "",
@@ -102,42 +102,37 @@ async def scrape_instagram_profile(handle: str) -> tuple[str, dict]:
         "bio": "",
     }
 
-    # og:description format: "{M} Followers, {N} Following, {N} Posts - See Instagram..."
-    og_desc_match = re.search(
-        r'<meta[^>]*(?:property|name)=["\']og:description["\'][^>]*content=["\']([^"\']+)["\']',
-        html,
-    )
-    if not og_desc_match:
-        og_desc_match = re.search(r'content=["\']([^"\']*\bFollowers\b[^"\']*)["\']', html)
+    # Display name: "### Name \n@handle"
+    name_match = re.search(r"###\s+(.+?)\s*\n", markdown)
+    if name_match:
+        profile["display_name"] = name_match.group(1).strip()
 
-    if og_desc_match:
-        desc = og_desc_match.group(1)
-        profile["bio"] = desc
+    # Followers / Following / Posts: "**NUMBER**\nFollowers"
+    followers_m = re.search(r"\*\*([\d,]+)\*\*\s*\nFollowers", markdown)
+    following_m = re.search(r"\*\*([\d,]+)\*\*\s*\nFollowing", markdown)
+    posts_m = re.search(r"\*\*([\d,]+)\*\*\s*\nPosts", markdown)
 
-        # Parse: "17M Followers, 629 Following, 428 Posts"
-        followers_m = re.match(r'([\d.,]+[KM]?)\s*Followers', desc)
-        following_m = re.search(r'([\d,]+)\s*Following', desc)
-        posts_m = re.search(r'([\d,]+)\s*Posts', desc)
+    if followers_m:
+        profile["followers"] = followers_m.group(1).replace(",", "")
+    if following_m:
+        profile["following"] = following_m.group(1).replace(",", "")
+    if posts_m:
+        profile["posts"] = posts_m.group(1).replace(",", "")
 
-        if followers_m:
-            profile["followers"] = followers_m.group(1)
-        if following_m:
-            profile["following"] = following_m.group(1)
-        if posts_m:
-            profile["posts"] = posts_m.group(1)
+    # Bio: text between handle line and the stats block
+    bio_match = re.search(r"@" + re.escape(clean_handle) + r"[^\n]*\n(.+?)\n\s*\*?\s*\*\*", markdown, re.DOTALL)
+    if bio_match:
+        bio_text = bio_match.group(1).strip()
+        # Strip icon/image markdown artifacts
+        bio_text = re.sub(r"!\[.*?\]\(.*?\)", "", bio_text).strip()
+        if bio_text:
+            profile["bio"] = bio_text
 
-        # Strip trailing " - See Instagram..." clause
-        desc_clean = re.sub(r'\s*-\s*See Instagram.*$', '', desc)
+    # Recent post captions for richer trivia content
+    post_captions = re.findall(r"\n((?!Posted at|Comments|\!|\[).{20,300})\n", markdown)
+    captions_text = "\n".join(post_captions[:5]) if post_captions else ""
 
-    # <title> format: "Name (@handle) • Instagram photos and videos"
-    title_match = re.search(r'<title>([^<]+)</title>', html)
-    if title_match:
-        title = title_match.group(1)
-        m = re.match(r'^(.+?)\s*\(@', title)
-        if m:
-            profile["display_name"] = m.group(1).strip()
-
-    # Build readable text
+    # Build readable text block
     lines = [f"[Instagram profile: @{profile['username']}]"]
     if profile["display_name"]:
         lines.append(f"Profile: {profile['display_name']} (@{profile['username']})")
@@ -155,22 +150,20 @@ async def scrape_instagram_profile(handle: str) -> tuple[str, dict]:
         lines.append(" · ".join(metrics))
     if profile["bio"]:
         lines.append(profile["bio"])
+    if captions_text:
+        lines.append("\nRecent posts:")
+        lines.append(captions_text)
 
     return "\n".join(lines), profile
 
 
 async def scrape_instagram(handle: str, entity_type: str = "People") -> tuple[str, dict]:
-    """Main entry: Instagram with cache + fallback."""
-    # Check cache first
     cached = get_instagram_cache(handle, entity_type)
     if cached:
         return cached, {"source": "instagram", "cached": True}
-    # Scrape with fallback
     raw, profile = await scrape_instagram_with_fallback(handle, entity_type)
-    # Cap content
     if len(raw) > settings.content_max_chars:
         raw = raw[:settings.content_max_chars]
-    # Save to cache
     if raw and not raw.startswith("[Instagram scrape error"):
         save_instagram_cache(handle, entity_type, raw)
     return raw, profile
