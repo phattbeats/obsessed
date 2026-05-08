@@ -10,7 +10,6 @@ from app.database import SessionLocal, Profile, GameSession, Player, PlayerStats
 from app.services.scraper.reddit import scrape_reddit
 from app.services.scraper.instagram import scrape_instagram
 from app.services.scraper.pinterest import scrape_pinterest
-from app.services.scraper.threads import scrape_threads
 from app.services.scraper.places import scrape_places
 import json
 
@@ -170,8 +169,6 @@ async def rescrape_profile(profile_id: int):
                 scrape_tasks.append(("instagram", scrape_instagram(p.instagram_handle)))
             if p.pinterest_handle:
                 scrape_tasks.append(("pinterest", scrape_pinterest(p.pinterest_handle)))
-            if p.threads_handle:
-                scrape_tasks.append(("threads", scrape_threads(p.threads_handle)))
             if p.google_places_handle:
                 scrape_tasks.append(("places", scrape_places(p.google_places_handle)))
 

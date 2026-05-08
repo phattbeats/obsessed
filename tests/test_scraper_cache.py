@@ -9,7 +9,7 @@ from unittest.mock import patch
 import pytest
 
 from app.database import EntityCache, SessionLocal
-from app.services.scraper import instagram, reddit, threads
+from app.services.scraper import instagram, reddit
 from app.services.scraper.reddit import (
     get_reddit_cache,
     save_reddit_cache,
@@ -20,12 +20,6 @@ from app.services.scraper.instagram import (
     save_instagram_cache,
     scrape_instagram,
 )
-from app.services.scraper.threads import (
-    get_threads_cache,
-    save_threads_cache,
-    scrape_threads,
-)
-
 
 @pytest.fixture(autouse=True)
 def _clean_cache():
@@ -84,28 +78,14 @@ def test_instagram_cache_roundtrip():
         db.close()
 
 
-def test_threads_cache_roundtrip():
-    save_threads_cache("carol", "People", "threads content for carol")
-    assert get_threads_cache("carol", "People") == "threads content for carol"
-    db = SessionLocal()
-    try:
-        row = db.query(EntityCache).filter_by(entity_name="carol").one()
-        assert row.raw_content == "threads content for carol"
-        assert row.source_url.startswith("https://threads.net/")
-    finally:
-        db.close()
-
-
 def test_per_source_cache_isolation():
     """Same entity_name+entity_type cached from each source must not collide."""
     save_reddit_cache("dave", "People", "reddit-dave")
     save_instagram_cache("dave", "People", "ig-dave")
-    save_threads_cache("dave", "People", "threads-dave")
 
     assert get_reddit_cache("dave", "People") == "reddit-dave"
     assert get_instagram_cache("dave", "People") == "ig-dave"
-    assert get_threads_cache("dave", "People") == "threads-dave"
-    assert _row_count() == 3
+    assert _row_count() == 2
 
 
 @pytest.mark.asyncio
@@ -142,18 +122,3 @@ async def test_scrape_instagram_end_to_end_with_mocked_network():
         text2, profile2 = await scrape_instagram("frank", "People")
         assert text2 == text
         assert profile2 == {"source": "instagram", "cached": True}
-
-
-@pytest.mark.asyncio
-async def test_scrape_threads_end_to_end_with_mocked_network():
-    async def _fake(handle: str, entity_type: str = "People"):
-        return (f"[Threads profile: @{handle}]", {"username": handle})
-
-    with patch.object(threads, "scrape_threads_with_fallback", _fake):
-        text, profile = await scrape_threads("gina", "People")
-        assert "gina" in text
-        assert profile["username"] == "gina"
-
-        text2, profile2 = await scrape_threads("gina", "People")
-        assert text2 == text
-        assert profile2 == {"source": "threads", "cached": True}
