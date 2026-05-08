@@ -48,19 +48,37 @@ async def test_static_css_mounted():
 
 @pytest.mark.asyncio
 async def test_get_question_includes_correct_answer():
-    """Regression: correct answer must be in options (Bug A, PHA-503)."""
+    """
+    Bug A regression (PHA-503): options array MUST include correct_answer.
+
+    Before fix: options = q.wrong_answers only → game unwinnable.
+    After fix:   options = [q.correct_answer] + list(q.wrong_answers), shuffled.
+
+    This test creates a profile with rich manual facts (guarantees ≥15 chunks),
+    generates questions, then asserts correct_answer IS PRESENT in options.
+    """
     transport = ASGITransport(app=app)
-    payload = {"name": "Bug A Test", "entity_type": "person",
-               "manual_facts": "The sky is blue. Water is wet. Fire is hot.", "question_budget": 5}
     async with AsyncClient(transport=transport, base_url="http://test") as ac:
-        p = await ac.post("/api/profiles", json=payload)
+        p = await ac.post("/api/profiles", json={
+            "name": "Bug A Facts",
+            "entity_type": "person",
+            "manual_facts": (
+                "Albert Einstein was born in 1879. He developed the theory of relativity in 1905. "
+                "He won the Nobel Prize in Physics in 1921. He was a German-born theoretical physicist. "
+                "He emigrated to the United States in 1933. He worked at Princeton University. "
+                "He published four papers in his miracle year 1905. He was a pacifist during World War One. "
+                "He advocated for civil rights. His brain was preserved after his death. "
+                "He received the Copley Medal in 1925. He collaborated with Niels Bohr on quantum theory."
+            ),
+            "question_budget": 5,
+        })
         profile_id = p.json()["id"]
-        # Trigger question generation
-        await ac.post(f"/api/profiles/{profile_id}/scrape")
-        # Wait a bit for questions to generate
-        import asyncio
-        await asyncio.sleep(1)
-        # Grant consent so /api/games does not 403 the test
+
+        # Scrape with manual facts (bypasses LLM call — goes straight to raw_content)
+        scrape = await ac.post(f"/api/profiles/{profile_id}/scrape")
+        assert scrape.status_code == 200, f"scrape failed: {scrape.text}"
+
+        # Grant consent
         from app.database import SessionLocal, Profile
         db = SessionLocal()
         try:
@@ -69,24 +87,29 @@ async def test_get_question_includes_correct_answer():
             db.commit()
         finally:
             db.close()
-        # Create a game
-        g = await ac.post("/api/games", json={"profile_id": profile_id})
-        assert g.status_code == 200, f"create game failed: {g.status_code} {g.text}"
-        room = g.json()["room_code"]
-        # Get the question
+
+        # Create a game using things= (correct multi-thing API)
+        game = await ac.post("/api/games", json={
+            "things": [{"profile_id": profile_id, "num_questions": 5}]
+        })
+        assert game.status_code == 200, f"game create failed: {game.status_code} {game.text}"
+        room = game.json()["room_code"]
+
+        # Start loads questions into GAMES
+        start = await ac.post(f"/api/games/{room}/start")
+        assert start.status_code == 200, f"start failed: {start.text}"
+
+        # Get question
         q = await ac.get(f"/api/games/{room}/question")
         if q.status_code == 200:
             body = q.json()
             opts = body.get("options", [])
+            correct = body.get("correct_answer", "")
             assert len(opts) >= 2, f"Expected ≥2 options, got {len(opts)}: {opts}"
-            # The test person has limited content — may or may not have questions generated
-            # If questions exist, correct answer must be present
-            if opts:
-                # Verify correct answer is in options (not just wrong answers)
-                # We can't know the correct answer here without scraping,
-                # but we can verify options is a list with multiple items
-                assert isinstance(opts, list), f"options must be list, got {type(opts)}"
-                assert all(isinstance(o, str) for o in opts), f"all options must be strings"
+            assert correct in opts, (
+                f"Bug A NOT fixed: correct_answer '{correct}' not in options {opts}. "
+                "The game is still unwinnable."
+            )
         elif q.status_code == 400:
             detail = q.json().get("detail", "").lower()
             assert "no" in detail and "question" in detail, f"unexpected 400 detail: {detail}"
@@ -95,18 +118,66 @@ async def test_get_question_includes_correct_answer():
 
 
 @pytest.mark.asyncio
-async def test_gamestate_resume_fields():
-    """Regression: GameState resume path uses correct fields (Bug B, PHA-503)."""
-    from app.services.game_engine import GameState
-    # Must be constructible with room_code + profile_id + total_q (no num_questions)
-    gs = GameState(room_code="TESTROOM", profile_id=1, total_q=10)
-    assert gs.room_code == "TESTROOM"
-    assert gs.profile_id == 1
-    assert gs.total_q == 10
-    assert gs.status == "lobby"  # default
-    # Verify no extra fields are required
-    assert hasattr(gs, 'current_q')
-    assert hasattr(gs, 'players')
+async def test_gamestate_resume_with_things():
+    """
+    Bug B regression (PHA-503): GameState resume after container restart must
+    reconstruct correctly for multi-thing games.
+
+    The GameSession stores multi-thing games in the `things` JSON column, NOT in
+    `profile_id`. The resume path in next_question endpoint creates GameState
+    using the fields available in the DB — verifying the constructor accepts
+    room_code + profile_id (scalar) is the actual regression guard.
+
+    Additionally verify that a GameState with things can be created and used.
+    """
+    from app.services.game_engine import GameState, GAMES
+
+    room = "RESUMETEST888"
+    if room in GAMES:
+        del GAMES[room]
+
+    db = SessionLocal()
+    try:
+        # Get or create a test profile
+        p = db.query(Profile).first()
+        if not p:
+            p = Profile(name="Resume Test", entity_type="person", consent_obtained=True)
+            db.add(p)
+            db.commit()
+            db.refresh(p)
+
+        # Create a GameSession with things (multi-thing game, no profile_id)
+        gs_db = GameSession(
+            room_code=room,
+            profile_id=None,
+            things=[{"profile_id": p.id, "num_questions": 5}],
+            total_questions=5,
+            status="active",
+            current_question=0,
+        )
+        db.add(gs_db)
+        db.commit()
+
+        # Verify GAMES is empty (container restart scenario)
+        assert room not in GAMES
+
+        # Resume path: call get_or_create_game with profile_id=None for things-based game
+        from app.services.game_engine import get_or_create_game
+        gs_resumed = get_or_create_game(room, profile_id=None)
+
+        # Must succeed without TypeError
+        assert gs_resumed is not None, "GameState resume returned None"
+        assert gs_resumed.room_code == room
+        assert gs_resumed.total_q == 5
+        assert gs_resumed.status == "lobby" or gs_resumed.status == "active"
+
+    finally:
+        if room in GAMES:
+            del GAMES[room]
+        # cleanup
+        db.query(GameSession).filter(GameSession.room_code == room).delete()
+        db.commit()
+        db.close()
 
 
 @pytest.mark.asyncio
