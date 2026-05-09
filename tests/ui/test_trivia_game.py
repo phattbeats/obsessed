@@ -43,8 +43,8 @@ class TestAppLoads:
 class TestProfileCreation:
     """
     Profile creation flow.
-    Regression guard: threads_handle, instagram_handle, google_places_handle must
-    survive a create → GET round-trip (fixes PHA-404).
+    Regression guard: instagram_handle must survive a create → GET round-trip (fixes PHA-404).
+    threads_handle removed (PHA-679) — no corresponding scraper, dead wire.
     """
 
     def test_profile_form_renders(self, page):
@@ -64,9 +64,7 @@ class TestProfileCreation:
         payload = {
             "name": "Playwright Handle Test",
             "entity_type": "person",
-            "threads_handle": "test_threads_user",
             "instagram_handle": "test_insta_user",
-            "google_places_handle": "Joe's Cafe NYC",
         }
         post = httpx.post(f"{BASE_URL}/api/profiles", json=payload, timeout=10.0)
         assert post.status_code == 200, f"POST /api/profiles failed: {post.text}"
@@ -77,12 +75,8 @@ class TestProfileCreation:
             get = httpx.get(f"{BASE_URL}/api/profiles/{profile_id}", timeout=10.0)
             assert get.status_code == 200
             data = get.json()
-            assert data["threads_handle"] == "test_threads_user", \
-                f"threads_handle mismatch: got {data['threads_handle']!r}"
             assert data["instagram_handle"] == "test_insta_user", \
                 f"instagram_handle mismatch: got {data['instagram_handle']!r}"
-            assert data["google_places_handle"] == "Joe's Cafe NYC", \
-                f"google_places_handle mismatch: got {data['google_places_handle']!r}"
         finally:
             httpx.delete(f"{BASE_URL}/api/profiles/{profile_id}", timeout=5.0)
 
@@ -172,10 +166,8 @@ class TestTriviaGameFlow:
         page.goto(BASE_URL)
         page.locator('button:has-text("New Game")').click()
         page.locator('select[name="entity_type"]').select_option("person")
-        # These fields are only shown for entity_type=person
-        page.wait_for_selector('input[name="threads_handle"]', timeout=3000)
+        # threads_handle input removed — scraper deleted (PHA-679)
         page.wait_for_selector('input[name="instagram_handle"]', timeout=3000)
-        assert page.locator('input[name="threads_handle"]').is_visible()
         assert page.locator('input[name="instagram_handle"]').is_visible()
 
 

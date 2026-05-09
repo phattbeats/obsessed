@@ -11,9 +11,7 @@ class ProfileCreate(BaseModel):
     steam_id: str = ""
     discord_handle: str = ""
     pinterest_handle: str = ""
-    threads_handle: str = ""
     instagram_handle: str = ""
-    google_places_handle: str = ""
     wikipedia_handle: str = ""
     osm_query: str = ""
     travel_url: str = ""
@@ -36,9 +34,7 @@ class ProfileUpdate(BaseModel):
     steam_id: Optional[str] = None
     discord_handle: Optional[str] = None
     pinterest_handle: Optional[str] = None
-    threads_handle: Optional[str] = None
     instagram_handle: Optional[str] = None
-    google_places_handle: Optional[str] = None
     wikipedia_handle: Optional[str] = None
     osm_query: Optional[str] = None
     travel_url: Optional[str] = None
@@ -64,9 +60,7 @@ class ProfileResponse(BaseModel):
     steam_id: str
     discord_handle: str
     pinterest_handle: str
-    threads_handle: str
     instagram_handle: str
-    google_places_handle: str
     wikipedia_handle: str
     osm_query: str
     travel_url: str
