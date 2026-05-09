@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 from typing import Optional
 from datetime import datetime
 
@@ -100,8 +100,7 @@ class ProfileResponse(BaseModel):
     created_at: int
     updated_at: int
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 class QuestionResponse(BaseModel):
     id: int
@@ -112,8 +111,7 @@ class QuestionResponse(BaseModel):
     difficulty: int
     source_snippet: str
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 # ─── Game ──────────────────────────────────────────────────────────────────────
 class ThingInput(BaseModel):
@@ -135,8 +133,7 @@ class GameResponse(BaseModel):
     players: list["PlayerResponse"] = []
     created_at: int
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 class PlayerJoin(BaseModel):
     player_name: str
@@ -151,8 +148,7 @@ class PlayerResponse(BaseModel):
     is_host: bool
     is_active: bool
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 class AnswerSubmit(BaseModel):
     player_id: str

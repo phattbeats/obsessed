@@ -1,5 +1,5 @@
 from sqlalchemy import create_engine, event, Column, Integer, String, Text, Float, DateTime, Boolean, ForeignKey, JSON
-from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.orm import DeclarativeBase
 from sqlalchemy.orm import sessionmaker, relationship
 from datetime import datetime
 import json, sqlite3, os
@@ -20,7 +20,8 @@ def _set_fk_pragma(dbapi_conn, connection_record):
 
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
-Base = declarative_base()
+class Base(DeclarativeBase):
+    pass
 
 class Profile(Base):
     __tablename__ = "profiles"
