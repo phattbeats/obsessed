@@ -35,6 +35,10 @@ class Profile(Base):
     threads_handle = Column(String(200), default="")
     instagram_handle = Column(String(200), default="")
     google_places_handle = Column(String(500), default="")  # comma-separated business names
+    news_query = Column(String(500), default="")  # local news search query (person)
+    court_query = Column(String(500), default="")  # municipal court search query (person)
+    sos_query = Column(String(500), default="")  # Secretary of State business entity search (person/business)
+    auditor_query = Column(String(500), default="")  # county auditor property records (place/person)
     wikipedia_handle = Column(String(500), default="")  # place name for Wikipedia scrape
     osm_query = Column(String(500), default="")  # place name for OpenStreetMap
     travel_url = Column(String(500), default="")  # travel blog or TripAdvisor URL

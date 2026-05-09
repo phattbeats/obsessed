@@ -12,6 +12,10 @@ class ProfileCreate(BaseModel):
     discord_handle: str = ""
     pinterest_handle: str = ""
     instagram_handle: str = ""
+    news_query: str = ""
+    court_query: str = ""
+    sos_query: str = ""
+    auditor_query: str = ""
     wikipedia_handle: str = ""
     osm_query: str = ""
     travel_url: str = ""
@@ -35,6 +39,10 @@ class ProfileUpdate(BaseModel):
     discord_handle: Optional[str] = None
     pinterest_handle: Optional[str] = None
     instagram_handle: Optional[str] = None
+    news_query: Optional[str] = None
+    court_query: Optional[str] = None
+    sos_query: Optional[str] = None
+    auditor_query: Optional[str] = None
     wikipedia_handle: Optional[str] = None
     osm_query: Optional[str] = None
     travel_url: Optional[str] = None
@@ -61,6 +69,10 @@ class ProfileResponse(BaseModel):
     discord_handle: str
     pinterest_handle: str
     instagram_handle: str
+    news_query: str
+    court_query: str
+    sos_query: str
+    auditor_query: str
     wikipedia_handle: str
     osm_query: str
     travel_url: str
