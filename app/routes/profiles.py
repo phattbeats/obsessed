@@ -6,6 +6,7 @@ from app.models import ProfileCreate, ProfileUpdate, ProfileResponse, QuestionRe
 from app.services.scraper.reddit import scrape_reddit, generate_questions
 from app.services.scraper.pinterest import scrape_pinterest
 from app.services.scraper.instagram import scrape_instagram
+from app.services.scraper.twitter import scrape_twitter
 from app.services.scraper.crawl4ai import crawl4ai_scrape
 from app.services.scraper.places import scrape_places
 from app.services.scraper.things import scrape_things
@@ -235,6 +236,8 @@ async def trigger_scrape(profile_id: int):
                 await _safe("Pinterest", scrape_pinterest(p.pinterest_handle))
             if p.instagram_handle:
                 await _safe("Instagram", scrape_instagram(p.instagram_handle))
+            if p.twitter_handle:
+                await _safe("Twitter", scrape_twitter(p.twitter_handle))
             if p.manual_facts:
                 raw_parts.append(p.manual_facts)
             if p.manual_link:
