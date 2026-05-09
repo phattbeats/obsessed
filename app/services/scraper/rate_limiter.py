@@ -104,4 +104,11 @@ WIKIDATA_LIMITER = RateLimiter(max_concurrent=1, min_interval=1.1)  # 1 req/s
 GDELT_LIMITER = RateLimiter(max_concurrent=1, min_interval=1.1)     # 1 req/s
 EVENTS_LIMITER = RateLimiter(max_concurrent=1, min_interval=1.0)   # 1 req/s
 GOOGLE_LIMITER = RateLimiter(max_concurrent=1, min_interval=1.0)     # 1 req/s (Places API quota)
+# Steam (api.steampowered.com — keyed calls)
+STEAM_API_LIMITER = RateLimiter(max_concurrent=1, min_interval=1.0)
+# Steam Store (store.steampowered.com — appdetails, no auth)
+STEAM_STORE_LIMITER = RateLimiter(max_concurrent=1, min_interval=1.5)
+# Steam Community (steamcommunity.com — XML profile/summaries)
+STEAM_COMMUNITY_LIMITER = RateLimiter(max_concurrent=1, min_interval=1.5)
+
 generic_limiter = RateLimiter(max_concurrent=3, min_interval=0.5)   # shared fallback
