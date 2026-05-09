@@ -1,4 +1,4 @@
-import asyncio
+import asyncio, time
 from fastapi import APIRouter, HTTPException
 from app.config import settings
 from app.database import SessionLocal, Profile, Question
@@ -108,7 +108,7 @@ def update_profile(profile_id: int, data: ProfileUpdate):
             raise HTTPException(status_code=404, detail="Profile not found")
         for field, value in data.model_dump(exclude_unset=True).items():
             setattr(p, field, value)
-        p.updated_at = int(__import__("datetime").datetime.utcnow().timestamp())
+        p.updated_at = int(time.time())
         db.commit()
         db.refresh(p)
         return _profile(p)
@@ -298,7 +298,7 @@ async def trigger_scrape(profile_id: int):
             p.content_chunks = 100  # cap at 100 for rich
 
         p.scrape_status = "done"
-        p.updated_at = int(__import__("datetime").datetime.utcnow().timestamp())
+        p.updated_at = int(time.time())
         if scraper_errors:
             p.scrape_error = "; ".join(scraper_errors)[:500]
         db.commit()

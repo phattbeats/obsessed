@@ -98,7 +98,7 @@ def _persist_answer(room_code: str, player_id: str, question_id: int,
         ps.total_score = (ps.total_score or 0) + pts
         ps.total_correct = (ps.total_correct or 0) + (1 if is_correct else 0)
         ps.total_asked = (ps.total_asked or 0) + 1
-        ps.last_played_at = int(datetime.utcnow().timestamp())
+        ps.last_played_at = int(datetime.now(timezone.utc).timestamp())
         db.commit()
     finally:
         db.close()
@@ -287,7 +287,7 @@ async def start_game(room_code: str):
             difficulty=q.difficulty,
         ) for q in selected]
         gs.status = "active"
-        gs.question_started_at = datetime.utcnow().timestamp()
+        gs.question_started_at = datetime.now(timezone.utc).timestamp()
         
         # First player who joined is host (or designated host)
         if g.players:
@@ -427,7 +427,7 @@ def _finalize_game_stats(room_code: str):
             ps.games_played = (ps.games_played or 0) + 1
             if winner and p_state.player_id == winner.player_id:
                 ps.games_won = (ps.games_won or 0) + 1
-            ps.last_played_at = int(datetime.utcnow().timestamp())
+            ps.last_played_at = int(datetime.now(timezone.utc).timestamp())
         db.commit()
     finally:
         db.close()

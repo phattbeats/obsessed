@@ -36,7 +36,7 @@ def ops_overview():
         active_games = db.query(GameSession).filter(
             GameSession.status.in_(["lobby", "active"])
         ).count()
-        recent_cutoff = int((datetime.utcnow() - timedelta(days=7)).timestamp())
+        recent_cutoff = int((datetime.now(timezone.utc) - timedelta(days=7)).timestamp())
         recent_games = db.query(GameSession).filter(
             GameSession.created_at >= recent_cutoff
         ).count()

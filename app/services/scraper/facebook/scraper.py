@@ -46,7 +46,7 @@ def save_facebook_cache(entity_name: str, entity_type: str, content: str):
         ).first()
         if existing:
             existing.raw_content = content
-            existing.scraped_at = int(datetime.utcnow().timestamp())
+            existing.scraped_at = int(datetime.now(timezone.utc).timestamp())
             existing.source_url = source_url
         else:
             db.add(EntityCache(

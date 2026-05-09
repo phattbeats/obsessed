@@ -61,8 +61,8 @@ class Profile(Base):
     consent_token = Column(String(200), default="")
     content_quality = Column(String(20), default="")  # insufficient|limited|adequate|rich
     content_chunks = Column(Integer, default=0)
-    created_at = Column(Integer, default=lambda: int(datetime.utcnow().timestamp()))
-    updated_at = Column(Integer, default=lambda: int(datetime.utcnow().timestamp()))
+    created_at = Column(Integer, default=lambda: int(datetime.now(timezone.utc).timestamp()))
+    updated_at = Column(Integer, default=lambda: int(datetime.now(timezone.utc).timestamp()))
 
     questions = relationship("Question", back_populates="profile", cascade="all, delete-orphan")
 
@@ -76,7 +76,7 @@ class Question(Base):
     wrong_answers = Column(Text, nullable=False)  # JSON list: ["wrong1","wrong2","wrong3"]
     difficulty = Column(Integer, default=1)  # 1-3
     source_snippet = Column(Text, default="")
-    created_at = Column(Integer, default=lambda: int(datetime.utcnow().timestamp()))
+    created_at = Column(Integer, default=lambda: int(datetime.now(timezone.utc).timestamp()))
     profile = relationship("Profile", back_populates="questions")
 
 class GameSession(Base):
@@ -88,7 +88,7 @@ class GameSession(Base):
     current_question = Column(Integer, default=0)
     total_questions = Column(Integer, default=50)
     things = Column(Text, default="[]")  # JSON list of {profile_id, num_questions}
-    created_at = Column(Integer, default=lambda: int(datetime.utcnow().timestamp()))
+    created_at = Column(Integer, default=lambda: int(datetime.now(timezone.utc).timestamp()))
     players = relationship("Player", back_populates="game", cascade="all, delete-orphan")
     answers = relationship("Answer", back_populates="game", cascade="all, delete-orphan")
 
@@ -102,7 +102,7 @@ class Player(Base):
     wedges = Column(String(200), default="[]")  # JSON list of earned category names
     is_host = Column(Boolean, default=False)
     is_active = Column(Boolean, default=True)
-    joined_at = Column(Integer, default=lambda: int(datetime.utcnow().timestamp()))
+    joined_at = Column(Integer, default=lambda: int(datetime.now(timezone.utc).timestamp()))
     game = relationship("GameSession", back_populates="players")
     answers = relationship("Answer", back_populates="player", cascade="all, delete-orphan")
 
@@ -117,7 +117,7 @@ class Answer(Base):
     is_correct = Column(Boolean, default=False)
     time_taken_ms = Column(Integer, default=0)
     points_earned = Column(Integer, default=0)
-    submitted_at = Column(Integer, default=lambda: int(datetime.utcnow().timestamp()))
+    submitted_at = Column(Integer, default=lambda: int(datetime.now(timezone.utc).timestamp()))
     game = relationship("GameSession", back_populates="answers")
     player = relationship("Player", back_populates="answers")
 
@@ -139,7 +139,7 @@ class EntityCache(Base):
     entity_name = Column(String(500), nullable=False)
     entity_type = Column(String(20), nullable=False)   # person|place|thing|event
     raw_content = Column(Text, default="")             # up to 200K chars
-    scraped_at = Column(Integer, default=lambda: int(datetime.utcnow().timestamp()))
+    scraped_at = Column(Integer, default=lambda: int(datetime.now(timezone.utc).timestamp()))
     source_url = Column(String(500), default="")
 
     def __repr__(self):
