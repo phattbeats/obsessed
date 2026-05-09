@@ -161,7 +161,24 @@ async def generate_questions(profile_id: int, raw_content: str, name: str) -> li
     if not raw_content.strip():
         return []
 
-    system_prompt = f"""You are a trivia question generator. Given facts about a person named "{name}", generate exactly {50 if len(raw_content) > 500 else 25} trivia questions about them.
+    # Detect public-records content for domain-specific prompt hints
+    public_records_markers = {
+        "[News results for:": "You may encounter news article titles, URLs, dates, and short descriptions from a news search. Treat article titles and quoted phrases as factual statements about the subject. Questions should reference the topic or claim in the headline, not the URL itself.",
+        "[Court docket for:": "You may encounter municipal court docket entries containing case numbers, party names, descriptions, dates, and status fields. Phrases like 'Case XYZ-2024-00123: Assault (2024-03-15)' are factual records. Questions about court records should be phrased in plain language — e.g., 'What was the nature of the legal case?' not 'What is the case number format?'",
+        "[SOS business entities for:": "You may encounter Secretary of State business filings containing entity names, ID numbers, entity types (LLC, Corp, etc.), status fields, and registration dates. Treat 'Registered Agent' and 'Filing Type' as factual fields. Questions should focus on the business or its registered status, not the ID number format.",
+        "[Property records for:": "You may encounter county auditor property records containing owner names, addresses, parcel IDs, and market values. Phrases like 'Owner: Smith Family Trust | Address: 123 Main St | Parcel: A1B2C3 | Value: $450,000' are factual records. Questions about property records should cite the owner name or address as the answer, not the parcel ID number.",
+    }
+
+    domain_hints = []
+    for marker, hint in public_records_markers.items():
+        if marker in raw_content:
+            domain_hints.append(hint)
+
+    domain_context = "\n\n".join(domain_hints) if domain_hints else ""
+    question_count = 50 if len(raw_content) > 500 else 25
+    suffix = f"\n\n# Domain context for public-records sources:\n{domain_context}" if domain_context else ""
+
+    system_prompt = f"""You are a trivia question generator. Given facts about a person named "{name}", generate exactly {question_count} trivia questions about them.
 
 Each question must be in this JSON format (no markdown, no extra text):
 {{"category": "history|entertainment|geography|science|sports|art_literature", "question_text": "...", "correct_answer": "...", "wrong_answers": ["...","...","..."], "difficulty": 1, "source_snippet": "..."}}
@@ -173,7 +190,7 @@ Rules:
 - Mix categories evenly across the 6 categories
 - source_snippet: the exact phrase from the input that inspired this question (max 20 words)
 - Return ONLY the JSON array, no commentary
-- If you cannot generate a question for a category, skip it"""
+- If you cannot generate a question for a category, skip it{suffix}"""
 
     user_prompt = f"Facts about {name}:\n{raw_content[: settings.content_max_chars]}"
 
