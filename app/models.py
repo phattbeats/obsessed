@@ -12,6 +12,7 @@ class ProfileCreate(BaseModel):
     discord_handle: str = ""
     pinterest_handle: str = ""
     instagram_handle: str = ""
+    tiktok_handle: str = ""
     facebook_handle: str = ""
     news_query: str = ""
     court_query: str = ""
@@ -40,6 +41,7 @@ class ProfileUpdate(BaseModel):
     discord_handle: Optional[str] = None
     pinterest_handle: Optional[str] = None
     instagram_handle: Optional[str] = None
+    tiktok_handle: Optional[str] = None
     facebook_handle: Optional[str] = None
     news_query: Optional[str] = None
     court_query: Optional[str] = None
@@ -71,6 +73,7 @@ class ProfileResponse(BaseModel):
     discord_handle: str
     pinterest_handle: str
     instagram_handle: str
+    tiktok_handle: str
     facebook_handle: str
     news_query: str
     court_query: str

@@ -8,6 +8,7 @@ from app.services.scraper.pinterest import scrape_pinterest
 from app.services.scraper.instagram import scrape_instagram
 from app.services.scraper.twitter import scrape_twitter
 from app.services.scraper.facebook import scrape_facebook
+from app.services.scraper.tiktok import scrape_tiktok
 from app.services.scraper.steam import scrape_steam
 from app.services.scraper.crawl4ai import crawl4ai_scrape
 from app.services.scraper.places import scrape_places
@@ -27,6 +28,7 @@ def _profile(p: Profile) -> ProfileResponse:
         steam_id=p.steam_id, discord_handle=p.discord_handle,
         pinterest_handle=p.pinterest_handle,
         instagram_handle=p.instagram_handle,
+        tiktok_handle=p.tiktok_handle or "",
         facebook_handle=p.facebook_handle or "",
         wikipedia_handle=p.wikipedia_handle or "",
         osm_query=p.osm_query or "",
@@ -61,6 +63,7 @@ def create_profile(data: ProfileCreate):
                     openlibrary_query=getattr(data, "openlibrary_query", "") or "",
                     gdelt_query=getattr(data, "gdelt_query", "") or "",
                     instagram_handle=getattr(data, "instagram_handle", "") or "",
+                    tiktok_handle=getattr(data, "tiktok_handle", "") or "",
                     facebook_handle=getattr(data, "facebook_handle", "") or "",
                     manual_link=data.manual_link,
                     manual_facts=data.manual_facts,
@@ -242,7 +245,11 @@ async def trigger_scrape(profile_id: int):
                 await _safe("Instagram", scrape_instagram(p.instagram_handle))
             if p.facebook_handle:
                 await _safe("Facebook", scrape_facebook(p.facebook_handle))
+            if p.tiktok_handle:
+                await _safe("TikTok", scrape_tiktok(p.tiktok_handle))
             if p.steam_id:
+                await _safe("Steam", scrape_steam(p.steam_id))
+            if p.twitter_handle:
                 await _safe("Twitter", scrape_twitter(p.twitter_handle))
             if p.manual_facts:
                 raw_parts.append(p.manual_facts)
