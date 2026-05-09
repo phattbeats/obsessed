@@ -213,7 +213,11 @@ async def trigger_scrape(profile_id: int):
         async def _safe(label: str, coro):
             try:
                 text, _ = await coro
-                if text and not text.startswith(f"[{label}"):
+                # Only filter explicit error sentinels like "[Instagram scrape error: ...]".
+                # Successful scraper output also starts with "[{Label} ..." (e.g.
+                # "[Reddit u_spez] ..." or "[Instagram profile: @cristiano]"), so we must
+                # NOT filter on the bare label prefix or we drop all real content.
+                if text and "scrape error" not in text[:60].lower() and not text.startswith("[All sources failed"):
                     raw_parts.append(text)
             except Exception as exc:
                 scraper_errors.append(f"{label}: {exc}")
