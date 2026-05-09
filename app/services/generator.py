@@ -1,9 +1,11 @@
 import random, json
+from app.config import settings
 
 CATEGORIES = ["history", "entertainment", "geography", "science", "sports", "art_literature"]
 
 def generate_from_manual(raw_text: str, name: str, count: int = 25) -> list[dict]:
     """Rule-based question fallback when LLM is unavailable."""
+    raw_text = raw_text[: settings.content_max_chars]
     lines = [l.strip() for l in raw_text.split("\n") if len(l.strip()) > 15]
     if not lines:
         return []

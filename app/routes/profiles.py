@@ -13,6 +13,7 @@ from app.services.scraper.events import scrape_events
 from app.services.generator import generate_from_manual
 import json
 import hashlib, hmac, time as _time_module
+import secrets
 
 router = APIRouter(prefix="/api/profiles", tags=["profiles"])
 
@@ -172,7 +173,7 @@ def generate_consent_link(profile_id: int):
             raise HTTPException(status_code=404, detail="Profile not found")
         token = p.consent_token or ""
         if not token:
-            token = hashlib.sha256(f"{p.id}-{p.name}-{_time_module.time() * 1e9}".encode()).hexdigest()[:32]
+            token = secrets.token_hex(32)
             p.consent_token = token
             db.commit()
         link = f"/profiles/consent/verify?token={token}"
