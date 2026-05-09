@@ -1,16 +1,12 @@
 """
 Steam scraper for PEOPLE entity type.
-
-Uses the Steam Web API (requires free API key from steamcommunity.com/dev/apikey)
-to fetch player summaries, owned games, and recently played games.
-
-Rate-limit aware via STEAM_API_LIMITER / STEAM_STORE_LIMITER / STEAM_COMMUNITY_LIMITER.
-Cache-aware via entity_cache (checks/writes before/after scrape).
+Scrapes Steam profile, owned games, recent games, and app details.
+Rate-limit aware: uses STEAM_API_LIMITER / STEAM_STORE_LIMITER / STEAM_COMMUNITY_LIMITER.
+Cache-aware: checks/writes entity_cache before/after scrape.
 """
-import asyncio, httpx, json, os, re, xml.etree.ElementTree as ET
+import asyncio, httpx, json, os, re
 from datetime import datetime
-from typing import Optional
-
+from typing import Optional, Tuple
 from app.config import settings
 from app.services.scraper.rate_limiter import (
     STEAM_API_LIMITER,
@@ -20,15 +16,83 @@ from app.services.scraper.rate_limiter import (
 )
 from app.database import SessionLocal, EntityCache
 
+STEAM_COMMUNITY_BASE = "https://steamcommunity.com"
 STEAM_API_BASE = "https://api.steampowered.com"
 STEAM_STORE_BASE = "https://store.steampowered.com"
-STEAM_COMMUNITY_BASE = "https://steamcommunity.com"
+
 STEAM_SOURCE_PREFIX = "https://steamcommunity.com/"
 
-# Numeric SteamID64 pattern
-STEAM_ID64_RE = re.compile(r"^7656119\d{10}$")
+
+def _steam_source_url(steam_id: str) -> str:
+    return f"{STEAM_COMMUNITY_BASE}/profiles/{steam_id}"
+
+
+# ─────────────────────────────────────────────────────────────────
+# SteamID resolution
+# ─────────────────────────────────────────────────────────────────
+
+STEAMID64_RE = re.compile(r"^7656119\d{10}$")
+
+
+def is_steam_id64(val: str) -> bool:
+    return bool(STEAMID64_RE.match(val))
+
+
+async def resolve_vanity_to_id(vanity_slug: str) -> Optional[str]:
+    """Resolve a vanity username to SteamID64 via the community XML feed."""
+    url = f"{STEAM_COMMUNITY_BASE}/id/{vanity_slug.lstrip('/')}/?xml=1"
+    try:
+        async with STEAM_COMMUNITY_LIMITER:
+            resp = await retry_with_backoff(
+                lambda: httpx.AsyncClient(timeout=30.0, follow_redirects=True).get(url),
+                max_retries=3,
+                base_delay=2.0,
+            )
+            resp.raise_for_status()
+            text = resp.text
+        m = re.search(r"<steamID64>(\d{17})</steamID64>", text)
+        if m:
+            return m.group(1)
+    except Exception:
+        pass
+    return None
+
+
+async def resolve_steam_id(raw: str) -> str:
+    """
+    Resolve a steam_id input to a SteamID64 string.
+    Handles:
+      - numeric SteamID64: returned unchanged
+      - community URL: stripped and re-detected
+      - vanity slug: resolved via XML feed
+    """
+    raw = raw.strip().rstrip("/")
+
+    # Case 1: already a numeric SteamID64
+    if is_steam_id64(raw):
+        return raw
+
+    # Case 2: community URL — extract the trailing component
+    if raw.startswith(("http://", "https://")):
+        # e.g. https://steamcommunity.com/id/karljobst/
+        parts = raw.rstrip("/").split("/")
+        key = parts[-1] if parts[-1] not in ("id", "profiles") else parts[-2]
+        raw = key
+
+    # Case 3: vanity slug
+    sid = await resolve_vanity_to_id(raw)
+    if sid:
+        return sid
+    # Couldn't resolve — treat the raw input as a SteamID64 and hope for the best
+    return raw
+
+
+# ─────────────────────────────────────────────────────────────────
+# Cache helpers
+# ─────────────────────────────────────────────────────────────────
 
 def get_steam_cache(entity_name: str, entity_type: str = "People") -> Optional[str]:
+    """Check entity_cache for existing Steam content."""
     db = SessionLocal()
     try:
         cached = db.query(EntityCache).filter(
@@ -36,15 +100,17 @@ def get_steam_cache(entity_name: str, entity_type: str = "People") -> Optional[s
             EntityCache.entity_type == entity_type,
             EntityCache.source_url.like(f"{STEAM_SOURCE_PREFIX}%"),
         ).first()
-        return cached.raw_content if cached else None
+        if cached:
+            return cached.raw_content
     finally:
         db.close()
+    return None
 
 
-def save_steam_cache(entity_name: str, entity_type: str, content: str):
+def save_steam_cache(entity_name: str, entity_type: str, content: str, source_url: str):
+    """Save scraped Steam content to entity_cache."""
     db = SessionLocal()
     try:
-        source_url = f"{STEAM_SOURCE_PREFIX}id/{entity_name}"
         existing = db.query(EntityCache).filter(
             EntityCache.entity_name == entity_name,
             EntityCache.entity_type == entity_type,
@@ -52,15 +118,16 @@ def save_steam_cache(entity_name: str, entity_type: str, content: str):
         ).first()
         if existing:
             existing.raw_content = content
-            existing.scraped_at = int(datetime.now(timezone.utc).timestamp())
+            existing.scraped_at = int(datetime.utcnow().timestamp())
             existing.source_url = source_url
         else:
-            db.add(EntityCache(
+            new_cache = EntityCache(
                 entity_name=entity_name,
                 entity_type=entity_type,
                 raw_content=content,
                 source_url=source_url,
-            ))
+            )
+            db.add(new_cache)
         db.commit()
     except Exception:
         db.rollback()
@@ -68,339 +135,251 @@ def save_steam_cache(entity_name: str, entity_type: str, content: str):
         db.close()
 
 
-def _expand_suffix(s: str) -> str:
-    """Expand K/M suffixes."""
-    s = s.strip().upper()
+# ─────────────────────────────────────────────────────────────────
+# Core scraping
+# ─────────────────────────────────────────────────────────────────
+
+async def _get_player_summaries(steam_id64: str, api_key: str) -> dict:
+    """Fetch display name and avatar for a SteamID64."""
+    if not api_key:
+        return {}
     try:
-        if s.endswith("M"):
-            return str(int(float(s[:-1]) * 1_000_000))
-        if s.endswith("K"):
-            return str(int(float(s[:-1]) * 1_000))
-    except ValueError:
-        pass
-    return s.replace(",", "")
-
-
-# ---------------------------------------------------------------------------
-# SteamID resolution
-# ---------------------------------------------------------------------------
-
-def resolve_steam_id(raw: str) -> str | None:
-    """
-    Resolve a freeform steam_id field to a SteamID64.
-
-    Handles:
-    - 17-digit numeric SteamID64 (already resolved)
-    - steamcommunity.com URL (strip prefix)
-    - vanity slug (resolve via XML endpoint)
-    Returns None if resolution fails.
-    """
-    raw = raw.strip().strip("/")
-    # Already numeric SteamID64
-    if STEAM_ID64_RE.match(raw):
-        return raw
-    # URL — extract the trailing component
-    if raw.startswith("https://steamcommunity.com/"):
-        raw = raw.replace("https://steamcommunity.com/", "")
-        if raw.startswith("id/"):
-            raw = raw[3:]
-        elif raw.startswith("profiles/"):
-            raw = raw[9:]
-    if raw.startswith("id/") or raw.startswith("profiles/"):
-        raw = raw.split("/")[0].replace("id/", "").replace("profiles/", "")
-    # Now we have a vanity slug (or a SteamID64 that slipped through numeric check)
-    if STEAM_ID64_RE.match(raw):
-        return raw
-    # Vanity — resolve via XML endpoint
-    return _resolve_vanity(raw)
-
-
-async def _resolve_vanity_http(slug: str) -> str | None:
-    """HTTP GET to resolve vanity slug to SteamID64."""
-    url = f"{STEAM_COMMUNITY_BASE}/id/{slug}/?xml=1"
-    try:
-        async with httpx.AsyncClient(timeout=15.0) as client:
-            async with STEAM_COMMUNITY_LIMITER:
-                resp = await client.get(url)
+        async with STEAM_API_LIMITER:
+            resp = await retry_with_backoff(
+                lambda: httpx.AsyncClient(timeout=30.0).get(
+                    f"{STEAM_API_BASE}/ISteamUser/GetPlayerSummaries/v2/",
+                    params={"key": api_key, "steamids": steam_id64},
+                ),
+                max_retries=3,
+                base_delay=1.5,
+            )
             resp.raise_for_status()
-            root = ET.fromstring(resp.text)
-            steam_id = root.find("steamID64")
-            if steam_id is not None and STEAM_ID64_RE.match(steam_id.text.strip()):
-                return steam_id.text.strip()
+            data = resp.json()
+        players = data.get("response", {}).get("players", [])
+        return players[0] if players else {}
     except Exception:
-        pass
-    return None
+        return {}
 
 
-def _resolve_vanity(slug: str) -> str | None:
-    """Sync wrapper — runs _resolve_vanity_http via asyncio."""
+async def _get_owned_games(steam_id64: str, api_key: str) -> list[dict]:
+    """Fetch owned games with playtime and app info."""
+    if not api_key:
+        return []
     try:
-        loop = asyncio.get_event_loop()
-    except RuntimeError:
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-    return loop.run_until_complete(_resolve_vanity_http(slug))
-
-
-# ---------------------------------------------------------------------------
-# API helpers
-# ---------------------------------------------------------------------------
-
-async def _api_get(url: str, limiter=None, params: dict | None = None) -> dict:
-    """GET a Steam Web API endpoint with rate limiting and backoff."""
-    async def _call():
-        async with httpx.AsyncClient(timeout=30.0) as client:
-            resp = await client.get(url, params=params)
+        async with STEAM_API_LIMITER:
+            resp = await retry_with_backoff(
+                lambda: httpx.AsyncClient(timeout=30.0).get(
+                    f"{STEAM_API_BASE}/IPlayerService/GetOwnedGames/v1/",
+                    params={
+                        "key": api_key,
+                        "steamid": steam_id64,
+                        "include_appinfo": 1,
+                        "include_played_free_games": 1,
+                    },
+                ),
+                max_retries=3,
+                base_delay=1.5,
+            )
             resp.raise_for_status()
-            return resp
-
-    if limiter:
-        async with limiter:
-            resp = await retry_with_backoff(_call)
-    else:
-        resp = await retry_with_backoff(_call)
-    return resp.json()
+            data = resp.json()
+        games = data.get("response", {}).get("games", [])
+        return games if games else []
+    except Exception:
+        return []
 
 
-async def _get_player_summaries(steam_id: str) -> dict:
-    """GetPlayerSummaries — basic profile info."""
-    if not settings.steam_api_key:
-        return {}
-    url = f"{STEAM_API_BASE}/ISteamUser/GetPlayerSummaries/v0002/"
-    return await _api_get(url, STEAM_API_LIMITER, {
-        "key": settings.steam_api_key,
-        "steamids": steam_id,
-    })
+async def _get_recently_played(steam_id64: str, api_key: str) -> list[dict]:
+    """Fetch top 5 recently played games."""
+    if not api_key:
+        return []
+    try:
+        async with STEAM_API_LIMITER:
+            resp = await retry_with_backoff(
+                lambda: httpx.AsyncClient(timeout=30.0).get(
+                    f"{STEAM_API_BASE}/IPlayerService/GetRecentlyPlayedGames/v1/",
+                    params={"key": api_key, "steamid": steam_id64, "count": 5},
+                ),
+                max_retries=3,
+                base_delay=1.5,
+            )
+            resp.raise_for_status()
+            data = resp.json()
+        games = data.get("response", {}).get("games", [])
+        return games if games else []
+    except Exception:
+        return []
 
 
-async def _get_owned_games(steam_id: str) -> dict:
-    """GetOwnedGames with appinfo + free games."""
-    if not settings.steam_api_key:
-        return {}
-    url = f"{STEAM_API_BASE}/IPlayerService/GetOwnedGames/v0002/"
-    return await _api_get(url, STEAM_API_LIMITER, {
-        "key": settings.steam_api_key,
-        "steamid": steam_id,
-        "include_appinfo": 1,
-        "include_played_free_games": 1,
-    })
-
-
-async def _get_recently_played(steam_id: str) -> dict:
-    """GetRecentlyPlayedGames — top 4 recent games."""
-    if not settings.steam_api_key:
-        return {}
-    url = f"{STEAM_API_BASE}/IPlayerService/GetRecentlyPlayedGames/v0002/"
-    return await _api_get(url, STEAM_API_LIMITER, {
-        "key": settings.steam_api_key,
-        "steamid": steam_id,
-        "count": 4,
-    })
-
-
-async def _get_app_details_batch(app_ids: list[str]) -> dict:
+async def _get_appdetails_batch(app_ids: list[int]) -> dict[int, dict]:
     """
-    GET store.steampowered.com/api/appdetails for a batch of appids.
-    No auth. Rate-limited via STEAM_STORE_LIMITER.
+    Fetch app details for a batch of app IDs from the public Steam Store API.
+    No auth required. Returns {appid: {...}} for apps that have a valid store page.
     """
     if not app_ids:
         return {}
-    csv = ",".join(app_ids)
-    url = f"{STEAM_STORE_BASE}/api/appdetails"
-    async def _call():
-        async with httpx.AsyncClient(timeout=30.0) as client:
-            resp = await client.get(url, params={"appids": csv})
+    ids_csv = ",".join(str(a) for a in app_ids)
+    try:
+        async with STEAM_STORE_LIMITER:
+            resp = await retry_with_backoff(
+                lambda: httpx.AsyncClient(timeout=30.0).get(
+                    f"{STEAM_STORE_BASE}/api/appdetails",
+                    params={"appids": ids_csv, "l": "en"},
+                ),
+                max_retries=3,
+                base_delay=2.0,
+            )
             resp.raise_for_status()
-            return resp
-    async with STEAM_STORE_LIMITER:
-        resp = await retry_with_backoff(_call)
-    return resp.json()
+            return resp.json()
+    except Exception:
+        return {}
 
 
-# ---------------------------------------------------------------------------
-# Main scraper
-# ---------------------------------------------------------------------------
+def _build_raw_content(
+    persona_name: str,
+    summary: dict,
+    owned_games: list[dict],
+    recent_games: list[dict],
+    appdetails_by_id: dict[int, dict],
+) -> str:
+    """Assemble the raw_content blob."""
+    parts = [f"[Steam profile] {persona_name}"]
 
-async def scrape_steam(raw_steam_id: str, entity_type: str = "People") -> tuple[str, dict]:
+    if summary:
+        name = summary.get("personaname") or summary.get("realname") or persona_name
+        parts.append(f"  Display name: {name}")
+        loc = summary.get("loccountrycode", "")
+        state = summary.get("locstatecode", "")
+        if loc or state:
+            parts.append(f"  Location: {state},{loc}" if state else f"  Country: {loc}")
+        url = summary.get("profileurl", "")
+        if url:
+            parts.append(f"  Profile URL: {url}")
+
+    # Recently played
+    if recent_games:
+        parts.append(f"\n[Recently played games]")
+        for g in recent_games[:5]:
+            name = appdetails_by_id.get(g["appid"], {}).get("name", f"App {g['appid']}")
+            parts.append(f"  {name} ({g.get('playtime_forever', 0)//60}h last 2 wks)")
+
+    # Top games by all-time playtime
+    if owned_games:
+        sorted_games = sorted(owned_games, key=lambda g: g.get("playtime_forever", 0), reverse=True)
+        top30 = sorted_games[:30]
+        parts.append(f"\n[Top games by playtime]")
+        for g in top30:
+            name = appdetails_by_id.get(g["appid"], {}).get("name", f"App {g['appid']}")
+            hours = g.get("playtime_forever", 0) // 60
+            parts.append(f"  {name} — {hours}h")
+
+    return "\n".join(parts)
+
+
+async def scrape_steam(raw_input: str, entity_type: str = "People") -> Tuple[str, list[dict]]:
     """
-    Scrape a Steam profile via Web API.
+    Full Steam scrape pipeline for a profile's steam_id field.
+    Returns (raw_content, posts) where posts is a metadata dict.
 
-    Full path (with steam_api_key):
-      1. resolve raw_steam_id → SteamID64
-      2. GetPlayerSummaries
-      3. GetOwnedGames
-      4. GetRecentlyPlayedGames
-      5. appdetails for top 30 games by playtime (batch 20/call)
-      6. build raw_content blob
-
-    Without steam_api_key: only resolve + XML identity blob (no games).
-    Never raises; graceful sentinel on any failure.
+    Fallback (no API key): resolves steam_id + fetches XML profile only,
+    returns a minimal identity blob without raising.
     """
-    raw_steam_id = raw_steam_id.strip().strip("/")
-    if not raw_steam_id:
-        return "[Steam: empty steam_id]", {}
-
-    # Check cache
-    cached = get_steam_cache(raw_steam_id, entity_type)
-    if cached:
-        return cached, {"source": "steam", "cached": True}
-
     # Resolve to SteamID64
-    steam_id = resolve_steam_id(raw_steam_id)
-    if not steam_id:
-        return f"[Steam: could not resolve '{raw_steam_id}' — check the steam_id format]", {}
+    steam_id64 = await resolve_steam_id(raw_input)
+    api_key = settings.steam_api_key
 
-    # Fetch profile data
-    profile = {
-        "steam_id": steam_id,
-        "persona_name": "",
-        "profile_url": f"https://steamcommunity.com/profiles/{steam_id}",
-        "avatar_url": "",
-        "followers": "",
-        "levels": [],
-        "recent_games": [],
-        "owned_games_count": 0,
-    }
+    # Cache check — use the resolved ID as cache key alongside entity_name
+    # (steam_id on Profile is the raw input; cache by resolved ID for uniqueness)
+    # We use the resolved ID for the source URL only; cache lookup uses entity_name.
+    cached = get_steam_cache(raw_input, entity_type)
+    if cached:
+        return cached, [{"source": "steam", "cached": True}]
 
-    try:
-        # GetPlayerSummaries
-        summaries = await _get_player_summaries(steam_id)
-        if summaries:
-            players = summaries.get("response", {}).get("players", [])
-            if players:
-                p = players[0]
-                profile["persona_name"] = p.get("personaname", "")
-                profile["avatar_url"] = p.get("avatarfull", "")
-                profile["profile_url"] = p.get("profileurl", profile["profile_url"])
-    except Exception:
-        pass
+    # ── No-key fallback: XML identity only ──────────────────────────────
+    if not api_key:
+        try:
+            async with STEAM_COMMUNITY_LIMITER:
+                resp = await retry_with_backoff(
+                    lambda: httpx.AsyncClient(timeout=30.0, follow_redirects=True).get(
+                        f"{STEAM_COMMUNITY_BASE}/profiles/{steam_id64}/?xml=1"
+                    ),
+                    max_retries=3,
+                    base_delay=2.0,
+                )
+                resp.raise_for_status()
+                xml = resp.text
+            m = re.search(r"<steamID>([^<]+)</steamID>", xml)
+            steam_name = m.group(1).strip() if m else raw_input
+            raw = f"[Steam profile] {steam_name}\n  SteamID64: {steam_id64}\n  (No API key — limited data)"
+        except Exception:
+            raw = f"[Steam profile] {raw_input}\n  SteamID64: {steam_id64}\n  (No API key — limited data)"
 
-    if not profile["persona_name"]:
-        profile["persona_name"] = raw_steam_id
+        save_steam_cache(raw_input, entity_type, raw, _steam_source_url(steam_id64))
+        return raw, [{"source": "steam", "cached": False}]
 
-    # GetOwnedGames
-    owned_raw = await _get_owned_games(steam_id)
-    games = []
-    if owned_raw:
-        response = owned_raw.get("response", {})
-        profile["owned_games_count"] = response.get("game_count", 0)
-        games = response.get("games", [])
-        # Sort by playtime desc
-        games.sort(key=lambda g: g.get("playtime_forever", 0), reverse=True)
-        games = games[:30]  # top 30 for enrichment
+    # ── Full pipeline ─────────────────────────────────────────────────────
+    # 1. Player summaries
+    summary = await _get_player_summaries(steam_id64, api_key)
 
-    # GetRecentlyPlayedGames
-    try:
-        recent = await _get_recently_played(steam_id)
-        if recent:
-            profile["recent_games"] = [
-                {"name": g["name"], "playtime_2weeks": g.get("playtime_2weeks", 0)}
-                for g in recent.get("response", {}).get("games", [])
-            ]
-    except Exception:
-        pass
+    # 2. Owned games
+    owned_games = await _get_owned_games(steam_id64, api_key)
 
-    # Enrich with appdetails (top games only — 2 batches of 20)
-    top_app_ids = [g["appid"] for g in games[:30]]
-    app_info_map = {}
+    # 3. Recently played
+    recent_games = await _get_recently_played(steam_id64, api_key)
 
-    for batch in [top_app_ids[:20], top_app_ids[20:30]]:
-        if not batch:
-            continue
-        details = await _get_app_details_batch([str(a) for a in batch])
-        for appid_str, info in details.items():
-            if isinstance(info, dict) and info.get("success"):
-                data = info.get("data", {})
-                app_info_map[int(appid_str)] = {
-                    "name": data.get("name", ""),
-                    "genres": [g["description"] for g in data.get("genres", [])],
-                    "metacritic": data.get("metacritic", {}).get("score"),
-                    "type": data.get("type", ""),
-                }
+    # 4. App details for top 30 owned games (batch 20-at-a-time)
+    appdetails_by_id: dict[int, dict] = {}
+    if owned_games:
+        sorted_games = sorted(owned_games, key=lambda g: g.get("playtime_forever", 0), reverse=True)
+        top_ids = [g["appid"] for g in sorted_games[:30]]
+        for chunk in [top_ids[i : i + 20] for i in range(0, len(top_ids), 20)]:
+            batch_result = await _get_appdetails_batch(chunk)
+            for appid, info in batch_result.items():
+                if isinstance(info, dict) and info.get("success"):
+                    data = info.get("data", {})
+                    appdetails_by_id[int(appid)] = data
 
-    # Build levels (playtime buckets) from top 30 enriched games
-    levels = []
-    if games:
-        for g in games[:20]:
-            appid = g["appid"]
-            info = app_info_map.get(appid, {})
-            playtime_h = g.get("playtime_forever", 0)
-            if playtime_h >= 1000:
-                tier = "1k+ hours"
-            elif playtime_h >= 500:
-                tier = "500+ hours"
-            elif playtime_h >= 200:
-                tier = "200+ hours"
-            elif playtime_h >= 50:
-                tier = "50+ hours"
-            elif playtime_h >= 10:
-                tier = "10+ hours"
-            else:
-                tier = "<10 hours"
-            levels.append({
-                "appid": appid,
-                "name": info.get("name", g.get("name", f"appid {appid}")),
-                "playtime_h": playtime_h,
-                "tier": tier,
-                "genres": info.get("genres", []),
-                "metacritic": info.get("metacritic"),
-            })
+    # 5. Build raw_content blob
+    persona_name = (
+        summary.get("personaname")
+        or summary.get("realname")
+        or (await resolve_vanity_to_id(raw_input) and raw_input)
+        or raw_input
+    )
+    raw = _build_raw_content(persona_name, summary, owned_games, recent_games, appdetails_by_id)
 
-    profile["levels"] = levels
+    # Cap
+    if len(raw) > settings.content_max_chars:
+        raw = raw[: settings.content_max_chars]
 
-    raw = _format_steam_profile(profile)
-    raw = raw[: settings.content_max_chars]
+    # Save to cache
+    save_steam_cache(raw_input, entity_type, raw, _steam_source_url(steam_id64))
 
-    if raw and not raw.startswith("[Steam:"):
-        save_steam_cache(raw_steam_id, entity_type, raw)
-
-    return raw, profile
-
-
-def _format_steam_profile(profile: dict) -> str:
-    lines = [f"[Steam profile: {profile['persona_name']}]"]
-    lines.append(f"Profile: {profile['persona_name']}")
-    if profile.get("profile_url"):
-        lines.append(f"URL: {profile['profile_url']}")
-    if profile.get("owned_games_count"):
-        lines.append(f"{profile['owned_games_count']} games in library")
-    if profile.get("levels"):
-        lines.append("\n[Top games by playtime]")
-        for g in profile["levels"][:15]:
-            genre_str = f" ({', '.join(g['genres'])})" if g['genres'] else ""
-            meta_str = f" | metacritic {g['metacritic']}" if g['metacritic'] else ""
-            lines.append(f"  {g['name']}{genre_str} — {g['playtime_h']}h ({g['tier']}){meta_str}")
-    if profile.get("recent_games"):
-        lines.append("\n[Recently played]")
-        for g in profile["recent_games"]:
-            lines.append(f"  {g['name']} — {g.get('playtime_2weeks', 0)}h in last 2 weeks")
-    return "\n".join(lines)
+    return raw, [{"source": "steam", "cached": False}]
 
 
 async def generate_questions(profile_id: int, raw_content: str, name: str) -> list[dict]:
-    """Generate trivia questions from Steam profile via LiteLLM."""
+    """Generate trivia questions from scraped Steam content via LiteLLM."""
     if not raw_content.strip():
         return []
 
-    system_prompt = f"""You are a trivia question generator. Given facts about a person named "{name}", generate exactly 25 trivia questions about their personality and interests based on their Steam library data.
+    system_prompt = f"""You are a trivia question generator. Given facts about a person named "{name}", generate exactly 50 trivia questions about them.
 
 Each question must be in this JSON format (no markdown, no extra text):
 {{"category": "history|entertainment|geography|science|sports|art_literature", "question_text": "...", "correct_answer": "...", "wrong_answers": ["...","...","..."], "difficulty": 1, "source_snippet": "..."}}
 
 Rules:
-- Questions are about what you can infer about the person's personality from their Steam library: games played, hours invested, genres preferred
-- Steam library is the "personality jackpot" — use hours-played as a signal of identity, not just trivia
-- Playtime tiers (e.g. "1000+ hours", "500+ hours") are personality indicators; use them as conversation starters
+- correct_answer and wrong_answers must be full sentences or specific facts
 - wrong_answers must be plausible but clearly wrong
 - difficulty 1=easy, 2=medium, 3=hard
 - Mix categories evenly across the 6 categories
-- source_snippet: exact phrase from the profile (max 20 words)
-- Return ONLY the JSON array, no commentary"""
+- source_snippet: the exact phrase from the input that inspired this question (max 20 words)
+- Return ONLY the JSON array, no commentary
+- If you cannot generate a question for a category, skip it"""
 
-    user_prompt = f"Facts about {name} from their Steam profile:\n{raw_content[:settings.content_max_chars]}"
+    user_prompt = f"Facts about {name}:\n{raw_content[: settings.content_max_chars]}"
 
     try:
-        api_key = os.environ.get("LITELLM_API_KEY", "") or settings.litellm_api_key or ""
+        api_key = os.environ.get("LITELLM_API_KEY", "") or settings.litellm_api_key
         async with httpx.AsyncClient(timeout=60.0) as client:
             resp = await client.post(
                 f"{settings.litellm_base}/chat/completions",

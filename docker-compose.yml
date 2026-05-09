@@ -6,6 +6,8 @@ services:
       - "8000:8000"
     env_file:
       - .env
+    environment:
+      - STEAM_API_KEY=${STEAM_API_KEY:-}
     volumes:
       - obsessed-data:/app/data
     restart: unless-stopped
