@@ -104,6 +104,28 @@
         <label>Manual Facts</label>
         <textarea name="manual_facts" placeholder="One fact per line. Paste what you know about this person..."></textarea>
       </div>
+      <div class="form-group" style="border-top: 1px solid var(--surface-elevated); padding-top: 1rem; margin-top: 0.5rem;">
+        <label style="color: var(--accent);"><span style="color: var(--accent);">⬡</span> Public Records</label>
+        <p style="font-size: 11px; color: var(--text-secondary); margin: 0.2rem 0 0.6rem;">These queries are run against public records sources when the profile is scraped.</p>
+        <div class="row-2">
+          <div class="form-group">
+            <label>News Search</label>
+            <input name="news_query" placeholder="Person name or keywords">
+          </div>
+          <div class="form-group">
+            <label>Court Records Search</label>
+            <input name="court_query" placeholder="Person name or case number">
+          </div>
+        </div>
+        <div class="form-group">
+          <label>Secretary of State Business Search</label>
+          <input name="sos_query" placeholder="Business name or officer name">
+        </div>
+        <div class="form-group">
+          <label>County Auditor Property Search</label>
+          <input name="auditor_query" placeholder="Owner name or property address">
+        </div>
+      </div>
     </div>
 
     <!-- ===== PLACE ===== -->
@@ -132,6 +154,20 @@
       <div class="form-group">
         <label>Manual Facts</label>
         <textarea name="manual_facts" placeholder="One fact per line. Paste what you know about this place..."></textarea>
+      </div>
+      <div class="form-group" style="border-top: 1px solid var(--surface-elevated); padding-top: 1rem; margin-top: 0.5rem;">
+        <label style="color: var(--accent);"><span style="color: var(--accent);">⬡</span> Public Records</label>
+        <p style="font-size: 11px; color: var(--text-secondary); margin: 0.2rem 0 0.6rem;">These queries are run against public records sources when the profile is scraped.</p>
+        <div class="row-2">
+          <div class="form-group">
+            <label>Secretary of State Business Search</label>
+            <input name="sos_query" placeholder="Business name or officer name">
+          </div>
+          <div class="form-group">
+            <label>County Auditor Property Search</label>
+            <input name="auditor_query" placeholder="Owner name or property address">
+          </div>
+        </div>
       </div>
     </div>
 
