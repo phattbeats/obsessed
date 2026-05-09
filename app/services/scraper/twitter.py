@@ -50,7 +50,7 @@ def save_twitter_cache(entity_name: str, entity_type: str, content: str):
         if existing:
             existing.raw_content = content
             from datetime import datetime
-            existing.scraped_at = int(datetime.utcnow().timestamp())
+            existing.scraped_at = int(datetime.now(timezone.utc).timestamp())
         else:
             db.add(EntityCache(
                 entity_name=entity_name,

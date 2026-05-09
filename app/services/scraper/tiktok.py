@@ -6,7 +6,7 @@ Secondary: tnktok.com HTML via crawl4ai.
 
 Cache-aware via entity_cache (checks/writes before/after scrape).
 """
-import httpx, re
+import httpx, re, time
 from typing import Optional
 
 from app.config import settings
@@ -45,7 +45,7 @@ def save_tiktok_cache(entity_name: str, entity_type: str, content: str):
         ).first()
         if existing:
             existing.raw_content = content
-            existing.scraped_at = int(__import__("datetime").datetime.utcnow().timestamp())
+            existing.scraped_at = int(time.time())
             existing.source_url = source_url
         else:
             db.add(EntityCache(
