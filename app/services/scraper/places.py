@@ -15,7 +15,6 @@ from app.config import settings
 import os
 from app.services.scraper.wikipedia import scrape_wikipedia
 from app.services.scraper.osm import scrape_osm
-from app.services.scraper.google_places import scrape_places as scrape_google_places
 from app.services.scraper.travel import scrape_travel_blog
 
 
@@ -70,15 +69,9 @@ async def scrape_places(
             failed_sources.append("osm")
 
     # Google Places (rating, reviews, address, types)
-    if google_places_query:
-        try:
-            text, _ = await scrape_google_places(google_places_query)
-            if text and not text.startswith("[Google Places"):
-                raw_parts.append(text)
-            else:
-                failed_sources.append("google_places")
-        except Exception:
-            failed_sources.append("google_places")
+    # Google Places wiring removed — google_places.py was dead code
+    # (scrape_google_places was a passthrough stub that always silently failed)
+    # google_places_handle is retained in DB/schema but produces no source data
 
     # Travel blog / TripAdvisor URL — graceful degradation to Wikipedia if unavailable
     if travel_url:
