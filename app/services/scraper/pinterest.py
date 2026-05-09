@@ -8,7 +8,6 @@ from typing import Optional
 from app.config import settings
 
 CRAWL4AI_URL = "http://crawl4ai:11235"
-CRAWL4AI_TOKEN = "Phatt-tech-2026"
 
 # ---------------------------------------------------------------------------
 # Node.js tool helpers
@@ -141,7 +140,7 @@ async def _scrape_pinterest_crawl4ai(handle: str) -> tuple[str, list[dict]]:
                     "wait_for": ".userProfilePage",
                     "page_timeout": 30000,
                 },
-                headers={"Authorization": f"Bearer {CRAWL4AI_TOKEN}"},
+                headers={"Authorization": f"Bearer {settings.crawl4ai_token}"},
             )
             resp.raise_for_status()
             data = resp.json()

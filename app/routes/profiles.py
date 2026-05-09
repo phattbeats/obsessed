@@ -10,14 +10,12 @@ from app.services.scraper.twitter import scrape_twitter
 from app.services.scraper.steam import scrape_steam
 from app.services.scraper.facebook import scrape_facebook
 from app.services.scraper.tiktok import scrape_tiktok
-from app.services.scraper.steam import scrape_steam
 from app.services.scraper.crawl4ai import crawl4ai_scrape
 from app.services.scraper.places import scrape_places
 from app.services.scraper.things import scrape_things
 from app.services.scraper.events import scrape_events
 from app.services.generator import generate_from_manual
 import json
-import hashlib, hmac, time as _time_module
 import secrets
 
 router = APIRouter(prefix="/api/profiles", tags=["profiles"])
@@ -152,8 +150,6 @@ def get_profile_stats(profile_id: int):
         db.close()
 
 
-CONSENT_SECRET = b"obsessed-consent-2026"
-
 @router.post("/{profile_id}/consent")
 def set_consent(profile_id: int):
     """Direct consent flag for testing / internal use."""
@@ -252,8 +248,6 @@ async def trigger_scrape(profile_id: int):
                 await _safe("Steam", scrape_steam(p.steam_id))
             if p.twitter_handle:
                 await _safe("Twitter", scrape_twitter(p.twitter_handle))
-            if p.steam_id:
-                await _safe("Steam", scrape_steam(p.steam_id))
             if p.manual_facts:
                 raw_parts.append(p.manual_facts)
             if p.manual_link:

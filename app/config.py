@@ -11,6 +11,7 @@ class Settings(BaseSettings):
     litellm_model: str = "claude-3-5-sonnet-20241022"  # override via LITELLM_MODEL env var
     litellm_api_key: str | None = None  # read from LITELLM_API_KEY env var or .env
     steam_api_key: str = ""  # free key from https://steamcommunity.com/dev/apikey
+    crawl4ai_token: str = ""  # bearer for the crawl4ai service; CRAWL4AI_TOKEN env override
     question_count: int = 50
     question_timeout: int = 30  # seconds per question
     ws_heartbeat: int = 30
