@@ -55,7 +55,7 @@ def test_reddit_cache_roundtrip():
     try:
         row = db.query(EntityCache).filter_by(entity_name="alice").one()
         assert row.raw_content == "reddit content for alice"
-        assert row.source_url.startswith("https://www.reddit.com/")
+        assert row.source_url.startswith("https://old.reddit.com/")
         assert row.scraped_at  # default-populated
     finally:
         db.close()
