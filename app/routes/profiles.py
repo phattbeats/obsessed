@@ -277,6 +277,135 @@ async def trigger_scrape(profile_id: int):
                 await _safe("Things", scrape_things(openlibrary_query=p.openlibrary_query))
             if p.gdelt_query:
                 await _safe("Events", scrape_events(gdelt_query=p.gdelt_query))
+            if p.news_query:
+                await _safe("News", _scrape_news(p.news_query))
+            if p.court_query:
+                await _safe("Court", _scrape_court(p.court_query))
+            if p.sos_query:
+                await _safe("SOS", _scrape_sos(p.sos_query))
+            if p.auditor_query:
+                await _safe("Auditor", _scrape_auditor(p.auditor_query))
+
+        # ── Public-records helpers ──────────────────────────────────────────
+        async def _scrape_news(query: str):
+            """Format Google News RSS results into readable text."""
+            from app.services.scraper.news import search_news
+            try:
+                articles = await search_news(query, count=10)
+            except Exception:
+                return "", {}
+            if not articles:
+                return "", {}
+            lines = [f"[News results for: {query}]"]
+            for a in articles:
+                title = a.get("title", "")
+                url = a.get("url", "")
+                date = a.get("date", "")
+                desc = a.get("description", "")[:200]
+                lines.append(f"- {title} ({date})")
+                if url:
+                    lines.append(f"  Source: {url}")
+                if desc:
+                    lines.append(f"  {desc}")
+            return "\n".join(lines), {"source": "news", "count": len(articles)}
+
+        async def _scrape_court(query: str):
+            """Search court docket, format docket entries as text."""
+            from app.services.scraper.court import scrape_court_docket, search_court_by_number
+            try:
+                # Try as person name first (docket search), then as case number
+                if any(c.isdigit() for c in query) and "-" in query:
+                    parts = query.rsplit("-", 1)
+                    if len(parts) == 2:
+                        entries = await search_court_by_number(parts[0], query)
+                    else:
+                        entries = await scrape_court_docket(query, query)
+                else:
+                    # Try city/county discovery and scrape
+                    entries = await scrape_court_docket(query, query)
+            except Exception:
+                return "", {}
+            if not entries:
+                return "", {}
+            lines = [f"[Court docket for: {query}]"]
+            for e in entries:
+                case = e.get("case_number", "")
+                desc = e.get("description", "")[:200]
+                date = e.get("date", "")
+                parties = e.get("parties", "")
+                status = e.get("status", "")
+                lines.append(f"- Case {case} ({date}): {desc}")
+                if parties:
+                    lines.append(f"  Parties: {parties}")
+                if status:
+                    lines.append(f"  Status: {status}")
+            return "\n".join(lines), {"source": "court", "count": len(entries)}
+
+        async def _scrape_sos(query: str):
+            """Search Secretary of State business entities, format as text."""
+            from app.services.scraper.sos import search_sos_entities, search_by_owner
+            try:
+                # query format: "State, EntityName" or just "EntityName"
+                parts = [p.strip() for p in query.split(",")]
+                if len(parts) == 2:
+                    state, entity_name = parts[0], parts[1]
+                    entries = await search_sos_entities(state, entity_name)
+                elif len(parts) == 1 and parts[0]:
+                    # Try Ohio as default state
+                    entries = await search_by_owner("ohio", parts[0])
+                    if not entries:
+                        entries = await search_sos_entities("ohio", parts[0])
+                else:
+                    return "", {}
+            except Exception:
+                return "", {}
+            if not entries:
+                return "", {}
+            lines = [f"[SOS business entities for: {query}]"]
+            for e in entries:
+                name = e.get("name", "")
+                entity_id = e.get("entity_id", "")
+                status = e.get("status", "")
+                entity_type = e.get("entity_type", "")
+                reg_date = e.get("registered_date", "")
+                lines.append(f"- {name} ({entity_type}) ID:{entity_id} Status:{status} Registered:{reg_date}")
+            return "\n".join(lines), {"source": "sos", "count": len(entries)}
+
+        async def _scrape_auditor(query: str):
+            """Search county auditor property records, format as text."""
+            from app.services.scraper.auditor import search_property_records, get_property_by_address
+            try:
+                parts = [p.strip() for p in query.split(",")]
+                if len(parts) == 2:
+                    county, search_term = parts[0], parts[1]
+                    records = await search_property_records(county, search_term)
+                elif len(parts) == 1 and parts[0]:
+                    # Try as owner name in Delaware County, Ohio (default)
+                    records = await search_property_records("delaware", parts[0])
+                    if not records:
+                        records = await get_property_by_address("delaware", parts[0])
+                else:
+                    return "", {}
+            except Exception:
+                return "", {}
+            if not records:
+                return "", {}
+            lines = [f"[Property records for: {query}]"]
+            for r in records:
+                owner = r.get("owner", "")
+                address = r.get("address", "")
+                parcel_id = r.get("parcel_id", "")
+                value = r.get("market_value", "")
+                lines.append(f"- Owner: {owner} | Address: {address} | Parcel: {parcel_id} | Value: {value}")
+            return "\n".join(lines), {"source": "auditor", "count": len(records)}
+            if p.news_query:
+                await _safe("News", _scrape_news(p.news_query))
+            if p.court_query:
+                await _safe("Court", _scrape_court(p.court_query))
+            if p.sos_query:
+                await _safe("SOS", _scrape_sos(p.sos_query))
+            if p.auditor_query:
+                await _safe("Auditor", _scrape_auditor(p.auditor_query))
 
             raw = "\n".join(raw_parts)
             if raw.strip():
