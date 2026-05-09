@@ -153,7 +153,7 @@ Rules:
             resp = await client.post(
                 f"{settings.litellm_base}/chat/completions",
                 json={
-                    "model": "claude-3-5-sonnet-20241022",
+                    "model": settings.litellm_model,
                     "messages": [
                         {"role": "system", "content": system_prompt},
                         {"role": "user", "content": user_prompt},
