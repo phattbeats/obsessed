@@ -8,6 +8,7 @@ from app.services.scraper.pinterest import scrape_pinterest
 from app.services.scraper.instagram import scrape_instagram
 from app.services.scraper.twitter import scrape_twitter
 from app.services.scraper.facebook import scrape_facebook
+from app.services.scraper.steam import scrape_steam
 from app.services.scraper.crawl4ai import crawl4ai_scrape
 from app.services.scraper.places import scrape_places
 from app.services.scraper.things import scrape_things
@@ -241,7 +242,7 @@ async def trigger_scrape(profile_id: int):
                 await _safe("Instagram", scrape_instagram(p.instagram_handle))
             if p.facebook_handle:
                 await _safe("Facebook", scrape_facebook(p.facebook_handle))
-            if p.twitter_handle:
+            if p.steam_id:
                 await _safe("Twitter", scrape_twitter(p.twitter_handle))
             if p.manual_facts:
                 raw_parts.append(p.manual_facts)
