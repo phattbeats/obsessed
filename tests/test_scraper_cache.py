@@ -9,7 +9,12 @@ from unittest.mock import AsyncMock, patch
 import pytest
 
 from app.database import EntityCache, SessionLocal
-from app.services.scraper import instagram, reddit, twitter
+from app.services.scraper import instagram, reddit, twitter, facebook
+from app.services.scraper.facebook import (
+    get_facebook_cache,
+    save_facebook_cache,
+    scrape_facebook,
+)
 from app.services.scraper.reddit import (
     get_reddit_cache,
     save_reddit_cache,
@@ -193,3 +198,105 @@ async def test_scrape_twitter_end_to_end_with_mocked_network():
         text2, meta2 = await scrape_twitter("testuser", "People")
         assert text2 == text
         assert meta2 == [{"source": "twitter", "cached": True}]
+
+@pytest.mark.asyncio
+async def test_scrape_facebook_end_to_end_with_mocked_network():
+    """
+    Exercises scrape_facebook() with crawl4ai mocked.
+    Covers: happy path (page name + followers), login wall, crawl4ai error.
+    """
+    from unittest.mock import AsyncMock, patch
+
+    MARKDOWN_HAPPY = """# Nintendo of America
+
+## NintendoAmerica
+
+**Verified** ✓
+**5,600,000** Followers
+
+Category: Video Game Company
+
+Nintendo of America, headquartered in Redmond, WA, is a leader in the video game industry.
+
+Latest Post: January 15, 2024 at 3:30 PM
+Great news — check out our latest direct!
+125,000 likes
+4,200 comments
+(https://www.facebook.com/NintendoAmerica/posts/123)
+"""
+
+    async def fake_crawl4ai_post(url, **kwargs):
+        res = AsyncMock()
+        res.raise_for_status = AsyncMock()
+        if "about" in url:
+            data = {"results": [{"success": True, "markdown": MARKDOWN_HAPPY.replace("Latest Post", "About Section")}]}
+        elif "login" in url.lower():
+            data = {"results": [{"success": True, "markdown": "Mobile number or email\nCreate new account\nlog in to facebook"}]}
+        elif "notfound" in url:
+            data = {"results": [{"success": True, "markdown": "# Page not found\nSorry, this content isn't available"}]}
+        else:
+            data = {"results": [{"success": True, "markdown": MARKDOWN_HAPPY}]}
+        res.json = AsyncMock(return_value=data)
+        return res
+
+    async def fake_wait_for(coro, timeout=None):
+        return await coro
+
+    with patch("httpx.AsyncClient") as MockClient, \
+         patch("asyncio.wait_for", fake_wait_for):
+        mock_inst = AsyncMock()
+        mock_inst.__aenter__ = AsyncMock(returnvalue=mock_inst)
+        mock_inst.__aexit__ = AsyncMock(returnvalue=None)
+        mock_inst.post = fake_crawl4ai_post
+        MockClient.return_value = mock_inst
+
+        # Clear cache
+        db = SessionLocal()
+        try:
+            db.query(EntityCache).filter(
+                EntityCache.entity_name == "NintendoAmerica",
+                EntityCache.source_url.like("https://www.facebook.com/%"),
+            ).delete()
+            db.commit()
+        finally:
+            db.close()
+
+        # Happy path
+        text, meta = await scrape_facebook("NintendoAmerica", "People")
+        assert "Nintendo" in text
+        assert meta.get("source") == "facebook"
+        assert meta.get("cached") is False
+
+        # Cache hit
+        text2, meta2 = await scrape_facebook("NintendoAmerica", "People")
+        assert text2 == text
+        assert meta2 == {"source": "facebook", "cached": True}
+
+    # Login wall sentinel
+    with patch("httpx.AsyncClient") as MockClient, \
+         patch("asyncio.wait_for", fake_wait_for):
+        mock_inst = AsyncMock()
+        mock_inst.__aenter__ = AsyncMock(returnvalue=mock_inst)
+        mock_inst.__aexit__ = AsyncMock(returnvalue=None)
+        mock_inst.post = fake_crawl4ai_post
+        MockClient.return_value = mock_inst
+
+        text3, meta3 = await scrape_facebook("login", "People")
+        assert text3 == "[Facebook: login wall]"
+        assert meta3 == {}
+
+    # crawl4ai error sentinel
+    async def fake_error_post(url, **kwargs):
+        raise Exception("connection refused")
+
+    with patch("httpx.AsyncClient") as MockClient, \
+         patch("asyncio.wait_for", fake_wait_for):
+        mock_inst = AsyncMock()
+        mock_inst.__aenter__ = AsyncMock(returnvalue=mock_inst)
+        mock_inst.__aexit__ = AsyncMock(returnvalue=None)
+        mock_inst.post = fake_error_post
+        MockClient.return_value = mock_inst
+
+        text4, meta4 = await scrape_facebook("error_test", "People")
+        assert text4.startswith("[Facebook:")
+        assert meta4 == {}
