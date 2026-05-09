@@ -16,7 +16,6 @@ from app.services.scraper.rate_limiter import generic_limiter
 from app.database import SessionLocal, EntityCache
 
 CRAWL4AI_URL = "http://crawl4ai:11235/crawl"
-CRAWL4AI_TOKEN = "Phatt-tech-2026"
 FACEBOOK_SOURCE_PREFIX = "https://www.facebook.com/"
 
 
@@ -222,7 +221,7 @@ async def _crawl_facebook(url: str) -> tuple[str, bool]:
             async with generic_limiter:
                 resp = await client.post(
                     CRAWL4AI_URL,
-                    headers={"Authorization": f"Bearer {CRAWL4AI_TOKEN}"},
+                    headers={"Authorization": f"Bearer {settings.crawl4ai_token}"},
                     json={"urls": [url]},
                 )
             resp.raise_for_status()
