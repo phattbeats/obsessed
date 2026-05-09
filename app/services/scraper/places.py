@@ -12,6 +12,7 @@ Cache: checks entity_cache before scraping. Cache miss scrapes and writes result
 All scrapers are rate-limit aware (no hard sleeps).
 """
 from app.config import settings
+import os
 from app.services.scraper.wikipedia import scrape_wikipedia
 from app.services.scraper.osm import scrape_osm
 from app.services.scraper.google_places import scrape_places as scrape_google_places
@@ -148,7 +149,7 @@ Rules:
     user_prompt = f"Facts about {place_name}:\n{raw_content[: settings.content_max_chars]}"
 
     try:
-        api_key = settings.litellm_api_key or __import__("os").environ.get("LITELLM_API_KEY", "")
+        api_key = settings.litellm_api_key or os.environ.get("LITELLM_API_KEY", "")
         async with httpx.AsyncClient(timeout=60.0) as client:
             resp = await client.post(
                 f"{settings.litellm_base}/chat/completions",

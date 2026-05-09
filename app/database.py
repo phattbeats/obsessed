@@ -1,4 +1,4 @@
-from sqlalchemy import create_engine, Column, Integer, String, Text, Float, DateTime, Boolean, ForeignKey, JSON
+from sqlalchemy import create_engine, event, Column, Integer, String, Text, Float, DateTime, Boolean, ForeignKey, JSON
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, relationship
 from datetime import datetime
@@ -9,6 +9,16 @@ DB_PATH = os.path.join(BASE_DIR, "data", "trivia.db")
 os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
 
 engine = create_engine(f"sqlite:///{DB_PATH}", connect_args={"check_same_thread": False})
+
+
+@event.listens_for(engine, "connect")
+def _set_fk_pragma(dbapi_conn, connection_record):
+    """Enable foreign key enforcement on every new SQLite connection."""
+    cursor = dbapi_conn.cursor()
+    cursor.execute("PRAGMA foreign_keys = ON")
+    cursor.close()
+
+
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 

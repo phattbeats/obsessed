@@ -3,8 +3,10 @@ GeoNames fallback for PLACES entity type.
 Used when OpenStreetMap/Nominatim is unavailable or returns no results.
 GeoNames provides authoritative place names, feature types, and coordinates.
 """
-import httpx
+import httpx, os, logging
 from app.services.scraper.rate_limiter import RateLimiter
+
+logger = logging.getLogger(__name__)
 
 GEONAMES_LIMITER = RateLimiter(max_concurrent=1, min_interval=1.0)  # 1 req/s
 GEONAMES_SEARCH = "https://api.geonames.org/searchJSON"
@@ -20,8 +22,12 @@ async def search_geonames(query: str, max_results: int = 5) -> list[dict]:
         try:
             # Note: GeoNames requires a username param for non-paying users.
             # Use 'demo' for low-volume testing; in production, set GEONAMES_USERNAME env var.
-            import os
             username = os.environ.get("GEONAMES_USERNAME", "demo")
+            if username == "demo":
+                logger.warning(
+                    "GeoNames: using 'demo' account — rate limited to 1 req/sec. "
+                    "Set GEONAMES_USERNAME env var to remove this restriction."
+                )
             async with httpx.AsyncClient(timeout=15.0) as client:
                 r = await client.get(
                     GEONAMES_SEARCH,
@@ -59,7 +65,6 @@ async def get_geonames_details(geoname_id: str) -> dict:
     """
     async with GEONAMES_LIMITER:
         try:
-            import os
             username = os.environ.get("GEONAMES_USERNAME", "demo")
             async with httpx.AsyncClient(timeout=15.0) as client:
                 r = await client.get(

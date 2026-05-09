@@ -35,6 +35,7 @@ def _load_game_to_memory(room_code: str):
         gs = get_or_create_game(room_code, g.profile_id)
         gs.status = g.status
         gs.current_q = g.current_question
+        gs.total_q = g.total_questions  # restore from DB, not constructor default
         # Load players
         for p in g.players:
             if p.player_id not in gs.players:
