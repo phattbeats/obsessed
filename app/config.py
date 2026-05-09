@@ -7,6 +7,7 @@ class Settings(BaseSettings):
     app_name: str = "Obsessed"
     database_url: str = f"sqlite+aiosqlite:///{BASE_DIR}/data/trivia.db"
     litellm_base: str = "http://10.0.0.100:4000"  # override via LITELLM_BASE env var
+    litellm_model: str = "claude-3-5-sonnet-20241022"  # override via LITELLM_MODEL env var
     litellm_api_key: str | None = None  # read from LITELLM_API_KEY env var or .env
     question_count: int = 50
     question_timeout: int = 30  # seconds per question
