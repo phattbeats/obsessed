@@ -13,11 +13,14 @@ from app.database import SessionLocal, EntityCache
 
 CATEGORIES = ["history", "entertainment", "geography", "science", "sports", "art_literature"]
 
-REDDIT_SOURCE_PREFIX = "https://www.reddit.com/"
+REDDIT_SOURCE_PREFIX = "https://old.reddit.com/"
+
+# Use old.reddit.com for API endpoints — www.reddit.com redirects API requests to HTML
+_REDDIT_BASE = "https://old.reddit.com"
 
 
 def _reddit_source_url(handle: str) -> str:
-    return f"https://www.reddit.com/u/{handle.lstrip('@/')}"
+    return f"https://old.reddit.com/u/{handle.lstrip('@/')}"
 
 
 def get_reddit_cache(entity_name: str, entity_type: str = "People") -> Optional[str]:
@@ -68,15 +71,22 @@ def save_reddit_cache(entity_name: str, entity_type: str, content: str):
 async def scrape_reddit_with_fallback(handle: str) -> str:
     """Scrape Reddit with fallback: profile -> search."""
     raw = []
-    headers = {"User-Agent": "Mozilla/5.0 (compatible; ObsessedBot/2.0)"}
+    # old.reddit.com returns JSON only when a complete browser-like header set is sent.
+    # Without Accept-Language + Accept-Encoding, Reddit serves a 403 HTML challenge page.
+    headers = {
+        "User-Agent": "Mozilla/5.0 (X11; Linux x86_64; rv:128.0) Gecko/20100101 Firefox/128.0",
+        "Accept": "application/json,text/plain,*/*",
+        "Accept-Language": "en-US,en;q=0.5",
+        "Accept-Encoding": "gzip, deflate, br",
+    }
 
-    # Try user profile first
+    # Try user profile first — old.reddit redirects /u/ → /user/, so call /user/ directly
     async with REDDIT_LIMITER:
-        for endpoint in [f"/u/{handle}/submitted.json", f"/u/{handle}/comments.json"]:
+        for endpoint in [f"/user/{handle}/submitted.json", f"/user/{handle}/comments.json"]:
             try:
                 resp = await retry_with_backoff(
-                    lambda: httpx.AsyncClient(timeout=30.0, headers=headers).get(
-                        f"https://www.reddit.com{endpoint}?limit=100"
+                    lambda: httpx.AsyncClient(timeout=30.0, headers=headers, follow_redirects=True).get(
+                        f"{_REDDIT_BASE}{endpoint}?limit=100"
                     ),
                     max_retries=3,
                     base_delay=2.0,
@@ -88,7 +98,7 @@ async def scrape_reddit_with_fallback(handle: str) -> str:
                     d = post["data"]
                     text = d.get("selftext") or d.get("title", "")
                     if text:
-                        raw.append(f"[Reddit {d.get('subreddit','').lower()}] {text}")
+                        raw.append(f"[Reddit {d.get('subreddit', '').lower()}] {text}")
             except Exception:
                 pass
 
@@ -97,8 +107,8 @@ async def scrape_reddit_with_fallback(handle: str) -> str:
         try:
             async with REDDIT_LIMITER:
                 resp = await retry_with_backoff(
-                    lambda: httpx.AsyncClient(timeout=30.0, headers=headers).get(
-                        f"https://www.reddit.com/search.json?q=author:{handle}&limit=100"
+                    lambda: httpx.AsyncClient(timeout=30.0, headers=headers, follow_redirects=True).get(
+                        f"{_REDDIT_BASE}/search.json?q=author:{handle}&limit=100"
                     ),
                     max_retries=3,
                     base_delay=2.0,

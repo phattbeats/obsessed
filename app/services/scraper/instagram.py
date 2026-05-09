@@ -74,7 +74,7 @@ async def scrape_instagram_profile(handle: str) -> tuple[str, dict]:
 
     try:
         async with httpx.AsyncClient(timeout=60.0) as client:
-            async with generic_limiter.throttle():
+            async with generic_limiter:
                 resp = await client.post(
                     CRAWL4AI_URL,
                     headers={"Authorization": f"Bearer {CRAWL4AI_TOKEN}"},
