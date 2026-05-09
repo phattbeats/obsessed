@@ -7,6 +7,7 @@ from app.services.scraper.reddit import scrape_reddit, generate_questions
 from app.services.scraper.pinterest import scrape_pinterest
 from app.services.scraper.instagram import scrape_instagram
 from app.services.scraper.twitter import scrape_twitter
+from app.services.scraper.steam import scrape_steam
 from app.services.scraper.facebook import scrape_facebook
 from app.services.scraper.tiktok import scrape_tiktok
 from app.services.scraper.steam import scrape_steam
@@ -251,6 +252,8 @@ async def trigger_scrape(profile_id: int):
                 await _safe("Steam", scrape_steam(p.steam_id))
             if p.twitter_handle:
                 await _safe("Twitter", scrape_twitter(p.twitter_handle))
+            if p.steam_id:
+                await _safe("Steam", scrape_steam(p.steam_id))
             if p.manual_facts:
                 raw_parts.append(p.manual_facts)
             if p.manual_link:
@@ -398,18 +401,10 @@ async def trigger_scrape(profile_id: int):
                 value = r.get("market_value", "")
                 lines.append(f"- Owner: {owner} | Address: {address} | Parcel: {parcel_id} | Value: {value}")
             return "\n".join(lines), {"source": "auditor", "count": len(records)}
-            if p.news_query:
-                await _safe("News", _scrape_news(p.news_query))
-            if p.court_query:
-                await _safe("Court", _scrape_court(p.court_query))
-            if p.sos_query:
-                await _safe("SOS", _scrape_sos(p.sos_query))
-            if p.auditor_query:
-                await _safe("Auditor", _scrape_auditor(p.auditor_query))
 
-            raw = "\n".join(raw_parts)
-            if raw.strip():
-                write_cached(p.name, p.entity_type, raw)
+        raw = "\n".join(raw_parts)
+        if raw.strip():
+            write_cached(p.name, p.entity_type, raw)
 
         p.raw_content = raw[: settings.content_max_chars]
 
