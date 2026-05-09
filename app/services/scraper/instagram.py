@@ -133,13 +133,13 @@ async def scrape_instagram_profile(handle: str) -> tuple[str, dict]:
 
 def _expand_suffix(s: str) -> str:
     """Expand K/M/B suffixes to integer strings (e.g. '1.2M' → '1200000')."""
-    s = s.strip().upper()
+    s = s.strip()
     try:
-        if s.endswith("B"):
+        if s.upper().endswith("B"):
             return str(int(float(s[:-1]) * 1_000_000_000))
-        if s.endswith("M"):
+        if s.upper().endswith("M"):
             return str(int(float(s[:-1]) * 1_000_000))
-        if s.endswith("K"):
+        if s.upper().endswith("K"):
             return str(int(float(s[:-1]) * 1_000))
     except ValueError:
         pass
@@ -173,22 +173,28 @@ def _parse_instagram_markdown(markdown: str, clean_handle: str, instance_base: s
     # Followers / Following / Posts: "**N** Followers" — handles plain ints and K/M/B suffixes
     for label, key in (("Followers", "followers"), ("Following", "following"), ("Posts", "posts")):
         m = re.search(
-            r"\*\*([\d,.KMBkmb]+)\s*\*?\s*" + re.escape(label),
+            r"\*\*([\d,.KMkm]+)\*\*\s*" + re.escape(label),
             markdown, re.IGNORECASE
         )
         if m:
             profile[key] = _expand_suffix(m.group(1))
 
-    # Bio: text between the @handle line and the stats block
-    bio_match = re.search(
-        r"@" + re.escape(clean_handle) + r"[^\n]*\n(.+?)\n\s*(?:\*?\??\d|Posts|Followers)",
-        markdown, re.DOTALL
-    )
-    if bio_match:
-        bio_text = bio_match.group(1).strip()
-        bio_text = re.sub(r"!\[.*?\]\(.*?\)", "", bio_text).strip()
-        if bio_text:
-            profile["bio"] = bio_text
+    # Bio: position-based — after Posts line OR before first stat line.
+    posts_m = re.search(r'\n\s*\*\*[\d,.KMkm]+\*\*\s+Posts', markdown)
+    stat_m = re.search(r'\n\s*\*\*[\d,.KMkm]+\*\*\s+(?:Followers|Following)', markdown)
+    if posts_m:
+        # Kittygram style: bio after Posts line, before image/link block
+        after = markdown[posts_m.end():]
+        before_img = re.split(r'\n\s*!?\[', after, maxsplit=1)[0]
+        profile["bio"] = before_img.strip()
+    elif stat_m:
+        # Imginn style: bio between handle line and first stat line
+        before_stats = markdown[:stat_m.start()]
+        handle_m = re.search(r'\n(## [@\w][^\n]+)', markdown)
+        if handle_m:
+            profile["bio"] = before_stats[handle_m.end():].strip()
+
+
 
     # Post blocks — instance-aware to avoid hardcoding kittygr.am
     # Format:
@@ -198,23 +204,24 @@ def _parse_instagram_markdown(markdown: str, clean_handle: str, instance_base: s
     #   1,234 likes
     #   Caption text
     #   [ 123 Comments](https://{domain}/p/...)
+    # Caption: everything after "likes" line until a line starting with '['
+    caption_pat = r"([^\[]+)"
     post_pattern = (
-        r"!\[.*?\]\(https://" + re.escape(domain) + r"/[^)]+\)"
-        r"\s*\[.*?\]\(https://" + re.escape(domain) + r"/[^)]+\)"
-        r"\s*\n\s*Posted at:\s*([\d\- :]+)\s*\n"
-        r"([\d,]+)\s+likes\s*\n"
-        r"([\s\S]*?)\n"
-        r"\[\s*[\d,]+\s*Comments\]\(https://" + re.escape(domain) + r"/p/[^)]+\)"
+        r"!\[.*?\]\(https://" + re.escape(domain) + r"/[^)]+\)\s*"
+        r"\[.*?\]\(https://" + re.escape(domain) + r"/[^)]+\)\s*"
+        r"Posted at:\s*([\d\- :]+)\s*"
+        r"([\d,]+)\s+likes\s*"
+        + caption_pat + r"\n"
+        r"\[[\s\d,]*\s*Comments\]\(https://" + re.escape(domain) + r"/[^)]+\)"
     )
-    for img_url, posted_at, likes, caption, comment_count, post_url in re.findall(post_pattern, markdown):
-        profile["posts_data"].append({
-            "image_url": img_url,
-            "posted_at": posted_at.strip(),
-            "likes": likes.replace(",", ""),
-            "caption": caption.strip(),
-            "comment_count": comment_count.replace(",", ""),
-            "post_url": post_url,
-        })
+    for m in re.findall(post_pattern, markdown):
+        if len(m) >= 3:
+            posted_at, likes, caption = m[0], m[1], m[2]
+            profile["posts_data"].append({
+                "posted_at": posted_at.strip(),
+                "likes": likes.replace(",", ""),
+                "caption": caption.strip(),
+            })
 
     return profile
 
