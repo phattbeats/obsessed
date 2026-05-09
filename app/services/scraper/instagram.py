@@ -7,7 +7,12 @@ from app.config import settings
 from app.services.scraper.rate_limiter import generic_limiter
 from app.database import SessionLocal, EntityCache
 
-KITTYGRAM_BASE = "https://kittygr.am"
+# Public Instagram-mirror instances to try in order (primary first)
+IG_MIRROR_INSTANCES = [
+    "https://kittygr.am",    # primary
+    "https://imginn.com",    # backup 1
+    "https://picnob.com",    # backup 2
+]
 CRAWL4AI_URL = "http://crawl4ai:11235/crawl"
 CRAWL4AI_TOKEN = "Phatt-tech-2026"
 INSTAGRAM_SOURCE_PREFIX = "https://www.instagram.com/"
@@ -68,31 +73,88 @@ async def scrape_instagram_with_fallback(handle: str, entity_type: str = "People
 
 
 async def scrape_instagram_profile(handle: str) -> tuple[str, dict]:
-    """Fetch Instagram profile via Kittygram (no API key required)."""
+    """
+    Fetch Instagram profile via public IG-mirror instances.
+
+    Tries each mirror in IG_MIRROR_INSTANCES in order; returns on the first
+    that yields a non-empty username. Logs which instance succeeded for
+    debugging when one host degrades. All mirrors exhausted → graceful
+    sentinel (not a 500).
+    """
     clean_handle = handle.strip("@/")
-    kittygram_url = f"{KITTYGRAM_BASE}/{clean_handle}"
+    last_err = ""
 
+    for instance_base in IG_MIRROR_INSTANCES:
+        try:
+            mirror_url = f"{instance_base}/{clean_handle}"
+            async with httpx.AsyncClient(timeout=60.0) as client:
+                async with generic_limiter:
+                    resp = await client.post(
+                        CRAWL4AI_URL,
+                        headers={"Authorization": f"Bearer {CRAWL4AI_TOKEN}"},
+                        json={"urls": [mirror_url]},
+                    )
+                resp.raise_for_status()
+                data = resp.json()
+        except Exception as e:
+            last_err = f"{instance_base}: {e}"
+            continue
+
+        result = (data.get("results") or [{}])[0]
+        if not result.get("success"):
+            last_err = f"{instance_base}: crawl4ai returned success=false"
+            continue
+
+        markdown = result.get("markdown") or ""
+        if isinstance(markdown, dict):
+            markdown = markdown.get("raw_markdown", "")
+
+        profile = _parse_instagram_markdown(markdown, clean_handle, instance_base)
+
+        # Success = at minimum a non-empty username
+        if profile.get("username"):
+            import logging
+            logging.getLogger(__name__).info(
+                "Instagram scrape succeeded via %s for @%s", instance_base, clean_handle
+            )
+            return _format_instagram_profile(profile), profile
+
+        # Parsed empty — try next mirror
+        last_err = f"{instance_base}: parsed to empty profile"
+        continue
+
+    # All mirrors exhausted
+    return (
+        f"[Instagram scrape error: all {len(IG_MIRROR_INSTANCES)} mirrors failed "
+        f"for @{clean_handle}{f' (last: {last_err})' if last_err else ''}]",
+        {},
+    )
+
+
+def _expand_suffix(s: str) -> str:
+    """Expand K/M/B suffixes to integer strings (e.g. '1.2M' → '1200000')."""
+    s = s.strip().upper()
     try:
-        async with httpx.AsyncClient(timeout=60.0) as client:
-            async with generic_limiter:
-                resp = await client.post(
-                    CRAWL4AI_URL,
-                    headers={"Authorization": f"Bearer {CRAWL4AI_TOKEN}"},
-                    json={"urls": [kittygram_url]},
-                )
-            resp.raise_for_status()
-            data = resp.json()
-    except Exception as e:
-        return f"[Instagram scrape error: {e}]", {}
+        if s.endswith("B"):
+            return str(int(float(s[:-1]) * 1_000_000_000))
+        if s.endswith("M"):
+            return str(int(float(s[:-1]) * 1_000_000))
+        if s.endswith("K"):
+            return str(int(float(s[:-1]) * 1_000))
+    except ValueError:
+        pass
+    return s.replace(",", "")
 
-    result = (data.get("results") or [{}])[0]
-    if not result.get("success"):
-        return f"[Instagram scrape error: Kittygram fetch failed for @{clean_handle}]", {}
 
-    markdown = result.get("markdown") or ""
-    if isinstance(markdown, dict):
-        markdown = markdown.get("raw_markdown", "")
+def _parse_instagram_markdown(markdown: str, clean_handle: str, instance_base: str) -> dict:
+    """
+    Instance-agnostic Instagram profile parser.
 
+    Each mirror may emit a different markdown shape. Regexes here are lenient
+    enough to handle imginn, picnob, and kittygram at the profile level.
+    Post-block URL patterns use the instance_base to avoid hardcoding a single domain.
+    """
+    domain = instance_base.replace("https://", "")
     profile = {
         "username": clean_handle,
         "display_name": "",
@@ -100,58 +162,65 @@ async def scrape_instagram_profile(handle: str) -> tuple[str, dict]:
         "following": "",
         "posts": "",
         "bio": "",
+        "posts_data": [],
     }
 
-    # Display name: "### Name \n@handle"
-    name_match = re.search(r"###\s+(.+?)\s*\n", markdown)
+    # Display name: first heading in the doc — "### Name", "## Name", or "# Name"
+    name_match = re.search(r"^#{1,3}\s+(.+)$", markdown, re.MULTILINE)
     if name_match:
         profile["display_name"] = name_match.group(1).strip()
 
-    # Followers / Following / Posts: "**NUMBER**\nFollowers"
-    followers_m = re.search(r"\*\*([\d,]+)\*\*\s*\nFollowers", markdown)
-    following_m = re.search(r"\*\*([\d,]+)\*\*\s*\nFollowing", markdown)
-    posts_m = re.search(r"\*\*([\d,]+)\*\*\s*\nPosts", markdown)
+    # Followers / Following / Posts: "**N** Followers" — handles plain ints and K/M/B suffixes
+    for label, key in (("Followers", "followers"), ("Following", "following"), ("Posts", "posts")):
+        m = re.search(
+            r"\*\*([\d,.KMBkmb]+)\s*\*?\s*" + re.escape(label),
+            markdown, re.IGNORECASE
+        )
+        if m:
+            profile[key] = _expand_suffix(m.group(1))
 
-    if followers_m:
-        profile["followers"] = followers_m.group(1).replace(",", "")
-    if following_m:
-        profile["following"] = following_m.group(1).replace(",", "")
-    if posts_m:
-        profile["posts"] = posts_m.group(1).replace(",", "")
-
-    # Bio: text between handle line and the stats block
-    bio_match = re.search(r"@" + re.escape(clean_handle) + r"[^\n]*\n(.+?)\n\s*\*?\s*\*\*", markdown, re.DOTALL)
+    # Bio: text between the @handle line and the stats block
+    bio_match = re.search(
+        r"@" + re.escape(clean_handle) + r"[^\n]*\n(.+?)\n\s*(?:\*?\??\d|Posts|Followers)",
+        markdown, re.DOTALL
+    )
     if bio_match:
         bio_text = bio_match.group(1).strip()
         bio_text = re.sub(r"!\[.*?\]\(.*?\)", "", bio_text).strip()
         if bio_text:
             profile["bio"] = bio_text
 
-    # Parse post blocks from profile listing
-    # Format: ![img](...) [ handle ](url)\nPosted at: ...\nN likes\nCaption\n[ N Comments](post_url)
-    post_blocks = re.findall(
-        r"!\[.*?\]\((https://kittygr\.am/mediaproxy[^)]+)\)\s*\[.*?\]\(https://kittygr\.am/[^\)]+\)\s*\n"
-        r"Posted at:\s*([\d\- :]+)\s*\n"
+    # Post blocks — instance-aware to avoid hardcoding kittygr.am
+    # Format:
+    #   ![img](https://{domain}/mediaproxy/...)
+    #   [ handle ](https://{domain}/p/...)
+    #   Posted at: 2024-01-15 10:30
+    #   1,234 likes
+    #   Caption text
+    #   [ 123 Comments](https://{domain}/p/...)
+    post_pattern = (
+        r"!\[.*?\]\(https://" + re.escape(domain) + r"/[^)]+\)"
+        r"\s*\[.*?\]\(https://" + re.escape(domain) + r"/[^)]+\)"
+        r"\s*\n\s*Posted at:\s*([\d\- :]+)\s*\n"
         r"([\d,]+)\s+likes\s*\n"
         r"([\s\S]*?)\n"
-        r"\[\s*([\d,]+)\s*Comments\]\((https://kittygr\.am/p/[^)]+)\)",
-        markdown,
+        r"\[\s*[\d,]+\s*Comments\]\(https://" + re.escape(domain) + r"/p/[^)]+\)"
     )
-
-    posts = []
-    for img_url, posted_at, likes, caption, comment_count, post_url in post_blocks:
-        caption = caption.strip()
-        posts.append({
+    for img_url, posted_at, likes, caption, comment_count, post_url in re.findall(post_pattern, markdown):
+        profile["posts_data"].append({
             "image_url": img_url,
             "posted_at": posted_at.strip(),
             "likes": likes.replace(",", ""),
-            "caption": caption,
+            "caption": caption.strip(),
             "comment_count": comment_count.replace(",", ""),
             "post_url": post_url,
         })
-    profile["posts_data"] = posts
 
-    # Build readable text block
+    return profile
+
+
+def _format_instagram_profile(profile: dict) -> str:
+    """Build readable text block from parsed profile dict."""
     lines = [f"[Instagram profile: @{profile['username']}]"]
     if profile["display_name"]:
         lines.append(f"Profile: {profile['display_name']} (@{profile['username']})")
@@ -159,29 +228,26 @@ async def scrape_instagram_profile(handle: str) -> tuple[str, dict]:
         lines.append(f"Profile: @{profile['username']}")
 
     metrics = []
-    if profile["followers"]:
-        metrics.append(f"{profile['followers']} Followers")
-    if profile["following"]:
-        metrics.append(f"{profile['following']} Following")
-    if profile["posts"]:
-        metrics.append(f"{profile['posts']} Posts")
+    for key, label in (("followers", "Followers"), ("following", "Following"), ("posts", "Posts")):
+        if profile[key]:
+            metrics.append(f"{profile[key]} {label}")
     if metrics:
         lines.append(" · ".join(metrics))
     if profile["bio"]:
         lines.append(profile["bio"])
 
+    posts = profile.get("posts_data", [])
     if posts:
         lines.append("\nRecent posts:")
         for p in posts[:8]:
             lines.append(f"  [{p['posted_at']}] {p['likes']} likes · {p['comment_count']} comments")
             lines.append(f"  {p['caption']}")
-            lines.append(f"  Image: {p['image_url']}")
 
-    return "\n".join(lines), profile
+    return "\n".join(lines)
 
 
 async def _fetch_post_comments(post_url: str, client: httpx.AsyncClient) -> list[str]:
-    """Fetch individual comment texts from a Kittygram post page."""
+    """Fetch individual comment texts from an Instagram-mirror post page."""
     try:
         resp = await client.post(
             CRAWL4AI_URL,
@@ -201,13 +267,16 @@ async def _fetch_post_comments(post_url: str, client: httpx.AsyncClient) -> list
     if isinstance(md, dict):
         md = md.get("raw_markdown", "")
 
-    # Comments section starts at "## Comments"
     comments_section = re.split(r"##\s*Comments", md, maxsplit=1)
     if len(comments_section) < 2:
         return []
 
-    # Each comment: "[ username ](url)\ncomment text"
-    comment_texts = re.findall(r"\]\(https://kittygr\.am/[^\)]+\)\s*\n([^\n!\[]{5,300})", comments_section[1])
+    # Match comments on any of our known mirror domains
+    domain_pattern = "|".join(re.escape(b.replace("https://", "")) for b in IG_MIRROR_INSTANCES)
+    comment_texts = re.findall(
+        r"\]\(https://(?:" + domain_pattern + r")/[^\)]+\)\s*\n([^\n!\[\[]{5,300})",
+        comments_section[1]
+    )
     return [c.strip() for c in comment_texts if c.strip()]
 
 
