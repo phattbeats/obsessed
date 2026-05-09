@@ -79,6 +79,7 @@ docker-compose up -d
 |----------|---------|-------------|
 | `LITELLM_API_KEY` | — | API key for LiteLLM proxy (BYOK) |
 | `STEAM_API_KEY` | — | Steam Web API key (free at [steamcommunity.com/dev/apikey](https://steamcommunity.com/dev/apikey)). Enables full library enrichment; without it only basic profile XML is fetched. |
+| `STEAM_API_KEY` | — | **Use a burner phattvip account** — not Brandon's personal Steam account. 100k calls/day quota; ~5 per profile scrape. If you want per-user review HTML (`/profiles/{sid}/recommended/`), that requires a separate account with a known-reviewer fixture — file a follow-up issue. |
 | `LITELLM_BASE` | `http://localhost:4000` | LiteLLM proxy base URL — point at any OpenAI-compatible endpoint |
 | `CONTENT_MAX_CHARS` | `200000` | Max chars per scraped source |
 | `DATABASE_URL` | SQLite `data/trivia.db` | Database connection |

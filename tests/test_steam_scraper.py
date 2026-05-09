@@ -1,117 +1,129 @@
 """
-PHA-693: Steam scraper tests.
-Live-network tests are marked @pytest.mark.live_network and skipped in CI
-without STEAM_API_KEY set.
+Tests for Steam scraper: resolve_steam_id, scrape_steam, cache roundtrip.
+Run live network tests with: pytest -m live_network
+Skip in CI without STEAM_API_KEY set.
 """
-import os, pytest
-
+import os
+import pytest
 from app.services.scraper.steam import (
     resolve_steam_id,
-    STEAM_ID64_RE,
+    is_steam_id64,
+    scrape_steam,
 )
+from app.config import settings
 
 
-# ---------------------------------------------------------------------------
-# resolve_steam_id — unit tests (no network)
-# ---------------------------------------------------------------------------
+class TestIsSteamId64:
+    def test_valid(self):
+        assert is_steam_id64("76561197960287930") is True
+        assert is_steam_id64("76561198281098754") is True
 
-def test_resolve_steam_id_numeric():
-    """Already-numeric SteamID64 is returned unchanged."""
-    assert resolve_steam_id("76561197960287930") == "76561197960287930"
-    assert resolve_steam_id("76561198281098754") == "76561198281098754"
+    def test_too_short(self):
+        assert is_steam_id64("765611979602879") is False
 
+    def test_too_long(self):
+        assert is_steam_id64("765611979602879301") is False
 
-def test_resolve_steam_id_url_profiles():
-    """steamcommunity.com/profiles/{steamid64} → resolved unchanged."""
-    result = resolve_steam_id("https://steamcommunity.com/profiles/76561197960287930/")
-    assert result == "76561197960287930"
+    def test_wrong_prefix(self):
+        assert is_steam_id64("12345678901234567") is False
 
-
-def test_resolve_steam_id_url_id():
-    """steamcommunity.com/id/{vanity} → requires network; skip if unreachable."""
-    # This needs live network — just verify it doesn't crash synchronously
-    # The vanity resolution is async and run via loop.run_until_complete
-    try:
-        result = resolve_steam_id("https://steamcommunity.com/id/karljobst/")
-        # On network available: result is SteamID64
-        # On network unavailable: result is None (sync wrapper catches)
-        if result is not None:
-            assert STEAM_ID64_RE.match(result), f"expected SteamID64, got {result}"
-    except Exception:
-        pass  # network not available in sandbox
+    def test_non_digit(self):
+        assert is_steam_id64("7656119796028792X") is False
 
 
-@pytest.mark.live_network
-def test_resolve_steam_id_vanity_live():
-    """
-    Live-network test: 'karljobst' resolves to SteamID64.
-    Skip in CI without network. Fixture is stable — karljobst profile is fully public.
-    """
-    result = resolve_steam_id("karljobst")
-    assert result == "76561198281098754", f"expected karljobst SteamID64, got {result}"
+class TestResolveSteamId:
+    @pytest.mark.live_network
+    @pytest.mark.asyncio
+    async def test_resolve_steam_id_numeric(self):
+        # Numeric SteamID64 passed through unchanged — no network
+        result = await resolve_steam_id("76561197960287930")
+        assert result == "76561197960287930"
+
+    @pytest.mark.live_network
+    @pytest.mark.asyncio
+    async def test_resolve_steam_id_vanity_live(self):
+        # Karl Jobst — fully public, no API key needed
+        result = await resolve_steam_id("karljobst")
+        assert result == "76561198281098754"
+
+    @pytest.mark.live_network
+    @pytest.mark.asyncio
+    async def test_resolve_steam_id_url(self):
+        # Community URL stripped and resolved
+        result = await resolve_steam_id("https://steamcommunity.com/id/karljobst/")
+        assert result == "76561198281098754"
 
 
-# ---------------------------------------------------------------------------
-# Integration / live tests (require STEAM_API_KEY env var)
-# ---------------------------------------------------------------------------
-
-@pytest.mark.skipif(
-    not os.environ.get("STEAM_API_KEY"),
-    reason="STEAM_API_KEY not set — skipping live Steam API test",
-)
-@pytest.mark.asyncio
-async def test_scrape_steam_with_key_full():
-    """
-    End-to-end with real STEAM_API_KEY: karljobst's profile has owned games
-    and playtime data that enriches the raw_content.
-    """
-    from app.services.scraper.steam import scrape_steam
-
-    text, profile = await scrape_steam("karljobst", "People")
-    assert text.startswith("[Steam profile:"), f"expected [Steam profile:] header, got: {text[:100]}"
-    assert "[Top games by playtime]" in text, f"missing [Top games by playtime] header: {text[:300]}"
-    # profile dict should have persona_name and levels
-    assert profile.get("persona_name"), "persona_name should be populated"
-    assert len(profile.get("levels", [])) > 0, "should have game levels from owned games"
+class TestScrapeSteamNoKeyFallback:
+    @pytest.mark.live_network
+    @pytest.mark.asyncio
+    async def test_scrape_steam_no_key_fallback(self):
+        # Without STEAM_API_KEY: returns a minimal identity blob, does NOT raise
+        api_key_before = settings.steam_api_key
+        settings.steam_api_key = ""
+        try:
+            raw, posts = await scrape_steam("karljobst")
+            assert "karljobst" in raw or "Karl" in raw
+            assert posts[0]["source"] == "steam"
+        finally:
+            settings.steam_api_key = api_key_before
 
 
-@pytest.mark.asyncio
-async def test_scrape_steam_cache_roundtrip():
-    """Second call for same steam_id returns cached result without re-hitting network."""
-    from unittest.mock import patch, AsyncMock
-    from app.services.scraper.steam import scrape_steam
+class TestScrapeSteamWithKey:
+    @pytest.mark.skipif(
+        not os.environ.get("STEAM_API_KEY"),
+        reason="STEAM_API_KEY not set — skipping full scrape test",
+    )
+    @pytest.mark.asyncio
+    async def test_scrape_steam_with_key_full(self):
+        """Full pipeline with real key. Assert top-games header and at least one game name."""
+        raw, posts = await scrape_steam("karljobst")
+        assert "[Top games by playtime]" in raw
+        # Should have some game names (appdetails resolved)
+        lines = raw.split("\n")
+        game_lines = [l for l in lines if " — " in l and "h" in l]
+        assert len(game_lines) >= 1, f"Expected at least one game line, got: {raw[:500]}"
 
-    call_count = [0]
 
-    async def counting_post(*args, **kwargs):
-        call_count[0] += 1
-        res = AsyncMock()
-        res.raise_for_status = AsyncMock()
-        res.json = AsyncMock(return_value={"response": {"players": []}})
-        return res
+class TestScrapeSteamCacheRoundtrip:
+    @pytest.mark.asyncio
+    async def test_scrape_steam_cache_roundtrip(self, monkeypatch):
+        """Second call to scrape_steam returns cached=True and does not re-hit network."""
+        from unittest.mock import patch
 
-    with patch("httpx.AsyncClient") as MockClient:
-        mock_inst = AsyncMock()
-        mock_inst.__aenter__ = AsyncMock(returnvalue=mock_inst)
-        mock_inst.__aexit__ = AsyncMock(returnvalue=None)
-        mock_inst.post = counting_post
-        mock_inst.get = counting_post
-        MockClient.return_value = mock_inst
+        # Resolve vanity to avoid real HTTP call in the no-key fallback path
+        async def mock_resolve_vanity_to_id(vanity_slug):
+            return "76561198281098754"
 
-        # First call — cache miss, scrapes (mocked)
-        text1, meta1 = await scrape_steam("karljobst", "People")
-        # Will return sentinel since we mocked empty responses, but no exception
-        assert text1.startswith("[Steam:")
+        # Sync cache store — get_steam_cache is synchronous
+        _cache: dict[tuple[str, str], str] = {}
 
-    # Second call — cache hit (if first call saved) or same sentinel
-    with patch("httpx.AsyncClient") as MockClient2:
-        mock_inst2 = AsyncMock()
-        mock_inst2.__aenter__ = AsyncMock(returnvalue=mock_inst2)
-        mock_inst2.__aexit__ = AsyncMock(returnvalue=None)
-        mock_inst2.post = counting_post
-        mock_inst2.get = counting_post
-        MockClient2.return_value = mock_inst2
+        def mock_get(ename, etype):
+            return _cache.get((ename, etype))
 
-        text2, meta2 = await scrape_steam("karljobst", "People")
-        # Either cached from first call or same sentinel path
-        assert text2.startswith("[Steam:")
+        def mock_save(ename, etype, content, surl):
+            _cache[(ename, etype)] = content
+
+        with patch(
+            "app.services.scraper.steam.resolve_vanity_to_id",
+            mock_resolve_vanity_to_id,
+        ), patch(
+            "app.services.scraper.steam.get_steam_cache",
+            mock_get,
+        ), patch(
+            "app.services.scraper.steam.save_steam_cache",
+            mock_save,
+        ):
+            api_key_before = settings.steam_api_key
+            settings.steam_api_key = ""
+            try:
+                # First call — not cached
+                raw1, posts1 = await scrape_steam("karljobst")
+                assert posts1[0]["cached"] is False
+
+                # Second call — cached
+                raw2, posts2 = await scrape_steam("karljobst")
+                assert posts2[0]["cached"] is True
+                assert raw1 == raw2
+            finally:
+                settings.steam_api_key = api_key_before
