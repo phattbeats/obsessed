@@ -34,6 +34,7 @@ class Profile(Base):
     pinterest_handle = Column(String(200), default="")
     threads_handle = Column(String(200), default="")
     instagram_handle = Column(String(200), default="")
+    facebook_handle = Column(String(200), default="")  # Facebook page handle (person/business)
     google_places_handle = Column(String(500), default="")  # comma-separated business names
     news_query = Column(String(500), default="")  # local news search query (person)
     court_query = Column(String(500), default="")  # municipal court search query (person)
