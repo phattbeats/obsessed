@@ -25,7 +25,7 @@ from app.services.scraper.instagram import (
     save_instagram_cache,
     scrape_instagram,
 )
-from app.services.scraper.twitter import (
+from app.services.scraper.twitter_scraper import (
     get_twitter_cache,
     save_twitter_cache,
     scrape_twitter,
