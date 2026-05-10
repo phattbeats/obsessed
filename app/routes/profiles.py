@@ -6,7 +6,7 @@ from app.models import ProfileCreate, ProfileUpdate, ProfileResponse, QuestionRe
 from app.services.scraper.reddit import scrape_reddit, generate_questions
 from app.services.scraper.pinterest import scrape_pinterest
 from app.services.scraper.instagram import scrape_instagram
-from app.services.scraper.twitter import scrape_twitter
+from app.services.scraper.twitter_scraper import scrape_twitter
 from app.services.scraper.steam import scrape_steam
 from app.services.scraper.facebook import scrape_facebook
 from app.services.scraper.tiktok import scrape_tiktok
