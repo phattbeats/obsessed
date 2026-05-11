@@ -4,19 +4,38 @@ Provides aggregated operational view: all profiles, games, stats.
 """
 from __future__ import annotations
 
-from fastapi import APIRouter, HTTPException
-from datetime import datetime, timedelta
+from fastapi import APIRouter, HTTPException, Header
+from datetime import datetime, timedelta, timezone
 from app.database import SessionLocal, Profile, GameSession, Player, PlayerStats
 from app.services.scraper.reddit import scrape_reddit
 from app.services.scraper.instagram import scrape_instagram
 from app.services.scraper.pinterest import scrape_pinterest
 from app.services.scraper.places import scrape_places
+from app.config import settings
 import json
 
 router = APIRouter(prefix="/api/admin", tags=["admin"])
 
 
-@router.get("/overview")
+def require_admin():
+    """
+    FastAPI dependency that enforces ADMIN_TOKEN when set.
+    If settings.admin_token is empty, the endpoint is open (current default behavior).
+    When ADMIN_TOKEN is set, requests must include Authorization: Bearer <token>.
+    """
+    async def _auth(authorization: str = Header(None)):
+        if not settings.admin_token:
+            return  # gate disabled — open access
+        if authorization != f"Bearer {settings.admin_token}":
+            raise HTTPException(status_code=401, detail="Unauthorized")
+    return _auth
+
+
+# Reusable dependency instance
+admin_auth = require_admin
+
+
+@router.get("/overview", dependencies=[require_admin()])
 def ops_overview():
     """
     High-level operational snapshot of the Obsessed deployment.
@@ -63,7 +82,7 @@ def ops_overview():
         db.close()
 
 
-@router.get("/profiles")
+@router.get("/profiles", dependencies=[require_admin()])
 def list_all_profiles():
     """
     List all profiles with full status info for ops review.
@@ -93,7 +112,7 @@ def list_all_profiles():
         db.close()
 
 
-@router.get("/leaderboard")
+@router.get("/leaderboard", dependencies=[require_admin()])
 def admin_leaderboard(limit: int = 50):
     """
     Org-wide leaderboard - top players by total score across all games.
@@ -119,7 +138,7 @@ def admin_leaderboard(limit: int = 50):
         db.close()
 
 
-@router.get("/games/recent")
+@router.get("/games/recent", dependencies=[require_admin()])
 def recent_games(limit: int = 20):
     """
     Most recently played games.
@@ -144,9 +163,9 @@ def recent_games(limit: int = 20):
         db.close()
 
 
-@router.post("/profiles/{profile_id}/rescrape")
+@router.post("/profiles/{profile_id}/rescrape", dependencies=[require_admin()])
 async def rescrape_profile(profile_id: int):
-    """  
+    """
     Re-run scraping for a profile. Triggers the full scraper chain.
     """
     import asyncio
@@ -204,7 +223,7 @@ async def rescrape_profile(profile_id: int):
         db.close()
 
 
-@router.post("/cache/delete/all")
+@router.post("/cache/delete/all", dependencies=[require_admin()])
 def cache_delete_all():
     """Delete ALL cached entity content. Irreversible."""
     from app.services.entity_cache import delete_all_cached
@@ -212,7 +231,7 @@ def cache_delete_all():
     return {"deleted": count, "message": f"Deleted {count} cached entries."}
 
 
-@router.post("/cache/delete/by-date")
+@router.post("/cache/delete/by-date", dependencies=[require_admin()])
 def cache_delete_by_date(from_ts: int, to_ts: int):
     """Delete cached entries scraped between from_ts and to_ts (unix timestamps)."""
     from app.services.entity_cache import delete_cached_by_date
@@ -220,14 +239,14 @@ def cache_delete_by_date(from_ts: int, to_ts: int):
     return {"deleted": count, "from": from_ts, "to": to_ts}
 
 
-@router.get("/cache/stats")
+@router.get("/cache/stats", dependencies=[require_admin()])
 def cache_stats():
     """Return cache statistics: total entries and per-type breakdown."""
     from app.services.entity_cache import count_cached
     return count_cached()
 
 
-@router.post("/games/{room_code}/clear")
+@router.post("/games/{room_code}/clear", dependencies=[require_admin()])
 def clear_game(room_code: str):
     """
     Delete a game session and its players/answers from DB.
