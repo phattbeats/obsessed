@@ -4,16 +4,49 @@ Provides aggregated operational view: all profiles, games, stats.
 """
 from __future__ import annotations
 
-from fastapi import APIRouter, HTTPException
-from datetime import datetime, timedelta
+import hmac
+import json
+from datetime import datetime, timedelta, timezone
+
+from fastapi import APIRouter, Depends, Header, HTTPException, status
+
+from app.config import settings
 from app.database import SessionLocal, Profile, GameSession, Player, PlayerStats
 from app.services.scraper.reddit import scrape_reddit
 from app.services.scraper.instagram import scrape_instagram
 from app.services.scraper.pinterest import scrape_pinterest
 from app.services.scraper.places import scrape_places
-import json
 
-router = APIRouter(prefix="/api/admin", tags=["admin"])
+
+def require_admin_token(authorization: str | None = Header(default=None)) -> None:
+    """Gate /api/admin/* when `settings.admin_token` is set.
+
+    Empty token = open (current behavior, LAN-only deploys).
+    Set ADMIN_TOKEN to require `Authorization: Bearer <token>` on every admin route.
+    """
+    expected = settings.admin_token
+    if not expected:
+        return
+    if not authorization or not authorization.startswith("Bearer "):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Missing bearer token",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    presented = authorization[len("Bearer "):].strip()
+    if not hmac.compare_digest(presented, expected):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid admin token",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+
+router = APIRouter(
+    prefix="/api/admin",
+    tags=["admin"],
+    dependencies=[Depends(require_admin_token)],
+)
 
 
 @router.get("/overview")
