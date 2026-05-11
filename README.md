@@ -83,6 +83,34 @@ docker-compose up -d
 | `LITELLM_BASE` | `http://localhost:4000` | LiteLLM proxy base URL — point at any OpenAI-compatible endpoint |
 | `CONTENT_MAX_CHARS` | `200000` | Max chars per scraped source |
 | `DATABASE_URL` | SQLite `data/trivia.db` | Database connection |
+| `ADMIN_TOKEN` | _(empty)_ | If set, all `/api/admin/*` routes require `Authorization: Bearer <token>`. If empty, admin endpoints are open (single-host LAN/VPN deployments only — do not expose Obsessed to the public internet without setting this). |
+
+## Admin Endpoints
+
+All `/api/admin/*` routes are open by default (when `ADMIN_TOKEN` is unset). **If Obsessed is reachable from outside your LAN/VPN, set `ADMIN_TOKEN` before deploying.**
+
+To enable token auth:
+```bash
+echo "ADMIN_TOKEN=your-secret-token" >> .env
+```
+
+All admin requests must then include the header:
+```
+Authorization: Bearer <ADMIN_TOKEN>
+```
+
+Destructive endpoints (require token when set):
+- `POST /api/admin/cache/delete/all` — irreversibly wipe entity cache
+- `POST /api/admin/cache/delete/by-date` — wipe cache by date range
+- `POST /api/admin/profiles/{id}/rescrape` — re-run full scraper chain for a profile
+- `POST /api/admin/games/{room_code}/clear` — delete a game session from DB
+
+Read endpoints (also protected when token is set):
+- `GET /api/admin/overview` — ops stats snapshot
+- `GET /api/admin/profiles` — all profile records with scrape status
+- `GET /api/admin/leaderboard` — player stats leaderboard
+- `GET /api/admin/games/recent` — recently played games
+- `GET /api/admin/cache/stats` — cache entry counts by type
 
 ## WebSocket Events
 
