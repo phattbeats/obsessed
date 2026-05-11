@@ -7,6 +7,20 @@ import json, re, subprocess, tempfile, os
 from typing import Optional
 from app.config import settings
 
+# Pinterest usernames are alphanumeric + underscore. The pinterest-dl path
+# interpolates `handle` into a `node -e` script string — any character outside
+# this allowlist could break out of the JS string literal and execute arbitrary
+# JS on the server. Validate at the scraper boundary as defense in depth.
+_VALID_HANDLE_RE = re.compile(r"^[A-Za-z0-9_]{1,64}$")
+
+
+def _validate_handle(handle: str) -> str:
+    cleaned = handle.strip().lstrip("@")
+    if not _VALID_HANDLE_RE.fullmatch(cleaned):
+        raise ValueError(f"invalid pinterest handle: {handle!r}")
+    return cleaned
+
+
 CRAWL4AI_URL = "http://crawl4ai:11235"
 
 # ---------------------------------------------------------------------------
@@ -33,7 +47,7 @@ async def _scrape_pinterest_dl(handle: str) -> tuple[str, list[dict]]:
     Primary: pinterest-dl (npm). Returns (formatted_text, boards_list).
     Boards: [{name, url, pin_count}].
     """
-    handle = handle.strip().lstrip("@")
+    handle = _validate_handle(handle)
     with tempfile.TemporaryDirectory() as tmpdir:
         out_file = os.path.join(tmpdir, "result.json")
         try:
@@ -78,7 +92,7 @@ async def _scrape_pinscrape(handle: str) -> tuple[str, list[dict]]:
     """
     Secondary: pinscrape (npm). Returns (formatted_text, boards_list).
     """
-    handle = handle.strip().lstrip("@")
+    handle = _validate_handle(handle)
     try:
         raw = _run_node(
             ["npx", "-y", "pinscrape", handle],
@@ -127,7 +141,8 @@ async def _scrape_pinterest_crawl4ai(handle: str) -> tuple[str, list[dict]]:
     Final fallback: crawl4ai against pinterest.com/{handle}.
     Duplicates the old single-source logic.
     """
-    profile_url = f"https://www.pinterest.com/{handle.strip().lstrip('@')}/"
+    handle = _validate_handle(handle)
+    profile_url = f"https://www.pinterest.com/{handle}/"
 
     try:
         import httpx
@@ -212,7 +227,10 @@ async def scrape_pinterest(handle: str) -> tuple[str, list[dict]]:
 
     On all failures: returns ("[Pinterest scrape error: all sources failed]", [])
     """
-    handle = handle.strip().lstrip("@")
+    try:
+        handle = _validate_handle(handle)
+    except ValueError as e:
+        return f"[Pinterest scrape error: {e}]", []
     last_err = ""
 
     for label, fn in [
