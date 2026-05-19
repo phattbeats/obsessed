@@ -6,7 +6,7 @@ No expiration. No re-scrape policy. Content is permanent once written.
 """
 from app.database import SessionLocal, EntityCache
 from sqlalchemy.exc import IntegrityError
-from datetime import datetime
+from datetime import datetime, timezone
 
 CONTENT_MAX_CHARS = 200_000  # 200K chars max per cached entry
 
