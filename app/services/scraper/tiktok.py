@@ -11,6 +11,7 @@ from typing import Optional
 
 from app.config import settings
 from app.services.scraper.rate_limiter import generic_limiter
+from app.services.scraper.crawl4ai import _crawl4ai_headers
 from app.database import SessionLocal, EntityCache
 
 TIKTOK_SOURCES = ["tikwm_json", "tnktok_html"]
@@ -151,7 +152,7 @@ async def _scrape_tnktok_html(handle: str) -> tuple[str, dict]:
             async with generic_limiter:
                 resp = await client.post(
                     CRAWL4AI_URL,
-                    headers={"Authorization": f"Bearer {settings.crawl4ai_token}"},
+                    headers=_crawl4ai_headers(),
                     json={"urls": [url]},
                 )
             resp.raise_for_status()

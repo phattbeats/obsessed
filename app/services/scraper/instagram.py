@@ -5,6 +5,7 @@ import os
 
 from app.config import settings
 from app.services.scraper.rate_limiter import generic_limiter
+from app.services.scraper.crawl4ai import _crawl4ai_headers
 from app.database import SessionLocal, EntityCache
 
 # Public Instagram-mirror instances to try in order (primary first)
@@ -90,7 +91,7 @@ async def scrape_instagram_profile(handle: str) -> tuple[str, dict]:
                 async with generic_limiter:
                     resp = await client.post(
                         CRAWL4AI_URL,
-                        headers={"Authorization": f"Bearer {settings.crawl4ai_token}"},
+                        headers=_crawl4ai_headers(),
                         json={"urls": [mirror_url]},
                     )
                 resp.raise_for_status()
@@ -257,7 +258,7 @@ async def _fetch_post_comments(post_url: str, client: httpx.AsyncClient) -> list
     try:
         resp = await client.post(
             CRAWL4AI_URL,
-            headers={"Authorization": f"Bearer {settings.crawl4ai_token}"},
+            headers=_crawl4ai_headers(),
             json={"urls": [post_url]},
         )
         resp.raise_for_status()
