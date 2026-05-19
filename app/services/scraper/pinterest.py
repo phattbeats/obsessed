@@ -133,8 +133,10 @@ async def _scrape_pinterest_crawl4ai(handle: str) -> tuple[str, list[dict]]:
             break
 
     # Parse boards from markdown
+    # Lazy [^\[]*? so multi-digit pin counts capture fully; greedy form
+    # backtracks to the shortest trailing digit (e.g. "10 Pins" → "0").
     board_pattern = re.compile(
-        r"\[([^\]]+)\]\((https://www\.pinterest\.com/[^)]+)\)[^\[]*(?:(\d+)\s*Pins)",
+        r"\[([^\]]+)\]\((https://www\.pinterest\.com/[^)]+)\)[^\[]*?(?:(\d+)\s*Pins)",
         re.IGNORECASE,
     )
     boards = []
