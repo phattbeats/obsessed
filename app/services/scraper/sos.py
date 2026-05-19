@@ -1,8 +1,11 @@
 """
 Secretary of State business entity search scraper.
 Search-first discovery: accepts state name, searches for the actual SOS
-business entity search URL, then scrapes with crawl4ai.
+business entity search URL, then scrapes with crawl4ai (or FlareSolverr).
 Nationwide — no hardcoded URLs.
+
+Set use_flaresolverr=True to route the discovery search through FlareSolverr
+when the environment is Cloudflare-walled.
 """
 
 from __future__ import annotations
@@ -12,6 +15,7 @@ import re
 import httpx
 
 from app.services.scraper.crawl4ai import crawl4ai_scrape
+from app.services.scraper.flaresolverr import fs_get, CloudflareWallError
 
 
 # Fallback known SOS URLs (used when search fails)
@@ -73,6 +77,7 @@ async def search_sos_entities(
     state: str,
     entity_name: str,
     entity_type: str | None = None,
+    use_flaresolverr: bool = False,
 ) -> list[dict]:
     """
     Discover the SOS URL for a state via web search, then scrape for entities.
@@ -91,17 +96,35 @@ async def search_sos_entities(
 
     try:
         text, meta = await crawl4ai_scrape(sos_url)
-        if not text or text.startswith("["):
-            return []
-        entities = []
-        lines = text.split("\n")
-        for line in lines:
-            if entity_name.lower() in line.lower():
-                entry = parse_entity_entry(line)
-                entry["jurisdiction"] = state
-                entry["source_url"] = sos_url
-                entities.append(entry)
-        return entities[:20]
+        if text and not text.startswith("["):
+            entities = []
+            lines = text.split("\n")
+            for line in lines:
+                if entity_name.lower() in line.lower():
+                    entry = parse_entity_entry(line)
+                    entry["jurisdiction"] = state
+                    entry["source_url"] = sos_url
+                    entities.append(entry)
+            return entities[:20]
+
+        # crawl4ai came up empty or hit a wall — try FlareSolverr as fallback
+        if use_flaresolverr:
+            try:
+                html, status = await fs_get(sos_url)
+                if html and status < 400:
+                    entities = []
+                    lines = html.split("\n")
+                    for line in lines:
+                        if entity_name.lower() in line.lower():
+                            entry = parse_entity_entry(line)
+                            entry["jurisdiction"] = state
+                            entry["source_url"] = sos_url
+                            entities.append(entry)
+                    return entities[:20]
+            except CloudflareWallError:
+                pass  # FS also blocked — return empty
+
+        return []
     except Exception:
         return []
 
@@ -115,7 +138,7 @@ async def get_entity_details(state: str, entity_id: str) -> dict:
     return {"entity_id": entity_id, "jurisdiction": state, "status": "not found"}
 
 
-async def search_by_owner(state: str, owner_name: str) -> list[dict]:
+async def search_by_owner(state: str, owner_name: str, use_flaresolverr: bool = False) -> list[dict]:
     """Search for all entities owned by a specific person."""
     sos_url = await find_sos_url(state) or SOS_FALLBACK_URLS.get(state.lower(), "")
     if not sos_url:
@@ -123,17 +146,36 @@ async def search_by_owner(state: str, owner_name: str) -> list[dict]:
 
     try:
         text, meta = await crawl4ai_scrape(sos_url)
-        if not text or text.startswith("["):
-            return []
-        entities = []
-        lines = text.split("\n")
-        for line in lines:
-            if owner_name.lower() in line.lower():
-                entry = parse_entity_entry(line)
-                entry["owner"] = owner_name
-                entry["jurisdiction"] = state
-                entry["source_url"] = sos_url
-                entities.append(entry)
-        return entities[:20]
+        if text and not text.startswith("["):
+            entities = []
+            lines = text.split("\n")
+            for line in lines:
+                if owner_name.lower() in line.lower():
+                    entry = parse_entity_entry(line)
+                    entry["owner"] = owner_name
+                    entry["jurisdiction"] = state
+                    entry["source_url"] = sos_url
+                    entities.append(entry)
+            return entities[:20]
+
+        # crawl4ai came up empty or hit a wall — try FlareSolverr as fallback
+        if use_flaresolverr:
+            try:
+                html, status = await fs_get(sos_url)
+                if html and status < 400:
+                    entities = []
+                    lines = html.split("\n")
+                    for line in lines:
+                        if owner_name.lower() in line.lower():
+                            entry = parse_entity_entry(line)
+                            entry["owner"] = owner_name
+                            entry["jurisdiction"] = state
+                            entry["source_url"] = sos_url
+                            entities.append(entry)
+                    return entities[:20]
+            except CloudflareWallError:
+                pass  # FS also blocked — return empty
+
+        return []
     except Exception:
         return []

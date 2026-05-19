@@ -12,6 +12,7 @@ import httpx
 from typing import Optional
 
 from app.services.scraper.crawl4ai import crawl4ai_scrape
+from app.services.scraper.flaresolverr import fs_get, CloudflareWallError
 
 
 # Fallback known auditor URLs (Ohio counties — others discovered via search)
@@ -88,6 +89,7 @@ async def search_property_records(
     search_term: str,
     search_type: str = "owner",
     state: str = "Ohio",
+    use_flaresolverr: bool = False,
 ) -> list[dict]:
     """
     Discover the auditor URL for a county via web search, then scrape.
@@ -109,17 +111,36 @@ async def search_property_records(
 
     try:
         text, meta = await crawl4ai_scrape(auditor_url)
-        if not text or text.startswith("["):
-            return []
-        records = []
-        blocks = text.split("---")
-        for block in blocks[:20]:
-            if search_term.lower() in block.lower():
-                record = parse_property_record(block, search_term)
-                record["county"] = county
-                record["source_url"] = auditor_url
-                records.append(record)
-        return records
+        if text and not text.startswith("["):
+            records = []
+            blocks = text.split("---")
+            for block in blocks[:20]:
+                if search_term.lower() in block.lower():
+                    record = parse_property_record(block, search_term)
+                    record["county"] = county
+                    record["source_url"] = auditor_url
+                    records.append(record)
+            return records
+
+        # crawl4ai came up empty or hit a wall — try FlareSolverr as fallback
+        if use_flaresolverr:
+            try:
+                html, status = await fs_get(auditor_url)
+                if html and status < 400:
+                    # Basic passthrough — treat the raw HTML blocks same as crawl4ai output
+                    blocks = html.split("---")
+                    records = []
+                    for block in blocks[:20]:
+                        if search_term.lower() in block.lower():
+                            record = parse_property_record(block, search_term)
+                            record["county"] = county
+                            record["source_url"] = auditor_url
+                            records.append(record)
+                    return records
+            except CloudflareWallError:
+                pass  # FS also blocked — return empty
+
+        return []
     except Exception:
         return []
 
