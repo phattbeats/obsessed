@@ -315,3 +315,21 @@ def test_write_cached_basic():
     assert content == "some scraped content"
     assert meta["source_url"] == "https://example.com"
     assert meta["scraped_at"] > 0
+
+
+def test_crawl4ai_empty_token_no_bearer_header():
+    """Regression for PHA-790: must not send 'Bearer ' when token is empty."""
+    from unittest.mock import patch
+    from app.services.scraper.crawl4ai import _crawl4ai_headers, crawl4ai_scrape
+
+    # Empty token → no Authorization header
+    with patch("app.services.scraper.crawl4ai.settings") as mock_settings:
+        mock_settings.crawl4ai_token = ""
+        headers = _crawl4ai_headers()
+        assert headers == {}
+
+    # Non-empty token → Bearer header
+    with patch("app.services.scraper.crawl4ai.settings") as mock_settings:
+        mock_settings.crawl4ai_token = "my-token"
+        headers = _crawl4ai_headers()
+        assert headers == {"Authorization": "Bearer my-token"}

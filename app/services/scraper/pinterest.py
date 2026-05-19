@@ -1,6 +1,6 @@
 """
 Pinterest scraper for obsessed pipeline.
-Failover chain: pinterest-dl (primary) → pinscrape (fallback) → crawl4ai (final).
+Failover chain: pinterest-dl (primary) → crawl4ai (fallback).
 Keep scrape_pinterest(handle) and generate_questions(...) signatures unchanged.
 """
 import json, re, subprocess, tempfile, os
@@ -46,6 +46,9 @@ async def _scrape_pinterest_dl(handle: str) -> tuple[str, list[dict]]:
     """
     Primary: pinterest-dl (npm). Returns (formatted_text, boards_list).
     Boards: [{name, url, pin_count}].
+
+    Removed pinscrape fallback (npm package E404). pinterest-dl + crawl4ai
+    cover the cases that pinscrape handled.
     """
     handle = _validate_handle(handle)
     with tempfile.TemporaryDirectory() as tmpdir:
@@ -235,8 +238,7 @@ async def scrape_pinterest(handle: str) -> tuple[str, list[dict]]:
 
     for label, fn in [
         ("pinterest-dl", _scrape_pinterest_dl),
-        ("pinscrape",   _scrape_pinscrape),
-        ("crawl4ai",    _scrape_pinterest_crawl4ai),
+        ("crawl4ai",     _scrape_pinterest_crawl4ai),
     ]:
         try:
             text, boards = await fn(handle)
