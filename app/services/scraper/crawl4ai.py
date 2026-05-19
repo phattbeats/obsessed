@@ -6,6 +6,13 @@ from app.config import settings
 CRAWL4AI_URL = "http://crawl4ai:11235"
 
 
+def _crawl4ai_headers() -> dict:
+    """Return auth headers only when a token is configured."""
+    if settings.crawl4ai_token:
+        return {"Authorization": f"Bearer {settings.crawl4ai_token}"}
+    return {}
+
+
 async def crawl4ai_scrape(url: str) -> tuple[str, Optional[dict]]:
     """
     Scrape any URL using crawl4ai.
@@ -17,7 +24,7 @@ async def crawl4ai_scrape(url: str) -> tuple[str, Optional[dict]]:
             resp = await client.post(
                 CRAWL4AI_URL + "/crawl",
                 json={"urls": [url], "markdown": True},
-                headers={"Authorization": f"Bearer {settings.crawl4ai_token}"},
+                headers=_crawl4ai_headers(),
             )
             resp.raise_for_status()
             data = resp.json()
