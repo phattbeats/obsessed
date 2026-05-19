@@ -6,7 +6,7 @@ When settings.crawl4ai_token is empty (or ''), _crawl4ai_headers() must
 return {} — not {"Authorization": "Bearer "} — so that httpx does not raise
 httpx.LocalProtocolError: Illegal header value b'Bearer '.
 """
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -40,9 +40,10 @@ class TestCrawl4AiHeadersEmptyToken:
         httpx.LocalProtocolError: Illegal header value b'Bearer '
         """
         mock_instance = MockAsyncClient.return_value.__aenter__.return_value
-        mock_response = AsyncMock()
-        mock_response.raise_for_status = AsyncMock()
-        mock_response.json = AsyncMock(return_value={
+        # httpx.Response.json() and .raise_for_status() are SYNC; only client.post() is awaitable.
+        mock_response = MagicMock()
+        mock_response.raise_for_status = MagicMock()
+        mock_response.json = MagicMock(return_value={
             "results": [{
                 "url": "https://example.com",
                 "markdown": {"raw_markdown": "# Example\n\nTest content."},
@@ -56,6 +57,14 @@ class TestCrawl4AiHeadersEmptyToken:
         with patch.object(settings, "crawl4ai_token", ""):
             text, meta = await crawl4ai_scrape("https://example.com")
 
-        # Should succeed without raising
-        assert "Example" in text or "Test content" in text
+        # Should succeed without raising. If the empty-token bug regressed, httpx would have
+        # raised LocalProtocolError before .post() returned, and the except clause would have
+        # produced "[crawl4ai error: ...]" instead.
+        assert "Example" in text or "Test content" in text, f"Unexpected result: {text!r}"
         assert meta.get("url") == "https://example.com"
+
+        # Confirm the header passed to httpx contained NO Authorization key when token is empty.
+        call_kwargs = mock_instance.post.call_args.kwargs
+        assert call_kwargs.get("headers") == {}, (
+            f"Expected empty headers when token is '', got {call_kwargs.get('headers')!r}"
+        )
