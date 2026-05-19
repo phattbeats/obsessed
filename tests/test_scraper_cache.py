@@ -25,7 +25,7 @@ from app.services.scraper.instagram import (
     save_instagram_cache,
     scrape_instagram,
 )
-from app.services.scraper.twitter import (
+from app.services.scraper.twitter_scraper import (
     get_twitter_cache,
     save_twitter_cache,
     scrape_twitter,
@@ -300,3 +300,18 @@ Great news — check out our latest direct!
         text4, meta4 = await scrape_facebook("error_test", "People")
         assert text4.startswith("[Facebook:")
         assert meta4 == {}
+
+
+def test_write_cached_basic():
+    """Regression for PHA-788: write_cached must not raise NameError on timezone."""
+    from app.services.entity_cache import write_cached, get_cached
+
+    ok = write_cached("test_entity", "Places", "some scraped content", "https://example.com")
+    assert ok is True
+
+    result = get_cached("test_entity", "Places")
+    assert result is not None
+    content, meta = result
+    assert content == "some scraped content"
+    assert meta["source_url"] == "https://example.com"
+    assert meta["scraped_at"] > 0

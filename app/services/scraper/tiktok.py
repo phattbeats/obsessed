@@ -17,7 +17,6 @@ TIKTOK_SOURCES = ["tikwm_json", "tnktok_html"]
 TIKWM_BASE = "https://www.tikwm.com"
 TNKTK_BASE = "https://www.tnktok.com"
 CRAWL4AI_URL = "http://crawl4ai:11235/crawl"
-CRAWL4AI_TOKEN = "Phatt-tech-2026"
 TIKTOK_SOURCE_PREFIX = "https://www.tiktok.com/@"
 
 
@@ -152,7 +151,7 @@ async def _scrape_tnktok_html(handle: str) -> tuple[str, dict]:
             async with generic_limiter:
                 resp = await client.post(
                     CRAWL4AI_URL,
-                    headers={"Authorization": f"Bearer {CRAWL4AI_TOKEN}"},
+                    headers={"Authorization": f"Bearer {settings.crawl4ai_token}"},
                     json={"urls": [url]},
                 )
             resp.raise_for_status()

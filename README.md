@@ -62,6 +62,20 @@ Supported entity types: `person`, `place`, `thing`, `event`.
 | GET | `/api/admin/cache/stats` | Cache statistics |
 | POST | `/api/admin/games/{room_code}/clear` | Delete a game session |
 
+### Admin endpoint auth
+
+`/api/admin/*` includes destructive operations (cache wipe, profile re-scrape, game deletion). Access is gated by the `ADMIN_TOKEN` env var:
+
+- **Empty / unset** (default): admin routes are open. Only safe behind LAN/VPN — anything that can reach the FastAPI port can wipe the cache or delete games.
+- **Set to a value**: every `/api/admin/*` request must send `Authorization: Bearer <ADMIN_TOKEN>`. Missing/invalid tokens get a `401`.
+
+Generate a strong token and set it before exposing Obsessed to the public internet:
+
+```bash
+export ADMIN_TOKEN=$(openssl rand -hex 32)
+curl -H "Authorization: Bearer $ADMIN_TOKEN" https://obsessed.example.com/api/admin/overview
+```
+
 ## Running on phatt-RAID
 
 ```bash

@@ -14,7 +14,6 @@ IG_MIRROR_INSTANCES = [
     "https://picnob.com",    # backup 2
 ]
 CRAWL4AI_URL = "http://crawl4ai:11235/crawl"
-CRAWL4AI_TOKEN = "Phatt-tech-2026"
 INSTAGRAM_SOURCE_PREFIX = "https://www.instagram.com/"
 
 
@@ -91,7 +90,7 @@ async def scrape_instagram_profile(handle: str) -> tuple[str, dict]:
                 async with generic_limiter:
                     resp = await client.post(
                         CRAWL4AI_URL,
-                        headers={"Authorization": f"Bearer {CRAWL4AI_TOKEN}"},
+                        headers={"Authorization": f"Bearer {settings.crawl4ai_token}"},
                         json={"urls": [mirror_url]},
                     )
                 resp.raise_for_status()
@@ -258,7 +257,7 @@ async def _fetch_post_comments(post_url: str, client: httpx.AsyncClient) -> list
     try:
         resp = await client.post(
             CRAWL4AI_URL,
-            headers={"Authorization": f"Bearer {CRAWL4AI_TOKEN}"},
+            headers={"Authorization": f"Bearer {settings.crawl4ai_token}"},
             json={"urls": [post_url]},
         )
         resp.raise_for_status()
