@@ -92,54 +92,6 @@ async def _scrape_pinterest_dl(handle: str) -> tuple[str, list[dict]]:
     return "\n".join(lines), clean_boards
 
 
-async def _scrape_pinscrape(handle: str) -> tuple[str, list[dict]]:
-    """
-    Secondary: pinscrape (npm). Returns (formatted_text, boards_list).
-    """
-    handle = _validate_handle(handle)
-    try:
-        raw = _run_node(
-            ["npx", "-y", "pinscrape", handle],
-            timeout=40,
-        )
-    except Exception as e:
-        raise RuntimeError(f"pinscrape failed: {e}")
-
-    try:
-        data = json.loads(raw)
-    except json.JSONDecodeError:
-        # pinscrape sometimes emits plain text or non-JSON; fall through
-        raise RuntimeError(f"pinscrape returned non-JSON: {raw[:200]}")
-
-    # data shape from pinscrape: { username, profile: {name}, boards: [] }
-    username = data.get("username", handle)
-    profile_name = data.get("profile", {}).get("name", username)
-    boards_raw = data.get("boards", []) or data.get("data", [])
-
-    clean_boards = []
-    for b in boards_raw:
-        if isinstance(b, dict):
-            clean_boards.append({
-                "name": b.get("name", b.get("title", "")),
-                "url": b.get("url", ""),
-                "pin_count": str(b.get("pin_count", b.get("pins", ""))),
-            })
-        elif isinstance(b, str):
-            clean_boards.append({"name": b, "url": "", "pin_count": ""})
-
-    lines = [f"[Pinterest profile: {profile_name or username}]"]
-    lines.append(f"Profile: {profile_name or username} (https://www.pinterest.com/{username}/)")
-    if clean_boards:
-        lines.append(f"Interest boards ({len(clean_boards)}):")
-        for b in clean_boards:
-            pc = f" ({b['pin_count']} Pins)" if b["pin_count"] else ""
-            lines.append(f"  - {b['name']}{pc} — {b['url']}")
-    else:
-        lines.append("(No boards found)")
-
-    return "\n".join(lines), clean_boards
-
-
 async def _scrape_pinterest_crawl4ai(handle: str) -> tuple[str, list[dict]]:
     """
     Final fallback: crawl4ai against pinterest.com/{handle}.
