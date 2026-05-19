@@ -6,6 +6,7 @@ Keep scrape_pinterest(handle) and generate_questions(...) signatures unchanged.
 import json, re, subprocess, tempfile, os
 from typing import Optional
 from app.config import settings
+from app.services.scraper.crawl4ai import _crawl4ai_headers
 
 # Pinterest usernames are alphanumeric + underscore. The pinterest-dl path
 # interpolates `handle` into a `node -e` script string — any character outside
@@ -158,7 +159,7 @@ async def _scrape_pinterest_crawl4ai(handle: str) -> tuple[str, list[dict]]:
                     "wait_for": ".userProfilePage",
                     "page_timeout": 30000,
                 },
-                headers={"Authorization": f"Bearer {settings.crawl4ai_token}"},
+                headers=_crawl4ai_headers(),
             )
             resp.raise_for_status()
             data = resp.json()
@@ -218,12 +219,11 @@ async def _scrape_pinterest_crawl4ai(handle: str) -> tuple[str, list[dict]]:
 
 async def scrape_pinterest(handle: str) -> tuple[str, list[dict]]:
     """
-    Three-source failover scraper for Pinterest profiles.
+    Two-source failover scraper for Pinterest profiles.
 
     Try order:
       1. pinterest-dl (npm, no auth, profile + boards via API)
-      2. pinscrape  (npm, fallback)
-      3. crawl4ai   (final fallback, preserves old behavior)
+      2. crawl4ai   (final fallback, preserves old behavior)
 
     Returns (raw_text, boards_list) where boards entries are:
       {name: str, url: str, pin_count: str}
