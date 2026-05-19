@@ -3,7 +3,7 @@ PHA-700: Pinterest scraper failover chain tests.
 Tests the two-source chain: pinterest-dl → crawl4ai.
 Mirrors the PHA-682 Instagram failover test pattern.
 """
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, Mock, mock_open, patch
 
 import pytest
 
@@ -30,13 +30,16 @@ def test_scrape_pinterest_signature():
 # ---------------------------------------------------------------------------
 
 async def _mock_client_success(url, **kwargs):
-    res = AsyncMock()
-    res.raise_for_status = AsyncMock()
-    res.json = AsyncMock(return_value={
+    # httpx Response.json() and .raise_for_status() are sync — use Mock, not AsyncMock,
+    # or production code (`data = resp.json()`) receives a coroutine instead of dict.
+    res = Mock()
+    res.raise_for_status = Mock()
+    res.json = Mock(return_value={
         "results": [{
             "success": True,
             "markdown": {
-                "raw_markdown": "# Test User\n[Board One](https://pinterest.com/u/b1) 10 Pins\n[Board Two](https://pinterest.com/u/b2) 5 Pins",
+                # URLs must use www.pinterest.com to match the board regex.
+                "raw_markdown": "# Test User\n[Board One](https://www.pinterest.com/u/b1) 10 Pins\n[Board Two](https://www.pinterest.com/u/b2) 5 Pins",
             }
         }]
     })
@@ -46,25 +49,22 @@ async def _mock_client_success(url, **kwargs):
 @pytest.mark.asyncio
 async def test_primary_pinterest_dl_succeeds():
     """pinterest-dl returns profile → used, no further calls."""
-    with patch("subprocess.run") as MockRun:
+    profile_json = (
+        '{"profile":{"name":"Test User","handle":"testuser","boards":['
+        '{"name":"Board One","url":"https://pinterest.com/u/b1","pin_count":"10"},'
+        '{"name":"Board Two","url":"https://pinterest.com/u/b2","pin_count":"5"}'
+        ']}}'
+    )
+
+    with patch("subprocess.run") as MockRun, \
+         patch("os.path.exists", return_value=True), \
+         patch("builtins.open", mock_open(read_data=profile_json)):
         MockRun.return_value = type("R", (), {
             "returncode": 0,
             "stdout": "",
             "stderr": "",
         })()
-
-        # Patch os.path.exists to simulate the output file
-        with patch("os.path.exists", return_value=True):
-            with patch("builtins.open", side_effect=lambda f: type("F", (), {
-                "__enter__": lambda s: type("C", (), {
-                    "read": lambda: '{"profile":{"name":"Test User","handle":"testuser","boards":[{"name":"Board One","url":"https://pinterest.com/u/b1","pin_count":"10"},{"name":"Board Two","url":"https://pinterest.com/u/b2","pin_count":"5"}]}}'
-                })(),
-                "__exit__": lambda *a: None,
-            })()):
-                with patch("tempfile.TemporaryDirectory") as MockTmp:
-                    MockTmp.return_value.__enter__ = lambda s: "/tmp/fake"
-                    MockTmp.return_value.__exit__ = lambda *a: None
-                    text, boards = await scrape_pinterest("testuser")
+        text, boards = await scrape_pinterest("testuser")
 
     assert "Test User" in text
     assert len(boards) == 2
@@ -79,8 +79,8 @@ async def test_pinterest_dl_fails_crawl4ai_succeeds():
 
         with patch("httpx.AsyncClient") as MockClient:
             mock_inst = AsyncMock()
-            mock_inst.__aenter__ = AsyncMock(returnvalue=mock_inst)
-            mock_inst.__aexit__ = AsyncMock(returnvalue=None)
+            mock_inst.__aenter__ = AsyncMock(return_value=mock_inst)
+            mock_inst.__aexit__ = AsyncMock(return_value=None)
             mock_inst.post = _mock_client_success
             MockClient.return_value = mock_inst
 
@@ -99,8 +99,8 @@ async def test_all_sources_fail_sentinel():
     with patch("subprocess.run", side_effect=always_fail):
         with patch("httpx.AsyncClient") as MockClient:
             mock_inst = AsyncMock()
-            mock_inst.__aenter__ = AsyncMock(returnvalue=mock_inst)
-            mock_inst.__aexit__ = AsyncMock(returnvalue=None)
+            mock_inst.__aenter__ = AsyncMock(return_value=mock_inst)
+            mock_inst.__aexit__ = AsyncMock(return_value=None)
             mock_inst.post = AsyncMock(side_effect=Exception("crawl4ai down"))
             MockClient.return_value = mock_inst
 
@@ -125,8 +125,8 @@ async def test_crawl4ai_fallback_parses_markdown():
     """_scrape_pinterest_crawl4ai parses raw markdown correctly."""
     with patch("httpx.AsyncClient") as MockClient:
         mock_inst = AsyncMock()
-        mock_inst.__aenter__ = AsyncMock(returnvalue=mock_inst)
-        mock_inst.__aexit__ = AsyncMock(returnvalue=None)
+        mock_inst.__aenter__ = AsyncMock(return_value=mock_inst)
+        mock_inst.__aexit__ = AsyncMock(return_value=None)
         mock_inst.post = _mock_client_success
         MockClient.return_value = mock_inst
 
