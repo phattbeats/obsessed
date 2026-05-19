@@ -1,7 +1,7 @@
 from sqlalchemy import create_engine, event, Column, Integer, String, Text, Float, DateTime, Boolean, ForeignKey, JSON
 from sqlalchemy.orm import DeclarativeBase
 from sqlalchemy.orm import sessionmaker, relationship
-from datetime import datetime
+from datetime import datetime, timezone
 import json, sqlite3, os
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))

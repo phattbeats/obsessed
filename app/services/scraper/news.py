@@ -7,6 +7,7 @@ Extracts title + description only. No API key required.
 from __future__ import annotations
 
 import httpx
+from urllib.parse import quote_plus
 from typing import Optional
 import xml.etree.ElementTree as ET
 from datetime import datetime
@@ -44,7 +45,7 @@ async def search_news(
         location: Optional location hint appended to query (e.g. "Columbus OH")
     """
     q = f"{query} {location}" if location else query
-    url = f"{GOOGLE_NEWS_RSS}?q={httpx.utils.encode_url_component(q)}&hl=en-US&gl=US&ceid=US:en"
+    url = f"{GOOGLE_NEWS_RSS}?q={quote_plus(q)}&hl=en-US&gl=US&ceid=US:en"
 
     try:
         async with httpx.AsyncClient(timeout=15.0) as client:
