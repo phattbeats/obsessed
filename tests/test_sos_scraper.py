@@ -17,16 +17,19 @@ from unittest.mock import patch, AsyncMock
 
 import pytest
 
-from app.services.scraper import sos as sos_mod
 from app.services.scraper.sos import (
     OHIO_API_BASE,
     OHIO_STATUS_ACTIVE,
     OHIO_STATUS_ALL,
-    _encode_business_name,
-    _encode_owner_name,
-    _normalize_ohio_row,
     search_by_owner,
     search_sos_entities,
+)
+from app.services.scraper.sos import base as sos_base
+from app.services.scraper.sos import ohio as sos_ohio
+from app.services.scraper.sos.ohio import (
+    _encode_business_name,
+    _encode_owner_name,
+    _normalize_row as _normalize_ohio_row,
 )
 
 
@@ -114,9 +117,9 @@ def test_normalize_handles_missing_optional_fields():
 def _reset_clearance_cache():
     """Each test starts with no cached Cloudflare clearance so mocks land
     on a deterministic call path."""
-    sos_mod._clearance_cache.clear()
+    sos_base.reset_clearance_cache()
     yield
-    sos_mod._clearance_cache.clear()
+    sos_base.reset_clearance_cache()
 
 
 @pytest.mark.asyncio
@@ -136,7 +139,7 @@ async def test_search_sos_entities_ohio_returns_structured_rows():
         ]
     }
 
-    async def _fake_clearance(force=False):
+    async def _fake_clearance(ui_origin, *, force=False):
         return {"cf_clearance": "x", "__cf_bm": "y"}, "Mozilla/5.0 test"
 
     async def _fake_get(self, url):
@@ -148,7 +151,7 @@ async def test_search_sos_entities_ohio_returns_structured_rows():
             request=Request("GET", url),
         )
 
-    with patch.object(sos_mod, "_get_clearance", _fake_clearance), patch(
+    with patch.object(sos_ohio, "get_clearance", _fake_clearance), patch(
         "httpx.AsyncClient.get", _fake_get
     ):
         rows = await search_sos_entities("Ohio", "Buckeye LLC")
@@ -180,7 +183,7 @@ async def test_search_by_owner_ohio_uses_agent_endpoint():
     }
     seen_urls: list[str] = []
 
-    async def _fake_clearance(force=False):
+    async def _fake_clearance(ui_origin, *, force=False):
         return {"cf_clearance": "x"}, "ua"
 
     async def _fake_get(self, url):
@@ -189,7 +192,7 @@ async def test_search_by_owner_ohio_uses_agent_endpoint():
         seen_urls.append(url)
         return Response(200, json=fake_payload, request=Request("GET", url))
 
-    with patch.object(sos_mod, "_get_clearance", _fake_clearance), patch(
+    with patch.object(sos_ohio, "get_clearance", _fake_clearance), patch(
         "httpx.AsyncClient.get", _fake_get
     ):
         rows = await search_by_owner("Ohio", "Jane Doe")
@@ -215,10 +218,10 @@ async def test_search_returns_empty_on_empty_input():
 async def test_search_swallows_cloudflare_wall_to_empty():
     from app.services.scraper.flaresolverr import CloudflareWallError
 
-    async def _fake_clearance(force=False):
+    async def _fake_clearance(ui_origin, *, force=False):
         raise CloudflareWallError("still walled", 0)
 
-    with patch.object(sos_mod, "_get_clearance", _fake_clearance):
+    with patch.object(sos_ohio, "get_clearance", _fake_clearance):
         rows = await search_sos_entities("Ohio", "Anything LLC")
 
     assert rows == []
