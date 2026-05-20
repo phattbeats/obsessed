@@ -44,7 +44,16 @@ def test_solve_recaptcha_raises_when_key_missing():
 def test_solve_datadome_raises_when_key_missing():
     with patch.object(captcha_solver.settings, "twocaptcha_api_key", "   "):
         with pytest.raises(CaptchaSolverNotConfigured):
-            asyncio.run(solve_datadome("https://dd.example/c", "https://example.com"))
+            asyncio.run(solve_datadome(
+                "https://dd.example/c", "https://example.com", proxy="1.2.3.4:8080",
+            ))
+
+
+def test_solve_datadome_raises_when_proxy_missing():
+    with patch.object(captcha_solver.settings, "twocaptcha_api_key", "k"):
+        with pytest.raises(captcha_solver.CaptchaSolverError) as exc:
+            asyncio.run(solve_datadome("https://dd.example/c", "https://example.com", proxy=""))
+    assert "proxy" in str(exc.value).lower()
 
 
 def test_solve_turnstile_raises_when_key_missing():
@@ -114,6 +123,8 @@ def test_solve_datadome_uses_datadome_method_and_captcha_url():
             solve_datadome(
                 "https://dd-c.captcha-delivery.com/c/abc",
                 "https://truepeoplesearch.example/find",
+                proxy="user:pass@1.2.3.4:8080",
+                proxytype="HTTP",
                 user_agent="Mozilla/5.0 ...",
             )
         )
@@ -123,6 +134,8 @@ def test_solve_datadome_uses_datadome_method_and_captcha_url():
     assert submit_params["method"] == "datadome"
     assert submit_params["captcha_url"] == "https://dd-c.captcha-delivery.com/c/abc"
     assert submit_params["userAgent"] == "Mozilla/5.0 ..."
+    assert submit_params["proxy"] == "user:pass@1.2.3.4:8080"
+    assert submit_params["proxytype"] == "HTTP"
 
 
 def test_solve_turnstile_sends_turnstile_method():
