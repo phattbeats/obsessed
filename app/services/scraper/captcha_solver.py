@@ -35,7 +35,7 @@ TWOCAPTCHA_IN = "https://2captcha.com/in.php"
 TWOCAPTCHA_RES = "https://2captcha.com/res.php"
 
 _POLL_INTERVAL = 5.0   # 2Captcha guidance: don't poll faster than every 5s
-_POLL_MAX = 120.0      # give up after 2 minutes — reCAPTCHA usually solves in 15-45s
+_POLL_MAX = 180.0      # reCAPTCHA solves in 15-45s; DataDome can take 150s+ in practice
 
 
 class CaptchaSolverError(Exception):

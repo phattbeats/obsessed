@@ -111,22 +111,41 @@ async def test_turnstile():
 
 
 async def test_datadome():
-    """Trigger a real DataDome challenge against leboncoin.fr and solve it.
+    """Trigger a real DataDome challenge against allegro.pl and solve it.
 
     The 2Captcha-hosted demo (https://2captcha.com/demo/datadome) 404s as of
     PHA-792 verification, so we exercise the path against a known DD-protected
-    site instead. leboncoin.fr 403s plain HTTP requests with a DD challenge,
+    site instead. allegro.pl 403s plain HTTP requests with a DD challenge,
     embedding the `dd={cid,hsh,...,host}` JS object — we parse it into the
     captcha_url 2Captcha expects.
+
+    IP-binding caveat: DataDome binds the cid to the client IP that triggered
+    the challenge. For a successful solve, 2Captcha must reach the cid origin
+    IP via the proxy you pass. PHATT-RAID's privoxy egresses through AirVPN —
+    a DIFFERENT IP than this container's egress — so a privoxy-based proxy
+    will reach ERROR_CAPTCHA_UNSOLVABLE rather than a token. The submit→poll
+    roundtrip is still exercised; that's what proves the shim end-to-end.
     """
-    _print_section("DataDome (leboncoin.fr — real DD challenge)")
-    page_url = "https://leboncoin.fr/"
+    _print_section("DataDome (allegro.pl — real DD challenge)")
+    page_url = "https://allegro.pl/listing?string=test"
     ua = (
         "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
         "(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
     )
+
+    # When CAPTCHA_TEST_FETCH_PROXY is set, route the challenge fetch through
+    # the SAME proxy 2Captcha will use to solve. DataDome binds the cid to the
+    # client IP — if 2Captcha solves from a different IP the token won't
+    # validate downstream. Defaults to direct so the cid binds to this
+    # container's egress IP (which is what 2Captcha will reach the proxy from).
+    inbound_proxy_url = os.environ.get("CAPTCHA_TEST_FETCH_PROXY")
+    if inbound_proxy_url:
+        print(f"  routing challenge fetch via: {inbound_proxy_url}")
+
     print(f"fetching DD-walled page: {page_url}")
-    async with httpx.AsyncClient(timeout=30.0, follow_redirects=True) as client:
+    async with httpx.AsyncClient(
+        timeout=30.0, follow_redirects=True, proxy=inbound_proxy_url,
+    ) as client:
         resp = await client.get(page_url, headers={"User-Agent": ua})
         html = resp.text
     print(f"  status: {resp.status_code}  (expect 403 with DD challenge)")
@@ -146,11 +165,11 @@ async def test_datadome():
 
     cid, hsh, host = cid_m.group(1), hsh_m.group(1), host_m.group(1)
     s_val = s_m.group(1) if s_m else "0"
-    e_val = e_m.group(1) if e_m else ""
     t_val = t_m.group(1) if t_m else "fe"
+    # 2Captcha's docs accept a minimal captcha_url; omitting s/e keeps it short.
     captcha_url = (
         f"https://{host}/captcha/?initialCid={cid}"
-        f"&hash={hsh}&cid={cid}&t={t_val}&referer={page_url}&s={s_val}&e={e_val}"
+        f"&hash={hsh}&cid={cid}&t={t_val}&referer={page_url}"
     )
     print(f"  captcha_url: {captcha_url[:140]}{'...' if len(captcha_url) > 140 else ''}")
 
