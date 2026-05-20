@@ -92,31 +92,32 @@ async def _single_request(
         "maxTimeout": int(max_timeout * 1000),
     }
     if post_data is not None:
+        body["cmd"] = "request.post"
         body["postData"] = _url_encode(post_data)
-        body["requestMethod"] = "post"
     else:
-        body["requestMethod"] = "get"
+        body["cmd"] = "request.get"
 
     async with httpx.AsyncClient(timeout=httpx.Timeout(max_timeout + 10, connect=10)) as client:
         resp = await client.post(f"{FLARESOLVERR_URL}/v1", json=body)
         data = resp.json()
 
-    status = data.get("status", 0)
-    solution = data.get("solution", {})
+    fs_status = data.get("status")
+    solution = data.get("solution") or {}
 
-    # Detect Cloudflare challenge pages from response content
+    if fs_status != "ok":
+        raise FlareSolverrError(
+            f"FlareSolverr returned status={fs_status}: {data.get('message', data)}", 0
+        )
+
     html = solution.get("response", "") or ""
+    http_status = int(solution.get("status") or 0)
+
     if _is_cf_challenge(html):
         raise CloudflareWallError(
-            f"Cloudflare challenge still present in response for {url}", status
+            f"Cloudflare challenge still present in response for {url}", http_status
         )
 
-    if status != "ok":
-        raise FlareSolverrError(
-            f"FlareSolverr returned status={status}: {data.get('message', data)}", status
-        )
-
-    return html, status
+    return html, http_status
 
 
 def _url_encode(data: dict) -> str:
