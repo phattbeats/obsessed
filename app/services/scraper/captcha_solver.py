@@ -6,11 +6,15 @@ Confirmed walls and which solver method to use:
 | Wall                       | Captcha type        | Solver method                    |
 |----------------------------|---------------------|----------------------------------|
 | Ohio Voter Lookup          | Google reCAPTCHA v2 | solve_recaptcha_v2(site_key, url)|
-| TruePeopleSearch           | DataDome            | solve_datadome(captcha_url, url) |
-| Legacy.com obituaries      | DataDome            | solve_datadome(captcha_url, url) |
+| TruePeopleSearch           | DataDome            | solve_datadome(captcha_url, url, proxy=...) |
+| Legacy.com obituaries      | DataDome            | solve_datadome(captcha_url, url, proxy=...) |
 | FastPeopleSearch detail    | Cloudflare Turnstile| solve_turnstile(site_key, url)   |
 
 Cost: ~$2 per 1000 reCAPTCHA solves, ~$3 per 1000 DataDome solves.
+
+DataDome requires an HTTP/SOCKS proxy reachable from 2Captcha — DD invalidates
+solves that come from a different IP than the one that originally triggered
+the challenge. reCAPTCHA v2 and Turnstile do not require a proxy.
 
 The API key is read from `settings.twocaptcha_api_key` (env: TWOCAPTCHA_API_KEY).
 When unset, every solve_* raises `CaptchaSolverNotConfigured` so callers can
@@ -67,20 +71,40 @@ async def solve_recaptcha_v2(site_key: str, page_url: str) -> str:
     return await _submit_and_poll(params)
 
 
-async def solve_datadome(captcha_url: str, page_url: str, user_agent: Optional[str] = None) -> str:
+async def solve_datadome(
+    captcha_url: str,
+    page_url: str,
+    *,
+    proxy: str,
+    proxytype: str = "HTTP",
+    user_agent: Optional[str] = None,
+) -> str:
     """Submit a DataDome captcha and return the cookie payload.
 
     `captcha_url` is the URL DataDome surfaces in its challenge iframe
-    (the `dd-c.captcha-delivery.com/...` link). The returned token is the
+    (the `geo.captcha-delivery.com/...` link). The returned token is the
     value to write into the `datadome` cookie before retrying the request.
 
-    Use case: TruePeopleSearch, Legacy.com obituaries.
+    2Captcha requires that DataDome solves go through the *caller's* proxy so
+    the captcha is solved from the same IP that triggered the challenge — DD
+    invalidates the solve otherwise. `proxy` must be `IP:PORT` or
+    `LOGIN:PASS@IP:PORT`; `proxytype` is one of HTTP / HTTPS / SOCKS4 / SOCKS5.
+
+    Use case: TruePeopleSearch, Legacy.com obituaries, leboncoin.fr.
     """
-    params = {
+    if not proxy:
+        raise CaptchaSolverError(
+            "solve_datadome requires `proxy=IP:PORT` (or LOGIN:PASS@IP:PORT) — "
+            "2Captcha will not solve DataDome without one because DD invalidates "
+            "solves from a different IP than the one that triggered the challenge"
+        )
+    params: dict[str, object] = {
         "key": _require_key(),
         "method": "datadome",
         "captcha_url": captcha_url,
         "pageurl": page_url,
+        "proxy": proxy,
+        "proxytype": proxytype,
         "json": 1,
     }
     if user_agent:
