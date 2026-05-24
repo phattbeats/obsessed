@@ -172,7 +172,7 @@ async function loadProfiles() {
       <h3>${esc(p.name)}</h3>
       <div class="meta">${p.entity_type ? p.entity_type.toUpperCase() : 'PERSON'} • @${esc(p.reddit_handle || p.twitter_handle || '—')}</div>
       <div class="meta">${p.question_count} questions</div>
-      ${p.consent_obtained ? '<span style="color:var(--correct);font-size:12px;font-weight:700">✓ CONSENT</span>' : '<span style="color:var(--wrong);font-size:12px;font-weight:700">⚠ GUEST CONSENT REQUIRED</span>'}
+      ${p.consent_obtained ? '<span class="badge badge--success">✓ Consent</span>' : '<span class="badge badge--danger">⚠ Guest consent required</span>'}
       ${(p.scrape_status === 'pending' || p.scrape_status === 'failed' || p.scrape_status === null) && p.consent_obtained ? `<button id="scrape-btn-${p.id}" class="btn" style="margin-top:0.5rem;font-size:14px;padding:0.5rem;color:var(--accent)" onclick="triggerScrape(${p.id}, event)">Scrape</button>` : ''}
       <span class="status-badge status-${p.scrape_status}">${p.scrape_status}</span>
       ${p.content_quality ? `<span style="font-size:11px;font-weight:700;color:${p.content_quality==='insufficient'?'var(--wrong)':p.content_quality==='limited'?'var(--accent)':p.content_quality==='rich'?'var(--correct)':'var(--text-secondary)'}">${p.content_quality.toUpperCase()} (${p.content_chunks||0} facts)</span>` : ''}
