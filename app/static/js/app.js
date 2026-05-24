@@ -449,13 +449,7 @@ function showResultsWS() {
   fetch(API + `/api/games/${myRoomCode}/scores`).then(async res => {
     if (!res.ok) return;
     const scores = await res.json();
-    const winner = scores[0];
-    document.getElementById('winner-display').textContent = winner ? `🏆 ${esc(winner.player_name)} wins!` : 'No winner';
-    document.getElementById('final-scores').innerHTML = scores.map((s, i) => `
-      <div class="score-row ${i === 0 ? 'top' : ''}">
-        <span>${i+1}. ${esc(s.player_name)}</span>
-        <span class="score-val">${s.score.toLocaleString()}</span>
-      </div>`).join('');
+    renderResults(scores);
   });
 }
 
@@ -466,13 +460,45 @@ async function showResults() {
   const res = await fetch(API + `/api/games/${myRoomCode}/scores`);
   if (!res.ok) return;
   const scores = await res.json();
+  renderResults(scores);
+}
+
+function renderResults(scores) {
   const winner = scores[0];
-  document.getElementById('winner-display').textContent = winner ? `🏆 ${esc(winner.player_name)} wins!` : 'No winner';
+  const logoEl = document.getElementById('winner-bang-logo');
+  if (logoEl) renderBang(logoEl, { variant: 'compact', wordmark: true });
+  document.getElementById('winner-display').textContent = winner
+    ? `${esc(winner.player_name)} wins!  ${winner.score.toLocaleString()} pts`
+    : 'No winner';
   document.getElementById('final-scores').innerHTML = scores.map((s, i) => `
     <div class="score-row ${i === 0 ? 'top' : ''}">
       <span>${i+1}. ${esc(s.player_name)}</span>
       <span class="score-val">${s.score.toLocaleString()}</span>
     </div>`).join('');
+  fireConfetti();
+}
+
+function fireConfetti() {
+  const layer = document.getElementById('confetti-layer');
+  if (!layer) return;
+  layer.innerHTML = '';
+  if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  const COLORS = ['#e94560','#ffeb3b','#00e676','#2979ff','#d500f9','#ff6d00'];
+  const SHAPES = ['2px', '6px', '10px'];
+  for (let i = 0; i < 60; i++) {
+    const p = document.createElement('div');
+    p.className = 'piece';
+    p.style.left = Math.random() * 100 + '%';
+    p.style.background = COLORS[i % COLORS.length];
+    p.style.borderRadius = Math.random() > 0.5 ? '50%' : '2px';
+    const size = SHAPES[Math.floor(Math.random() * SHAPES.length)];
+    p.style.width = size;
+    p.style.height = size;
+    p.style.animationDuration = (1.5 + Math.random() * 2) + 's';
+    p.style.animationDelay = (Math.random() * 1.2) + 's';
+    layer.appendChild(p);
+  }
+  setTimeout(() => { layer.innerHTML = ''; }, 4000);
 }
 
 async function startGamePoll() {

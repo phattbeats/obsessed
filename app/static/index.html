@@ -267,11 +267,15 @@
 
 <!-- RESULTS -->
 <div id="screen-results" class="screens">
+  <div id="confetti-layer" class="confetti-layer" aria-hidden="true"></div>
   <div class="screen-header">
     <button class="back-btn" onclick="showScreen('home')">←</button>
     <h2>Results</h2>
   </div>
-  <div class="winner-display" id="winner-display"></div>
+  <div class="winner-card" id="winner-card">
+    <div id="winner-bang-logo"></div>
+    <div class="winner-display" id="winner-display"></div>
+  </div>
   <div class="final-scores" id="final-scores"></div>
   <button class="btn" onclick="showScreen('home')" style="margin-top: 1rem;">Play Again</button>
 </div>
