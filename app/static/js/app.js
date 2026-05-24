@@ -466,7 +466,9 @@ async function showResults() {
 function renderResults(scores) {
   const winner = scores[0];
   const logoEl = document.getElementById('winner-bang-logo');
-  if (logoEl) renderBang(logoEl, { variant: 'compact', wordmark: true });
+  // PR-8 wants a big celebratory lockup on the winner card — stacked (120px
+  // circle above the wordmark) reads large and pulses, unlike compact.
+  if (logoEl) renderBang(logoEl, { variant: 'stacked', wordmark: true });
   document.getElementById('winner-display').textContent = winner
     ? `${esc(winner.player_name)} wins!  ${winner.score.toLocaleString()} pts`
     : 'No winner';
