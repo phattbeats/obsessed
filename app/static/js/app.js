@@ -480,6 +480,9 @@ async function loadLeaderboard() {
     </div>`).join('');
 }
 
+// ── Boot ─────────────────────────────────────────────────────────────────────
+renderBang(document.getElementById('home-logo'), { variant: 'primary', wordmark: true });
+
 // ── Utilities ────────────────────────────────────────────────────────────────
 function esc(s) {
   if (!s) return '';
