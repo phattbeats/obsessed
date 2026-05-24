@@ -1,10 +1,11 @@
-"""Court docket scraper routes — search-first discovery approach."""
+"""Court docket scraper routes — municipal search-first + Franklin probate adapter."""
 
 from __future__ import annotations
 
 from fastapi import APIRouter, HTTPException, Query
 
 from app.services.scraper.court import scrape_court_docket, search_court_by_number
+from app.services.scraper.probate import search_probate_by_name
 
 router = APIRouter(prefix="/api/court", tags=["court"])
 
@@ -30,3 +31,24 @@ async def get_case_by_number(location: str, case_number: str):
     if result.get("status") == "not found":
         raise HTTPException(status_code=404, detail="Case not found in docket")
     return result
+
+
+@router.get("/probate/search")
+async def search_franklin_probate(
+    last_name: str = Query(..., description="Last name to search (e.g. 'Smith')"),
+    first_name: str = Query("", description="Optional first name (e.g. 'John')"),
+    max_pages: int = Query(2, ge=1, le=5, description="Max result pages to fetch (1 page ≈ 40 rows)"),
+):
+    """
+    Search Franklin County Ohio Probate Court by case name.
+    Returns estate, guardianship, trust, and other probate case rows.
+    No login required — public General Case Search.
+    """
+    rows = await search_probate_by_name(last_name, first_name, max_pages=max_pages)
+    return {
+        "court": "Franklin County Probate",
+        "last_name": last_name,
+        "first_name": first_name,
+        "count": len(rows),
+        "results": rows,
+    }
