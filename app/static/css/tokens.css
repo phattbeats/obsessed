@@ -1,0 +1,124 @@
+/* ════════════════════════════════════════════════════════════════
+   tokens.css — Obsessed! design-system single source of truth
+   PHA-801 Phase 1, PR-1 (per CODING-AGENT-HANDOFF.md §4 + LOGO-DECISION.md).
+
+   Loaded BEFORE style.css. No other file should hard-code color, type,
+   space, radius, shadow, or motion values — reference these tokens.
+
+   Brand = "the Bang" (the ! mark), Rubik 900. The Trivial-Pursuit wedge
+   is dead — there are no pie/slice tokens here.
+   ════════════════════════════════════════════════════════════════ */
+:root {
+  /* ── Color ─────────────────────────────────────────── */
+  --bg: #1a1a2e;
+  --surface: #16213e;
+  --surface-elevated: #0f3460;
+  --border: #e94560;          /* hot pink — the Bang circle + primary */
+  --pink: #e94560;            /* alias, used by component specs */
+  --white: #ffffff;
+  --text-secondary: #b8b8d1;
+  --text-on-light: #1a1a2e;   /* text on white question cards */
+  --correct: #00e676;
+  --wrong: #ff1744;
+  --timer-warn: #ff9100;
+  --timer-crit: #ff3d00;
+  --accent: #ffeb3b;
+
+  /* Category colors — match app/routes/games.py CATEGORY_COLORS */
+  --cat-history: #ff6d00;
+  --cat-entertainment: #d500f9;
+  --cat-geography: #2979ff;
+  --cat-science: #00e676;
+  --cat-sports: #ff1744;
+  --cat-art: #ffea00;          /* key art_literature */
+
+  /* ── Type ──────────────────────────────────────────── */
+  --font-logo: 'Rubik', system-ui, sans-serif;   /* logo + headings + questions (900) */
+  --font-body: 'Nunito', sans-serif;              /* body / prose */
+  --font-mono: 'JetBrains Mono', monospace;       /* room codes, captions, timestamps */
+  /* Transitional: existing style.css still references --font-main (Fredoka).
+     Kept loaded until the PR-4 typography sweep retires it. */
+  --font-main: 'Fredoka One', cursive;
+
+  /* Type scale */
+  --fs-display:  72px;  /* hero / app name */
+  --fs-h1:       48px;  /* room code, winner */
+  --fs-question: 36px;  /* question text (host view scales up) */
+  --fs-h2:       28px;
+  --fs-h3:       24px;
+  --fs-answer:   22px;
+  --fs-body:     16px;
+  --fs-caption:  13px;
+  --fs-micro:    11px;
+
+  /* ── Spacing (base-8) ──────────────────────────────── */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+  --space-7: 48px;
+  --space-8: 64px;
+
+  /* ── Radii ─────────────────────────────────────────── */
+  --radius-sm: 8px;
+  --radius-md: 12px;   /* buttons */
+  --radius-lg: 16px;   /* cards */
+  --radius-xl: 24px;
+  --radius-pill: 999px;
+
+  /* ── Borders ───────────────────────────────────────── */
+  --stroke-thick: 3px;
+  --stroke-bold:  8px;  /* card left-border accent */
+
+  /* ── Elevation ─────────────────────────────────────── */
+  --shadow-card:  0 8px 32px rgba(0, 0, 0, 0.40);
+  --shadow-modal: 0 16px 64px rgba(0, 0, 0, 0.60);
+  --shadow-press: 0 2px 8px  rgba(0, 0, 0, 0.30);
+  --shadow-tile:  0 4px 0 rgba(0, 0, 0, 0.35);  /* chunky answer-tile bottom shadow */
+  --glow-accent:  0 0 24px rgba(233, 69, 96, 0.45);
+
+  /* ── Motion ────────────────────────────────────────── */
+  --ease-out:       cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-overshoot: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --ease-bounce:    cubic-bezier(0.68, -0.55, 0.27, 1.55);
+  --dur-quick:  100ms;
+  --dur-fast:   150ms;
+  --dur-base:   200ms;
+  --dur-slow:   300ms;
+  --dur-reveal: 400ms;
+
+  /* ── The Bang (brand mark) ─────────────────────────── */
+  --bang-circle: var(--pink);     /* pink disc that replaces the O */
+  --bang-mark: #0d0d0d;           /* italic black ! */
+  --bang-pulse-dur: 2.4s;         /* pulsation loop (LOGO-DECISION.md) */
+  --bang-letter-spacing: -0.04em; /* wordmark tracking */
+
+  /* ── Misc ──────────────────────────────────────────── */
+  --focus-ring: 3px solid var(--accent);
+  --dot-grid-color: rgba(255, 255, 255, 0.04);
+  --dot-grid-size: 24px;
+
+  /* ── Z layers ──────────────────────────────────────── */
+  --z-base: 0;
+  --z-card: 10;
+  --z-modal: 100;
+  --z-toast: 200;
+  --z-confetti: 300;
+}
+
+/* ── Reduced motion ──────────────────────────────────────
+   Global safety net. Component PRs (bang pulse, rack pop, confetti,
+   screen shake) still opt in locally, but this guarantees none of it
+   runs for users who asked for no motion. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

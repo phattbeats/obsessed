@@ -1,27 +1,6 @@
-:root {
-  --bg: #1a1a2e;
-  --surface: #16213e;
-  --surface-elevated: #0f3460;
-  --border: #e94560;
-  --white: #ffffff;
-  --text-secondary: #b8b8d1;
-  --correct: #00e676;
-  --wrong: #ff1744;
-  --timer-warn: #ff9100;
-  --timer-crit: #ff3d00;
-  --accent: #ffeb3b;
-
-  --cat-history: #ff6d00;
-  --cat-entertainment: #d500f9;
-  --cat-geography: #2979ff;
-  --cat-science: #00e676;
-  --cat-sports: #ff1744;
-  --cat-art: #ffea00;
-
-  --font-main: 'Fredoka One', cursive;
-  --font-body: 'Nunito', sans-serif;
-  --font-mono: 'JetBrains Mono', monospace;
-}
+/* Design tokens moved to css/tokens.css (PR-1) — the single source of truth.
+   tokens.css is loaded before this file in index.html, so every var() below
+   resolves from there. Do not re-declare :root tokens here. */
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
 
