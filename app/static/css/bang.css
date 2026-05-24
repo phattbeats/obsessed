@@ -1,0 +1,285 @@
+/* ════════════════════════════════════════════════════════════════
+   bang.css — The Bang lockup component
+   PHA-801 Phase 1, PR-2.
+
+   Eight variations lifted verbatim from design/Bang Logo Variations.html.
+   The `!` glyph uses Archivo Black (heavier weight for italic impact);
+   the wordmark uses Rubik 900 via var(--font-logo).
+
+   Rendered by renderBang() in js/components/bang.js — never hard-code
+   these class names in templates. Import this file after tokens.css.
+   ════════════════════════════════════════════════════════════════ */
+
+/* ── Bang pulse keyframe ───────────────────────────────────────── */
+@keyframes bangPulse {
+  0%, 100% {
+    transform: scale(1);
+    box-shadow: 0 4px 0 #8a1e34, 0 8px 24px rgba(233, 69, 96, 0.45);
+  }
+  50% {
+    transform: scale(1.08);
+    box-shadow: 0 4px 0 #8a1e34, 0 10px 40px rgba(233, 69, 96, 0.8);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bang-circle { animation: none !important; }
+}
+
+/* ── Shared bang-circle base ───────────────────────────────────── */
+.bang-circle {
+  background: var(--bang-circle);
+  border-radius: 50%;
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  position: relative;
+  animation: bangPulse var(--bang-pulse-dur) cubic-bezier(0.45, 0, 0.55, 1) infinite;
+}
+.bang-circle b {
+  font-family: 'Archivo Black', system-ui, sans-serif;
+  color: var(--white);
+  line-height: 1;
+  font-style: italic;
+  text-shadow: 0 2px 0 rgba(0, 0, 0, 0.3);
+}
+
+.bang-wordmark {
+  font-family: var(--font-logo);
+  font-weight: 900;
+  letter-spacing: var(--bang-letter-spacing); /* -0.04em */
+  line-height: 0.9;
+}
+.bang-wordmark .ghost-o {
+  display: inline-block;
+  width: 0;
+  opacity: 0;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   VARIATION A — Primary (inline, horizontal)
+   Use: splash, lobby hero, profile header, results title
+   ═══════════════════════════════════════════════════════════════ */
+.bang--primary {
+  display: inline-flex;
+  align-items: center;
+  gap: 0;
+}
+.bang--primary .bang-circle {
+  width: 74px;
+  height: 74px;
+  box-shadow: 0 4px 0 #8a1e34, 0 8px 24px rgba(233, 69, 96, 0.5);
+  z-index: 1;
+}
+.bang--primary .bang-circle b {
+  font-size: 60px;
+  transform: translateY(4px) translateX(2px);
+}
+.bang--primary .bang-wordmark {
+  font-size: 68px;
+  margin-left: -14px;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   VARIATION B — Stacked (circle above wordmark)
+   Use: narrow screens, app store, social profile pics
+   ═══════════════════════════════════════════════════════════════ */
+.bang--stacked {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+}
+.bang--stacked .bang-circle {
+  width: 120px;
+  height: 120px;
+  box-shadow: 0 6px 0 #8a1e34, 0 12px 36px rgba(233, 69, 96, 0.5);
+}
+.bang--stacked .bang-circle b {
+  font-size: 100px;
+  transform: translateY(6px) translateX(4px);
+  text-shadow: 0 3px 0 rgba(0, 0, 0, 0.3);
+}
+.bang--stacked .bang-wordmark {
+  font-size: 56px;
+  letter-spacing: -0.02em;
+  line-height: 1;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   VARIATION C — Icon only (just the bang circle)
+   Use: favicon, app icon, notifications, loading spinner
+   ═══════════════════════════════════════════════════════════════ */
+.bang--icon {
+  width: 160px;
+  height: 160px;
+  box-shadow: 0 8px 0 #8a1e34, 0 16px 48px rgba(233, 69, 96, 0.5);
+  /* .bang-circle class provides background + animation */
+}
+.bang--icon b {
+  font-size: 148px;
+  transform: translateY(8px) translateX(5px);
+  text-shadow: 0 4px 0 rgba(0, 0, 0, 0.3);
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   VARIATION D — Compact (nav/header size)
+   Use: top-nav, player phone header, in-game top bar
+   ═══════════════════════════════════════════════════════════════ */
+.bang--compact {
+  display: inline-flex;
+  align-items: center;
+  gap: 0;
+}
+.bang--compact .bang-circle {
+  width: 40px;
+  height: 40px;
+  box-shadow: 0 2px 0 #8a1e34, 0 4px 12px rgba(233, 69, 96, 0.5);
+  z-index: 1;
+  /* compact variant intentionally has no pulse — nav item */
+  animation: none;
+}
+.bang--compact .bang-circle b {
+  font-size: 33px;
+  transform: translateY(2px) translateX(1px);
+  text-shadow: 0 1px 0 rgba(0, 0, 0, 0.3);
+}
+.bang--compact .bang-wordmark {
+  font-size: 36px;
+  margin-left: -8px;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   VARIATION E — Wide with tagline
+   Use: landing pages, press kit, pitch decks, email footers
+   ═══════════════════════════════════════════════════════════════ */
+.bang--wide {
+  display: inline-flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.bang--wide .bang-main {
+  display: inline-flex;
+  align-items: center;
+  gap: 0;
+}
+.bang--wide .bang-circle {
+  width: 74px;
+  height: 74px;
+  box-shadow: 0 4px 0 #8a1e34, 0 8px 24px rgba(233, 69, 96, 0.5);
+  z-index: 1;
+}
+.bang--wide .bang-circle b {
+  font-size: 60px;
+  transform: translateY(4px) translateX(2px);
+}
+.bang--wide .bang-wordmark {
+  font-size: 68px;
+  margin-left: -14px;
+}
+.bang--wide .bang-tagline {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+  margin-left: 62px;
+}
+.bang--wide .bang-tagline b {
+  color: var(--accent);
+  font-weight: 700;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   VARIATION F — Square (centered, with tagline)
+   Use: Instagram, Twitter cards, loading splash, printed invites
+   ═══════════════════════════════════════════════════════════════ */
+.bang--square {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  text-align: center;
+}
+.bang--square .bang-main {
+  display: inline-flex;
+  align-items: center;
+  gap: 0;
+}
+.bang--square .bang-circle {
+  width: 74px;
+  height: 74px;
+  box-shadow: 0 4px 0 #8a1e34, 0 8px 24px rgba(233, 69, 96, 0.5);
+  z-index: 1;
+}
+.bang--square .bang-circle b {
+  font-size: 60px;
+  transform: translateY(4px) translateX(2px);
+}
+.bang--square .bang-wordmark {
+  font-size: 68px;
+  margin-left: -14px;
+}
+.bang--square .bang-tagline {
+  font-family: var(--font-body);
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  max-width: 24ch;
+  line-height: 1.4;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   VARIATION G — Mini badge (inline in prose/card)
+   Use: "Powered by OBSESSED", email footers, blog posts
+   ═══════════════════════════════════════════════════════════════ */
+.bang--badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--surface);
+  padding: 8px 16px 8px 8px;
+  border-radius: var(--radius-pill);
+  border: 2px solid var(--surface-elevated);
+}
+.bang--badge .bang-circle {
+  width: 32px;
+  height: 32px;
+  box-shadow: 0 2px 0 #8a1e34, 0 3px 8px rgba(233, 69, 96, 0.5);
+  animation: none; /* badge never pulses */
+}
+.bang--badge .bang-circle b {
+  font-size: 27px;
+  transform: translateY(1px) translateX(1px);
+  text-shadow: 0 1px 0 rgba(0, 0, 0, 0.3);
+}
+.bang--badge .bang-wordmark {
+  font-size: 20px;
+  letter-spacing: -0.02em;
+  line-height: 1;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   VARIATION H — Hero (TV / landing page scale)
+   Use: host TV lobby, landing hero, winner overlay, signage
+   ═══════════════════════════════════════════════════════════════ */
+.bang--hero {
+  display: inline-flex;
+  align-items: center;
+  gap: 0;
+}
+.bang--hero .bang-circle {
+  width: 140px;
+  height: 140px;
+  box-shadow: 0 8px 0 #8a1e34, 0 16px 48px rgba(233, 69, 96, 0.5);
+  z-index: 1;
+}
+.bang--hero .bang-circle b {
+  font-size: 132px;
+  transform: translateY(7px) translateX(5px);
+  text-shadow: 0 4px 0 rgba(0, 0, 0, 0.3);
+}
+.bang--hero .bang-wordmark {
+  font-size: 128px;
+  margin-left: -26px;
+}
