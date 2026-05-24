@@ -7,6 +7,7 @@ let myProfileName = '';
 let myProfileType = 'person';
 let myRoomCode = null;
 let selectedThings = [];  // [{profile_id, num_questions}]
+let bangRack = null;
 let pollInterval = null;
 let timerInterval = null;
 let timerSeconds = 30;
@@ -88,6 +89,9 @@ function showScreen(name) {
     startLobbyPoll(); // fallback polling — can be reduced or removed once WS is stable
   }
   if (name === 'game') {
+    bangRack = BangRack.attach(document.getElementById('bang-rack'), {
+      categories: ['history', 'entertainment', 'geography', 'science', 'sports', 'art_literature'],
+    });
     if (myRoomCode) connectWS(myRoomCode);
     startGamePoll();
   }
@@ -393,6 +397,9 @@ function showAnswerResultWS(msg) {
     else if (b.textContent === msg.answer_text && !msg.is_correct) b.classList.add('wrong');
     b.disabled = true;
   });
+  if (msg.is_correct && msg.category && bangRack) {
+    bangRack.fill(msg.category, { burst: true });
+  }
   toast(msg.is_correct ? `+${msg.points_earned} pts!` : 'Wrong!');
 }
 
@@ -414,9 +421,12 @@ async function submitAnswer(btn, answer) {
       else if (b === btn && !result.is_correct) b.classList.add('wrong');
       b.disabled = true;
     });
+    if (result.is_correct && result.category && bangRack) {
+      bangRack.fill(result.category, { burst: true });
+    }
     toast(result.is_correct ? `+${result.points_earned} pts!` : 'Wrong!');
   }
-  
+
   setTimeout(async () => {
     await fetch(API + `/api/games/${myRoomCode}/next`, { method: 'POST' });
     const nextRes = await fetch(API + `/api/games/${myRoomCode}/question`);

@@ -332,26 +332,6 @@ body {
 .score-row.top { background: var(--surface-elevated); border: 2px solid var(--accent); }
 .score-row .score-val { font-family: var(--font-mono); color: var(--accent); }
 
-/* ── Wedge board ─────────────────────────────────── */
-.wedge-board {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  grid-template-rows: repeat(2, 1fr);
-  gap: 0.5rem;
-  width: 120px;
-}
-.wedge-slot {
-  width: 36px;
-  height: 36px;
-  border-radius: 50%;
-  border: 3px solid;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 10px;
-}
-.wedge-slot.filled { color: var(--bg); font-weight: bold; }
-
 /* ── Spinner / Loading ───────────────────────────── */
 .spinner {
   width: 40px;
