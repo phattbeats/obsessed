@@ -7,16 +7,18 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <!-- Rubik 900 = logo/headings/questions, Nunito = body, JetBrains Mono = captions/codes.
-       Fredoka One kept transitionally until the PR-4 typography sweep removes its usage. -->
-  <link href="https://fonts.googleapis.com/css2?family=Fredoka+One&family=Rubik:wght@400;600;700;800;900&family=Nunito:wght@400;700;800;900&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+       Archivo Black = the italic ! glyph inside the Bang circle. -->
+  <link href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=Rubik:wght@400;600;700;800;900&family=Nunito:wght@400;700;800;900&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/static/css/tokens.css">
+  <link rel="stylesheet" href="/static/css/bang.css">
+  <link rel="stylesheet" href="/static/css/bang-rack.css">
   <link rel="stylesheet" href="/static/css/style.css">
 </head>
 <body>
 <!-- THINGS BUILDER MODAL -->
 <div id="things-modal" style="display:none;position:fixed;inset:0;z-index:100;background:rgba(0,0,0,0.85);align-items:center;justify-content:center">
   <div style="background:var(--surface-elevated);border:2px solid var(--accent);border-radius:8px;padding:2rem;max-width:500px;width:90%;max-height:80vh;overflow-y:auto">
-    <h2 style="color:var(--white);margin:0 0 1rem;font-family:var(--font-heading)">Build Your Game</h2>
+    <h2 style="color:var(--white);margin:0 0 1rem;font-family:var(--font-logo);font-weight:900">Build Your Game</h2>
     <p style="color:var(--text-secondary);font-size:14px;margin:0 0 1.5rem">Select up to 10 profiles for this game.</p>
     <div id="things-list" style="margin-bottom:1.5rem"></div>
     <div style="display:flex;gap:1rem">
@@ -30,8 +32,8 @@
 
 <!-- HOME -->
 <div id="screen-home" class="screens active">
-  <div class="app-title">OBSESSED</div>
-  <p class="app-tagline">The trivia game that knows your friends better than you do</p>
+  <div id="home-logo"></div>
+  <p class="app-tagline">the hyper-personal trivia game</p>
   <div class="action-grid">
     <button class="btn primary" onclick="showScreen('profile')">New Game</button>
     <button class="btn" onclick="showScreen('history')">History</button>
@@ -253,21 +255,27 @@
 <!-- GAME PLAY -->
 <div id="screen-game" class="screens">
   <div id="profile-context" style="font-size:14px;color:var(--accent);text-align:center;margin-bottom:0.5rem;"></div>
-  <div id="wedge-board" class="wedge-board" style="margin-bottom: 1rem;"></div>
+  <div id="bang-rack" style="margin-bottom: 1rem;"></div>
   <div id="category-badge" class="category-badge">HISTORY</div>
   <div id="question-progress">Question 1 / 50</div>
+  <div id="question-card" class="question-card">
+    <div id="question-text"></div>
+  </div>
   <div id="timer-bar" class="timer-bar"><div id="timer-fill"></div></div>
-  <div id="question-text" class="question-text"></div>
   <div id="answer-grid" class="answer-grid"></div>
 </div>
 
 <!-- RESULTS -->
 <div id="screen-results" class="screens">
+  <div id="confetti-layer" class="confetti-layer" aria-hidden="true"></div>
   <div class="screen-header">
     <button class="back-btn" onclick="showScreen('home')">←</button>
     <h2>Results</h2>
   </div>
-  <div class="winner-display" id="winner-display"></div>
+  <div class="winner-card" id="winner-card">
+    <div id="winner-bang-logo"></div>
+    <div class="winner-display" id="winner-display"></div>
+  </div>
   <div class="final-scores" id="final-scores"></div>
   <button class="btn" onclick="showScreen('home')" style="margin-top: 1rem;">Play Again</button>
 </div>
@@ -295,6 +303,8 @@
 <!-- TOAST -->
 <div id="toast"></div>
 
+<script src="/static/js/components/bang.js"></script>
+<script src="/static/js/components/bang-rack.js"></script>
 <script src="/static/js/app.js"></script>
 <script>
 loadProfiles();
