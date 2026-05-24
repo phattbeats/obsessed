@@ -341,6 +341,8 @@ function renderQuestionWS(q) {
   const badge = document.getElementById('category-badge');
   badge.textContent = q.category.replace('_', ' ').toUpperCase();
   badge.style.background = q.category_color;
+  const gameScreen = document.getElementById('screen-game');
+  gameScreen.style.setProperty('--q-cat-color', q.category_color);
   const grid = document.getElementById('answer-grid');
   grid.innerHTML = (q.options || []).map(opt => `
     <button class="answer-btn" onclick="submitAnswer(this, '${esc(opt)}')">${esc(opt)}</button>`).join('');
@@ -369,6 +371,7 @@ function renderQuestion(q) {
   const badge = document.getElementById('category-badge');
   badge.textContent = q.category.replace('_', ' ').toUpperCase();
   badge.style.background = q.category_color;
+  document.getElementById('screen-game').style.setProperty('--q-cat-color', q.category_color);
   const grid = document.getElementById('answer-grid');
   grid.innerHTML = q.options.map(opt => `
     <button class="answer-btn" onclick="submitAnswer(this, '${esc(opt)}')">${esc(opt)}</button>`).join('');
