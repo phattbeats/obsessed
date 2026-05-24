@@ -1,0 +1,1626 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Obsessed v8 — Logo Rethink</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fredoka+One&family=JetBrains+Mono:wght@500;700&family=Nunito:wght@400;700;800;900&family=Special+Elite&family=Archivo+Black:wght@400&family=Caveat:wght@600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    /* tokens carried from the production system */
+    --bg:           #1a1a2e;
+    --bg-deep:      #0d0d1c;
+    --surface:      #16213e;
+    --surface-2:    #0f3460;
+    --pink:         #e94560;
+    --white:        #ffffff;
+    --muted:        #b8b8d1;
+    --dim:          #6a6a85;
+    --accent:       #ffeb3b;
+
+    --cat-history:       #ff6d00;
+    --cat-entertainment: #d500f9;
+    --cat-geography:     #2979ff;
+    --cat-science:       #00e676;
+    --cat-sports:        #ff1744;
+    --cat-art:           #ffea00;
+
+    /* dossier palette */
+    --paper:        #f0e6d0;
+    --paper-dark:   #d9c9a3;
+    --paper-shadow: #b3a37a;
+    --ink-red:      #b6232a;
+    --ink-blue:     #1f3f6b;
+    --ink-black:    #1a1812;
+
+    /* cork board */
+    --cork:         #b07c4a;
+    --cork-dark:    #7d5430;
+    --string:       #c41e1e;
+
+    --font-main:  'Fredoka One', system-ui, sans-serif;
+    --font-body:  'Nunito', system-ui, sans-serif;
+    --font-mono:  'JetBrains Mono', ui-monospace, monospace;
+    --font-stamp: 'Special Elite', monospace;
+    --font-hand:  'Caveat', cursive;
+    --font-black: 'Archivo Black', system-ui, sans-serif;
+    --font-logo:  'Archivo Black', system-ui, sans-serif;
+
+    --dot-grid: radial-gradient(rgba(184,184,209,0.10) 1.2px, transparent 1.2px);
+  }
+
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; background: var(--bg); color: var(--white);
+    font-family: var(--font-body);
+    background-image: var(--dot-grid);
+    background-size: 24px 24px;
+    min-height: 100vh;
+  }
+
+  .page { max-width: 1320px; margin: 0 auto; padding: 56px 40px 120px; }
+
+  /* ── header ───────────────────────────────────────────────────────── */
+  .hd {
+    border-bottom: 3px solid var(--surface-2);
+    padding-bottom: 24px;
+    margin-bottom: 48px;
+    display: flex; align-items: end; justify-content: space-between; gap: 32px; flex-wrap: wrap;
+  }
+  .hd__title { font-family: var(--font-main); font-size: 56px; line-height: 1; }
+  .hd__title em { font-style: normal; color: var(--pink); }
+  .hd__meta {
+    font-family: var(--font-mono); font-size: 13px; color: var(--muted); text-align: right;
+    text-transform: uppercase; letter-spacing: 0.14em;
+  }
+  .hd__meta b { color: var(--accent); font-weight: 700; }
+
+  /* ── section ──────────────────────────────────────────────────────── */
+  section + section { margin-top: 80px; }
+  .sec__eyebrow {
+    font-family: var(--font-mono); font-size: 13px; color: var(--pink);
+    text-transform: uppercase; letter-spacing: 0.18em; margin-bottom: 12px;
+  }
+  .sec__h {
+    font-family: var(--font-main); font-size: 40px; line-height: 1.05; margin: 0 0 8px;
+  }
+  .sec__lede {
+    font-size: 17px; color: var(--muted); max-width: 70ch; margin: 0 0 36px; line-height: 1.55;
+  }
+  .sec__lede b { color: var(--white); font-weight: 800; }
+
+  /* ── diagnostic panel ─────────────────────────────────────────────── */
+  .diag {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 24px;
+    background: var(--surface); border: 3px solid var(--surface-2);
+    border-radius: 16px; padding: 32px;
+  }
+  .diag__col { display: flex; flex-direction: column; align-items: center; gap: 16px; }
+  .diag__label {
+    font-family: var(--font-mono); font-size: 12px; letter-spacing: 0.16em;
+    text-transform: uppercase; color: var(--muted);
+  }
+  .diag__label.bad { color: var(--cat-sports); }
+  .diag__caption { font-size: 14px; color: var(--muted); text-align: center; max-width: 36ch; line-height: 1.5; }
+
+  /* The current Obsessed wedge — exactly as it ships */
+  .currentWedge { width: 200px; height: 200px; display: block; }
+  .currentWedge .slice { stroke: var(--white); stroke-width: 6; stroke-linejoin: round; }
+  /* Trivial Pursuit-style pie (generic stand-in — same geometry, different colors) */
+  .tpPie { width: 200px; height: 200px; display: block; }
+  .tpPie .slice { stroke: #f4f0e6; stroke-width: 6; stroke-linejoin: round; }
+  .diag__verdict {
+    grid-column: 1 / -1;
+    margin-top: 12px;
+    background: var(--bg-deep);
+    border-left: 6px solid var(--pink);
+    padding: 16px 20px;
+    border-radius: 8px;
+    font-size: 15px;
+    color: var(--muted);
+    line-height: 1.55;
+  }
+  .diag__verdict b { color: var(--white); font-weight: 800; }
+  .diag__verdict code {
+    font-family: var(--font-mono); font-size: 13px; background: rgba(255,235,59,0.12);
+    color: var(--accent); padding: 2px 6px; border-radius: 4px;
+  }
+
+  /* ── direction card (shell shared by all 5) ───────────────────────── */
+  .dir {
+    background: var(--surface); border: 3px solid var(--surface-2);
+    border-radius: 20px; padding: 0; overflow: hidden; margin-bottom: 40px;
+  }
+  .dir__head {
+    padding: 28px 32px 24px;
+    border-bottom: 3px solid var(--surface-2);
+    display: grid; grid-template-columns: auto 1fr auto; gap: 24px; align-items: center;
+  }
+  .dir__num {
+    font-family: var(--font-mono); font-size: 13px; color: var(--dim);
+    letter-spacing: 0.16em; text-transform: uppercase;
+    padding: 6px 10px; border: 1px solid var(--surface-2); border-radius: 999px;
+  }
+  .dir__name { font-family: var(--font-main); font-size: 28px; line-height: 1.1; margin: 0; }
+  .dir__name em { font-style: normal; color: var(--accent); }
+  .dir__thesis {
+    font-size: 14px; color: var(--muted); max-width: 56ch; margin: 4px 0 0; line-height: 1.5;
+  }
+  .dir__pick {
+    font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.18em; text-transform: uppercase;
+    color: var(--bg-deep); background: var(--accent); padding: 6px 10px; border-radius: 6px;
+    font-weight: 700;
+  }
+  .dir__pick.subtle { color: var(--muted); background: transparent; border: 1px solid var(--surface-2); }
+
+  .dir__body { display: grid; grid-template-columns: 1.05fr 1fr; gap: 0; }
+  .dir__cell { padding: 28px 32px; border-right: 1px solid var(--surface-2); }
+  .dir__cell:last-child { border-right: 0; }
+  .dir__cell + .dir__cell { border-top: 0; }
+  @media (max-width: 980px) { .dir__body { grid-template-columns: 1fr; } .dir__cell { border-right: 0; border-bottom: 1px solid var(--surface-2); } }
+
+  .cell__label {
+    font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.16em; text-transform: uppercase;
+    color: var(--dim); margin-bottom: 14px; display: flex; gap: 8px; align-items: center;
+  }
+  .cell__label::before {
+    content: ""; width: 8px; height: 8px; background: var(--pink); border-radius: 999px; flex: none;
+  }
+  .cell__note { font-size: 13px; color: var(--muted); line-height: 1.55; margin: 14px 0 0; }
+  .cell__note code { font-family: var(--font-mono); font-size: 12px; color: var(--accent); }
+
+  /* ── tiny "favicon ladder" common to every direction ──────────────── */
+  .faviconRow { display: flex; align-items: end; gap: 14px; margin-top: 14px; }
+  .faviconRow > div { display: flex; flex-direction: column; align-items: center; gap: 6px; }
+  .faviconRow span { font-family: var(--font-mono); font-size: 10px; color: var(--dim); }
+  .fvBox {
+    display: grid; place-items: center;
+    border: 1px solid var(--surface-2); border-radius: 6px;
+    background: var(--bg-deep);
+  }
+
+  /* ── shared scoring rail row (label + 6 slots) ─────────────────────── */
+  .scoreRow {
+    display: grid; grid-template-columns: 110px 1fr; gap: 18px; align-items: center;
+    padding: 12px 0;
+  }
+  .scoreRow__label {
+    font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.16em;
+    text-transform: uppercase; color: var(--muted);
+  }
+  .scoreRow__label b { color: var(--white); font-weight: 700; display: block; }
+
+  /* ═══════════════════════════════════════════════════════════════════
+     DIRECTION 1 — DOSSIER / RUBBER STAMPS
+     ═══════════════════════════════════════════════════════════════════ */
+  .d1__bg {
+    background:
+      repeating-linear-gradient(0deg, transparent 0 36px, rgba(0,0,0,0.04) 36px 37px),
+      linear-gradient(180deg, var(--paper) 0%, var(--paper-dark) 100%);
+    color: var(--ink-black);
+    border-radius: 12px;
+    padding: 32px 28px;
+    position: relative;
+    overflow: hidden;
+    box-shadow: inset 0 0 80px rgba(80,60,20,0.18), 0 8px 24px rgba(0,0,0,0.35);
+  }
+  .d1__bg::before {
+    content: ""; position: absolute; inset: 0;
+    background:
+      radial-gradient(circle at 8% 4%, rgba(0,0,0,0.18), transparent 30%),
+      radial-gradient(circle at 92% 96%, rgba(0,0,0,0.14), transparent 30%);
+    pointer-events: none;
+  }
+  .d1__tab {
+    position: absolute; top: -2px; left: 28px;
+    background: var(--paper-dark); color: var(--ink-black);
+    padding: 6px 18px 8px; border-radius: 0 0 6px 6px;
+    font-family: var(--font-stamp); font-size: 12px; letter-spacing: 0.18em;
+  }
+  .d1__lockup {
+    display: flex; align-items: center; gap: 12px;
+    margin: 24px 0 12px;
+  }
+  .d1__stampWord {
+    font-family: var(--font-black);
+    font-size: 64px; letter-spacing: -0.02em; line-height: 0.9;
+    color: var(--ink-red);
+    transform: rotate(-2deg);
+    position: relative;
+    text-shadow:
+      1px 0 0 var(--ink-red), -1px 0 0 var(--ink-red),
+      0 1px 0 var(--ink-red);
+  }
+  /* stamp ink-bleed effect */
+  .d1__stampWord::after {
+    content: ""; position: absolute; inset: -6px -10px;
+    background:
+      radial-gradient(circle at 20% 30%, transparent 40%, transparent 41%),
+      radial-gradient(circle at 70% 70%, rgba(182,35,42,0.0) 30%, transparent 31%);
+    mix-blend-mode: multiply; pointer-events: none;
+  }
+  .d1__stampWord em {
+    font-style: normal;
+    display: inline-block;
+    transform: translateY(-4px) rotate(8deg);
+    color: var(--ink-red);
+    font-size: 72px;
+  }
+  .d1__sub {
+    font-family: var(--font-stamp); font-size: 13px; letter-spacing: 0.18em;
+    color: var(--ink-black); opacity: 0.7;
+    margin-top: 6px;
+    border-top: 1px solid rgba(26,24,18,0.4); padding-top: 6px;
+    max-width: 26ch;
+  }
+  .d1__redact {
+    background: var(--ink-black); color: var(--ink-black);
+    display: inline-block; padding: 0 6px; user-select: none;
+  }
+  .d1__caseno {
+    position: absolute; top: 16px; right: 24px;
+    font-family: var(--font-stamp); font-size: 11px; letter-spacing: 0.12em;
+    color: var(--ink-black); opacity: 0.7; text-align: right;
+  }
+
+  /* favicon variants — just the ! stamp */
+  .d1__fav {
+    background: var(--paper);
+    display: grid; place-items: center;
+    width: 100%; height: 100%;
+  }
+  .d1__fav b {
+    font-family: var(--font-black); color: var(--ink-red);
+    transform: rotate(-6deg); display: block; line-height: 1;
+  }
+
+  /* the 6-stamp scoring rack */
+  .d1__rack {
+    display: grid; grid-template-columns: repeat(6, 1fr); gap: 10px;
+    background: var(--paper);
+    padding: 18px 16px; border-radius: 8px;
+    box-shadow: inset 0 0 0 1px rgba(26,24,18,0.15), 0 6px 18px rgba(0,0,0,0.3);
+    position: relative;
+  }
+  .d1__rack::before {
+    content: "EVIDENCE LOG · 6 CATEGORIES";
+    position: absolute; top: -8px; left: 14px; background: var(--paper);
+    padding: 0 6px;
+    font-family: var(--font-stamp); font-size: 10px; letter-spacing: 0.18em;
+    color: var(--ink-black); opacity: 0.6;
+  }
+  .stampSlot {
+    aspect-ratio: 1; border: 1.5px dashed rgba(26,24,18,0.35);
+    border-radius: 4px; display: grid; place-items: center;
+    font-family: var(--font-stamp); font-size: 9px;
+    letter-spacing: 0.1em; color: var(--ink-black); opacity: 0.5;
+    position: relative;
+    background: transparent;
+  }
+  .stampSlot.filled {
+    border-style: solid; border-color: currentColor; opacity: 1;
+    color: var(--ink-red);
+  }
+  .stampSlot.filled::before {
+    content: ""; position: absolute; inset: 4px;
+    border: 3px solid currentColor; border-radius: 50%;
+    transform: rotate(-6deg);
+    box-shadow: inset 0 0 0 1px currentColor;
+  }
+  .stampSlot.filled::after {
+    content: attr(data-stamp);
+    font-family: var(--font-stamp); font-size: 10px;
+    letter-spacing: 0.08em; transform: rotate(-6deg);
+    z-index: 1; font-weight: 700;
+    color: currentColor;
+    text-align: center; line-height: 1;
+  }
+  .stampSlot.c-his { color: #c4671c; }
+  .stampSlot.c-ent { color: #a01a9c; }
+  .stampSlot.c-geo { color: #1d5bb3; }
+  .stampSlot.c-sci { color: #117a3f; }
+  .stampSlot.c-spo { color: #b1212e; }
+  .stampSlot.c-art { color: #a9941a; }
+
+  /* in-context mini player screen with case-file vibe */
+  .d1__phone {
+    background: var(--paper);
+    border-radius: 28px;
+    padding: 18px 16px;
+    color: var(--ink-black);
+    width: 280px;
+    margin: 0 auto;
+    box-shadow: 0 8px 30px rgba(0,0,0,0.4);
+    font-family: var(--font-body);
+    position: relative;
+  }
+  .d1__phone::before {
+    content: ""; position: absolute; top: 8px; left: 50%; transform: translateX(-50%);
+    width: 60px; height: 6px; background: rgba(26,24,18,0.2); border-radius: 4px;
+  }
+  .d1__phoneHead {
+    display: flex; justify-content: space-between; align-items: center;
+    margin: 16px 0 14px;
+    font-family: var(--font-stamp); font-size: 10px; letter-spacing: 0.14em;
+  }
+  .d1__phoneHead b { font-family: var(--font-black); color: var(--ink-red); font-size: 13px; letter-spacing: 0; }
+  .d1__phoneRack {
+    display: grid; grid-template-columns: repeat(6, 1fr); gap: 5px;
+    margin-bottom: 14px;
+  }
+  .d1__phoneRack .stampSlot {
+    font-size: 7px;
+  }
+  .d1__phoneRack .stampSlot.filled::after { font-size: 7px; }
+  .d1__qcard {
+    background: var(--white); border: 2px solid var(--ink-black);
+    padding: 14px; border-radius: 4px;
+    font-family: var(--font-stamp); font-size: 13px; line-height: 1.4;
+    box-shadow: 4px 4px 0 var(--ink-red);
+  }
+  .d1__qcard .catTag {
+    display: inline-block; padding: 2px 8px;
+    border: 1.5px solid var(--ink-red); color: var(--ink-red);
+    font-size: 9px; letter-spacing: 0.18em;
+    transform: rotate(-3deg); margin-bottom: 8px;
+  }
+
+  /* ═══════════════════════════════════════════════════════════════════
+     DIRECTION 2 — CORK BOARD / PUSHPIN
+     ═══════════════════════════════════════════════════════════════════ */
+  .d2__bg {
+    background:
+      radial-gradient(circle at 20% 30%, rgba(255,255,255,0.04) 1px, transparent 2px),
+      radial-gradient(circle at 70% 60%, rgba(0,0,0,0.06) 1px, transparent 2px),
+      radial-gradient(circle at 40% 80%, rgba(255,255,255,0.03) 1px, transparent 2px),
+      linear-gradient(160deg, var(--cork) 0%, var(--cork-dark) 100%);
+    background-size: 18px 18px, 22px 22px, 26px 26px, 100% 100%;
+    border-radius: 14px;
+    padding: 36px 32px 40px;
+    position: relative;
+    color: var(--white);
+    box-shadow: 0 10px 30px rgba(0,0,0,0.45), inset 0 0 100px rgba(0,0,0,0.25);
+    overflow: hidden;
+  }
+  .d2__lockup {
+    display: flex; align-items: center; gap: 14px;
+    background: #f8efd6; color: var(--ink-black);
+    padding: 18px 24px 18px 28px;
+    border-radius: 4px;
+    box-shadow:
+      4px 4px 0 rgba(0,0,0,0.18),
+      inset 0 0 0 1px rgba(0,0,0,0.06);
+    position: relative;
+    width: fit-content;
+    transform: rotate(-1.2deg);
+  }
+  .d2__lockup::before {
+    /* pushpin glyph at top-left of the card */
+    content: ""; position: absolute; top: -10px; left: 18px;
+    width: 22px; height: 22px; border-radius: 50%;
+    background: radial-gradient(circle at 30% 30%, #ff7676, #c41e1e 70%);
+    box-shadow: 0 4px 6px rgba(0,0,0,0.4), inset -2px -2px 4px rgba(0,0,0,0.3);
+  }
+  .d2__lockup::after {
+    content: ""; position: absolute; top: 4px; left: 27px;
+    width: 4px; height: 14px; background: rgba(0,0,0,0.5); border-radius: 1px;
+    transform: skewX(-12deg);
+  }
+  .d2__wordmark {
+    font-family: var(--font-main); font-size: 56px; line-height: 0.95; color: var(--ink-black);
+  }
+  .d2__wordmark .pinO {
+    position: relative; display: inline-block;
+  }
+  .d2__wordmark .pinO::before {
+    content: ""; position: absolute; top: -6px; left: 50%; transform: translateX(-50%);
+    width: 14px; height: 14px; border-radius: 50%;
+    background: radial-gradient(circle at 30% 30%, #ff7676, #c41e1e 65%);
+    box-shadow: 0 2px 3px rgba(0,0,0,0.4);
+    z-index: 2;
+  }
+  .d2__sub {
+    font-family: var(--font-hand); font-size: 22px; color: var(--ink-red);
+    margin-top: 4px;
+  }
+
+  .d2__fav {
+    width: 100%; height: 100%;
+    background: var(--cork); display: grid; place-items: center;
+  }
+  .d2__fav b {
+    width: 60%; aspect-ratio: 1; border-radius: 50%;
+    background: radial-gradient(circle at 30% 30%, #ff7676, #c41e1e 70%);
+    box-shadow: 0 2px 3px rgba(0,0,0,0.5);
+  }
+
+  /* the pinned-cards scoring rack */
+  .d2__rack {
+    display: grid; grid-template-columns: repeat(6, 1fr); gap: 16px;
+    margin-top: 24px;
+  }
+  .pinCard {
+    background: #fdf8e8; aspect-ratio: 0.78;
+    border-radius: 2px;
+    box-shadow: 3px 3px 6px rgba(0,0,0,0.35), inset 0 0 0 1px rgba(0,0,0,0.06);
+    transform: rotate(-2deg);
+    display: flex; flex-direction: column; justify-content: space-between;
+    padding: 8px 6px 6px;
+    position: relative;
+    color: var(--ink-black);
+  }
+  .pinCard:nth-child(even) { transform: rotate(1.5deg); }
+  .pinCard:nth-child(3n)   { transform: rotate(-0.5deg); }
+  .pinCard::before {
+    content: ""; position: absolute; top: -6px; left: 50%; transform: translateX(-50%);
+    width: 12px; height: 12px; border-radius: 50%;
+    background: radial-gradient(circle at 30% 30%, #ff7676, #c41e1e 70%);
+    box-shadow: 0 2px 3px rgba(0,0,0,0.5);
+    z-index: 2;
+  }
+  .pinCard.empty {
+    background: rgba(0,0,0,0.18); box-shadow: inset 0 0 0 1.5px rgba(255,255,255,0.18);
+    border: 1.5px dashed rgba(255,255,255,0.3);
+    color: rgba(255,255,255,0.5);
+    transform: rotate(-1deg) !important;
+  }
+  .pinCard.empty::before {
+    background: rgba(0,0,0,0.3); box-shadow: none;
+  }
+  .pinCard__photo {
+    background: var(--cat); height: 60%; border-radius: 1px;
+    background-image: linear-gradient(135deg, var(--cat) 0%, color-mix(in oklab, var(--cat) 70%, #000) 100%);
+  }
+  .pinCard.empty .pinCard__photo {
+    background: repeating-linear-gradient(45deg, rgba(255,255,255,0.06) 0 6px, transparent 6px 12px);
+  }
+  .pinCard__cap {
+    font-family: var(--font-hand); font-size: 13px;
+    text-align: center; padding-top: 4px; line-height: 1;
+  }
+  .pinCard.empty .pinCard__cap { font-family: var(--font-mono); font-size: 8px; letter-spacing: 0.1em; }
+
+  /* in-context — cork board around the question */
+  .d2__phoneWrap {
+    position: relative;
+    padding: 30px 20px;
+    background: linear-gradient(160deg, var(--cork), var(--cork-dark));
+    background-image:
+      radial-gradient(circle at 30% 20%, rgba(255,255,255,0.05) 1px, transparent 2px),
+      radial-gradient(circle at 70% 80%, rgba(0,0,0,0.07) 1px, transparent 2px),
+      linear-gradient(160deg, var(--cork), var(--cork-dark));
+    background-size: 18px 18px, 22px 22px, 100% 100%;
+    border-radius: 14px;
+    box-shadow: inset 0 0 60px rgba(0,0,0,0.3);
+  }
+  .d2__phone {
+    background: #fdf8e8; color: var(--ink-black); border-radius: 4px;
+    padding: 16px 14px; width: 240px; margin: 0 auto;
+    box-shadow: 4px 4px 8px rgba(0,0,0,0.4);
+    transform: rotate(-1deg);
+    font-family: var(--font-hand);
+    position: relative;
+  }
+  .d2__phone::before {
+    content: ""; position: absolute; top: -7px; left: 50%; transform: translateX(-50%);
+    width: 14px; height: 14px; border-radius: 50%;
+    background: radial-gradient(circle at 30% 30%, #ff7676, #c41e1e 70%);
+    box-shadow: 0 2px 3px rgba(0,0,0,0.5);
+  }
+  .d2__phoneHead {
+    display: flex; justify-content: space-between; align-items: center;
+    font-family: var(--font-mono); font-size: 10px; color: #666;
+    margin-bottom: 8px;
+  }
+  .d2__catTag {
+    font-family: var(--font-mono); font-size: 9px; letter-spacing: 0.16em;
+    padding: 2px 8px; background: var(--cat-entertainment); color: var(--white);
+    display: inline-block; margin-bottom: 8px;
+  }
+  .d2__qtext { font-size: 20px; line-height: 1.15; color: var(--ink-black); font-weight: 700; }
+  .d2__phoneMini { display: flex; gap: 4px; margin-top: 10px; }
+  .d2__phoneMini b {
+    flex: 1; aspect-ratio: 0.7; background: var(--c, rgba(0,0,0,0.15));
+    border-radius: 1px; position: relative;
+  }
+  .d2__phoneMini b.empty {
+    background: transparent; border: 1.5px dashed rgba(0,0,0,0.25);
+  }
+
+  /* ═══════════════════════════════════════════════════════════════════
+     DIRECTION 3 — HIGHLIGHTER / MARGINALIA
+     ═══════════════════════════════════════════════════════════════════ */
+  .d3__bg {
+    background: #f6f4ed;
+    color: var(--ink-black);
+    border-radius: 12px;
+    padding: 36px 36px 40px;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.35);
+    position: relative;
+    background-image:
+      repeating-linear-gradient(0deg, transparent 0 30px, rgba(31,63,107,0.12) 30px 31px);
+  }
+  .d3__bg::before {
+    /* red margin line */
+    content: ""; position: absolute; top: 0; bottom: 0; left: 80px; width: 1.5px;
+    background: rgba(196,30,30,0.5);
+  }
+  .d3__bg::after {
+    /* binder holes */
+    content: ""; position: absolute; left: 36px; top: 60px; bottom: 60px; width: 14px;
+    background:
+      radial-gradient(circle, var(--bg) 0 5px, transparent 5px) 50% 0/14px 100px no-repeat,
+      radial-gradient(circle, var(--bg) 0 5px, transparent 5px) 50% 50%/14px 14px no-repeat,
+      radial-gradient(circle, var(--bg) 0 5px, transparent 5px) 50% 100%/14px 14px no-repeat;
+  }
+  .d3__lockup {
+    margin-left: 70px;
+    font-family: var(--font-main);
+    font-size: 64px; line-height: 1;
+    color: var(--ink-black);
+    position: relative;
+    display: inline-block;
+    white-space: nowrap;
+  }
+  .d3__highlight {
+    position: relative;
+    display: inline-block;
+    z-index: 1;
+  }
+  .d3__highlight::before {
+    content: ""; position: absolute;
+    left: -4px; right: -4px; top: 14%; bottom: 14%;
+    background: var(--accent);
+    transform: skew(-4deg) rotate(-1.2deg);
+    z-index: -1;
+    box-shadow: 0 1px 0 rgba(0,0,0,0.06);
+    opacity: 0.92;
+  }
+  .d3__lockup em {
+    font-style: normal;
+    color: var(--ink-red); position: relative;
+  }
+  .d3__sub {
+    margin-left: 70px;
+    font-family: var(--font-hand); font-size: 24px; color: var(--ink-red);
+    margin-top: 4px;
+  }
+
+  .d3__fav {
+    width: 100%; height: 100%;
+    background: #f6f4ed; display: grid; place-items: center;
+  }
+  .d3__fav b {
+    font-family: var(--font-main); color: var(--ink-black);
+    position: relative; line-height: 1;
+    isolation: isolate;
+  }
+  .d3__fav b::before {
+    content: ""; position: absolute;
+    left: -10%; right: -10%; top: 25%; bottom: 25%;
+    background: var(--accent); z-index: -1;
+    transform: skew(-6deg);
+  }
+
+  /* the highlighted-bio scoring rack */
+  .d3__bio {
+    background: #f6f4ed; color: var(--ink-black);
+    border-radius: 8px; padding: 22px 26px 22px 70px;
+    font-family: var(--font-stamp); font-size: 15px; line-height: 1.9;
+    box-shadow: 0 6px 18px rgba(0,0,0,0.3);
+    position: relative;
+    background-image:
+      repeating-linear-gradient(0deg, transparent 0 30px, rgba(31,63,107,0.12) 30px 31px);
+  }
+  .d3__bio::before {
+    content: ""; position: absolute; top: 0; bottom: 0; left: 50px; width: 1.5px;
+    background: rgba(196,30,30,0.5);
+  }
+  .d3__bio__title {
+    font-family: var(--font-hand); font-size: 22px; color: var(--ink-red);
+    margin: 0 0 6px;
+  }
+  .d3__bio ul { list-style: none; margin: 0; padding: 0; }
+  .d3__bio li {
+    position: relative; display: flex; align-items: baseline; gap: 10px;
+  }
+  .d3__bio li::before {
+    content: ""; width: 8px; height: 8px; border-radius: 1px; background: var(--c);
+    flex: none; transform: translateY(2px);
+  }
+  .d3__bio li span {
+    position: relative; padding: 0 4px;
+  }
+  .d3__bio li.hit span::before {
+    content: ""; position: absolute; left: -2px; right: -2px; top: 18%; bottom: 12%;
+    background: var(--c); opacity: 0.4;
+    transform: skew(-5deg) rotate(-0.5deg);
+    z-index: -1;
+    border-radius: 1px;
+  }
+  .d3__bio li.miss { opacity: 0.45; }
+  .d3__bio__tag {
+    font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.14em;
+    margin-left: auto; color: rgba(0,0,0,0.5);
+  }
+  .d3__bio li.hit .d3__bio__tag { color: var(--c); font-weight: 700; }
+
+  /* in-context phone */
+  .d3__phone {
+    background: #f6f4ed; color: var(--ink-black); border-radius: 22px;
+    width: 280px; margin: 0 auto;
+    padding: 16px 18px;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.45);
+    position: relative;
+    background-image:
+      repeating-linear-gradient(0deg, transparent 0 26px, rgba(31,63,107,0.10) 26px 27px);
+  }
+  .d3__phone::before {
+    content: ""; position: absolute; top: 8px; left: 50%; transform: translateX(-50%);
+    width: 60px; height: 6px; background: rgba(0,0,0,0.15); border-radius: 4px;
+  }
+  .d3__phoneHead {
+    margin-top: 16px; display: flex; justify-content: space-between; align-items: center;
+    font-family: var(--font-stamp); font-size: 11px;
+  }
+  .d3__phoneHead .lock {
+    font-family: var(--font-main); font-size: 16px; position: relative;
+  }
+  .d3__phoneHead .lock::before {
+    content: ""; position: absolute; left: -2px; right: -2px; top: 25%; bottom: 18%;
+    background: var(--accent); z-index: -1; transform: skew(-6deg);
+  }
+  .d3__phoneBio {
+    margin-top: 10px;
+    font-family: var(--font-stamp); font-size: 11px; line-height: 1.7;
+  }
+  .d3__phoneBio li::before { width: 6px; height: 6px; }
+  .d3__phoneBio li { display: flex; align-items: baseline; gap: 6px; position: relative; }
+  .d3__phoneBio li b { font-weight: 400; position: relative; padding: 0 2px; }
+  .d3__phoneBio li.hit b::before {
+    content: ""; position: absolute; left: -1px; right: -1px; top: 18%; bottom: 12%;
+    background: var(--c); opacity: 0.4; z-index: -1;
+    transform: skew(-5deg);
+  }
+  .d3__phoneBio li::before {
+    content: ""; background: var(--c); border-radius: 1px;
+  }
+  .d3__phoneBio li.miss { opacity: 0.4; }
+  .d3__phoneQ {
+    margin-top: 12px;
+    background: var(--white); border: 1.5px solid var(--ink-black);
+    padding: 10px 12px;
+    font-family: var(--font-body); font-size: 14px;
+    line-height: 1.3; font-weight: 700;
+    box-shadow: 3px 3px 0 var(--ink-red);
+  }
+  .d3__phoneQ b {
+    font-family: var(--font-mono); font-size: 10px;
+    background: var(--ink-red); color: var(--white);
+    padding: 1px 6px; letter-spacing: 0.14em;
+    display: inline-block; margin-bottom: 6px;
+  }
+
+  /* ═══════════════════════════════════════════════════════════════════
+     DIRECTION 4 — EXCLAMATION-AS-MARK
+     ═══════════════════════════════════════════════════════════════════ */
+  .d4__bg {
+    background: var(--bg-deep);
+    border: 3px solid var(--surface-2);
+    border-radius: 12px;
+    padding: 40px 32px;
+    position: relative;
+    overflow: hidden;
+  }
+  .d4__bg::before {
+    content: ""; position: absolute; inset: 0;
+    background-image: var(--dot-grid); background-size: 24px 24px;
+    opacity: 0.6; pointer-events: none;
+  }
+  .d4__lockup {
+    display: inline-flex; align-items: center; gap: 0;
+    font-family: var(--font-logo);
+    color: var(--white);
+    position: relative;
+  }
+  .d4__bang {
+    /* the giant ! that becomes the brand mark AND the O */
+    display: inline-grid; place-items: center;
+    width: 74px; height: 74px;
+    background: var(--pink);
+    border-radius: 50%;
+    box-shadow: 0 4px 0 #8a1e34, 0 8px 24px rgba(233,69,96,0.5);
+    flex: none;
+    position: relative;
+    z-index: 1;
+  }
+  .d4__bang b {
+    font-family: var(--font-black);
+    color: var(--white);
+    font-size: 62px; line-height: 1; font-style: italic;
+    transform: translateY(-1px) skew(-6deg);
+    text-shadow: 0 2px 0 rgba(0,0,0,0.3);
+  }
+  .d4__word { 
+    font-size: 68px; line-height: 0.9; letter-spacing: -0.04em;
+    font-weight: 900;
+    margin-left: -10px;
+  }
+  .d4__word .ghost-o {
+    /* the O in OBSESSED is replaced by negative space */
+    display: inline-block;
+    width: 0.76em;
+    opacity: 0;
+    pointer-events: none;
+  }
+  .d4__sub {
+    font-family: var(--font-mono); font-size: 12px; letter-spacing: 0.18em;
+    text-transform: uppercase; color: var(--muted);
+    margin-top: 8px;
+  }
+  .d4__sub b { color: var(--accent); }
+
+  .d4__fav { width: 100%; height: 100%; background: var(--pink); display: grid; place-items: center; }
+  .d4__fav b {
+    font-family: var(--font-black); color: var(--white);
+    font-style: italic; transform: skew(-6deg); line-height: 1;
+  }
+
+  /* exclamation rack */
+  .d4__rack {
+    display: grid; grid-template-columns: repeat(6, 1fr); gap: 12px;
+    padding: 20px; background: var(--bg-deep); border-radius: 12px;
+    border: 1px solid var(--surface-2);
+  }
+  .bangSlot {
+    aspect-ratio: 0.75; border-radius: 10px;
+    border: 2px dashed var(--surface-2);
+    display: grid; place-items: center;
+    font-family: var(--font-black); color: var(--dim);
+    font-size: 34px; font-style: italic;
+    position: relative;
+    transition: all 0.4s var(--ease-overshoot, cubic-bezier(0.34,1.56,0.64,1));
+  }
+  .bangSlot.filled {
+    border-style: solid; border-color: var(--c);
+    background: var(--c);
+    color: var(--white);
+    box-shadow: 0 3px 0 color-mix(in oklab, var(--c) 60%, #000),
+                0 8px 24px color-mix(in oklab, var(--c) 35%, transparent);
+    transform: rotate(var(--rot, -3deg));
+  }
+  .bangSlot.filled b {
+    transform: skew(-6deg); display: block;
+  }
+  .bangSlot__lbl {
+    position: absolute; bottom: 6px; left: 0; right: 0; text-align: center;
+    font-family: var(--font-mono); font-size: 8px; letter-spacing: 0.12em;
+    font-style: normal; transform: none;
+    color: rgba(255,255,255,0.7); font-weight: 700;
+  }
+  .bangSlot:not(.filled) .bangSlot__lbl { color: var(--dim); }
+
+  .d4__phone {
+    background: var(--bg-deep); color: var(--white); border-radius: 28px;
+    padding: 16px 16px 20px;
+    width: 280px; margin: 0 auto;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+    border: 1px solid var(--surface-2);
+  }
+  .d4__phoneHead {
+    display: flex; align-items: center; gap: 12px;
+    margin: 18px 0 14px;
+  }
+  .d4__phoneHead__bub {
+    width: 40px; height: 40px; border-radius: 50%;
+    background: var(--cat-history); display: grid; place-items: center;
+    font-family: var(--font-main); font-size: 19px;
+  }
+  .d4__phoneHead__name { font-family: var(--font-main); font-size: 17px; }
+  .d4__phoneHead__score {
+    margin-left: auto; font-family: var(--font-mono); font-size: 10px;
+    color: var(--muted); letter-spacing: 0.12em;
+  }
+  .d4__phoneRack { display: grid; grid-template-columns: repeat(6, 1fr); gap: 6px; margin-bottom: 14px; }
+  .d4__phoneRack .bangSlot {
+    border-radius: 7px; border-width: 1.5px;
+    font-size: 20px;
+  }
+  .d4__phoneRack .bangSlot__lbl { display: none; }
+  .d4__phoneQ {
+    margin-top: 0;
+    background: var(--white); color: var(--ink-black); border-radius: 12px;
+    padding: 14px 16px; font-weight: 800; line-height: 1.25;
+    border-left: 6px solid var(--cat-entertainment);
+    font-size: 16px;
+  }
+  .d4__phoneQ b {
+    display: inline-block; font-family: var(--font-mono); font-size: 9px;
+    letter-spacing: 0.16em; color: var(--cat-entertainment);
+    margin-bottom: 6px;
+  }
+
+  /* ═══════════════════════════════════════════════════════════════════
+     DIRECTION 5 — DOSSIER BARCODE / SIGNAL BARS (pure type)
+     ═══════════════════════════════════════════════════════════════════ */
+  .d5__bg {
+    background: #0e0e16;
+    border: 1px solid #2a2a3a;
+    border-radius: 8px;
+    padding: 36px 36px 40px;
+    font-family: var(--font-mono);
+    color: #c8e8d8;
+    position: relative;
+    overflow: hidden;
+    background-image: repeating-linear-gradient(0deg, transparent 0 3px, rgba(200,232,216,0.02) 3px 4px);
+  }
+  .d5__bg::before {
+    content: "CASE FILE · OBS-7741 · CLEARANCE: GUEST · " attr(data-time);
+    position: absolute; top: 12px; left: 24px; right: 24px;
+    font-size: 10px; letter-spacing: 0.16em;
+    color: #4a8a6a; opacity: 0.7;
+  }
+  .d5__lockup {
+    font-family: var(--font-mono); font-weight: 700;
+    font-size: 64px; letter-spacing: 0.04em;
+    color: #c8e8d8;
+    margin-top: 20px;
+    display: flex; align-items: baseline; gap: 6px;
+  }
+  .d5__lockup .bracket { color: #4a8a6a; font-weight: 500; }
+  .d5__lockup em {
+    font-style: normal;
+    color: var(--accent);
+    background: var(--accent); color: #0e0e16;
+    padding: 0 6px;
+    margin-left: 2px;
+  }
+  .d5__sub {
+    font-family: var(--font-mono); font-size: 12px; letter-spacing: 0.18em;
+    color: #4a8a6a; margin-top: 10px;
+  }
+  .d5__sub b { color: #c8e8d8; }
+  .d5__cursor {
+    display: inline-block; width: 10px; height: 1em; background: #c8e8d8;
+    vertical-align: -2px; margin-left: 4px;
+    animation: blink 1.2s steps(2) infinite;
+  }
+  @keyframes blink { 50% { opacity: 0; } }
+
+  .d5__fav {
+    width: 100%; height: 100%;
+    background: #0e0e16; display: grid; place-items: center;
+  }
+  .d5__fav b {
+    font-family: var(--font-mono); font-weight: 700; color: var(--accent);
+    background: var(--accent); color: #0e0e16; padding: 0 4px;
+    line-height: 1;
+  }
+
+  /* signal-bars scoring rack */
+  .d5__rack {
+    background: #0e0e16; border: 1px solid #2a2a3a; border-radius: 6px;
+    padding: 24px; font-family: var(--font-mono); color: #c8e8d8;
+    background-image: repeating-linear-gradient(0deg, transparent 0 3px, rgba(200,232,216,0.02) 3px 4px);
+  }
+  .d5__rack__title {
+    font-size: 11px; letter-spacing: 0.18em; color: #4a8a6a; margin-bottom: 14px;
+  }
+  .barRack {
+    display: grid; grid-template-columns: repeat(6, 1fr); gap: 12px;
+    align-items: end; height: 130px;
+  }
+  .barSlot {
+    border: 1px solid #2a2a3a;
+    background: transparent;
+    position: relative;
+    height: 100%;
+    display: flex; flex-direction: column; justify-content: end;
+    padding: 4px;
+  }
+  .barSlot__fill {
+    background: var(--c); height: var(--h, 0%);
+    transition: height 0.5s var(--ease-out, cubic-bezier(0.16,1,0.3,1));
+    box-shadow: 0 0 14px var(--c);
+    position: relative;
+  }
+  .barSlot__fill::after {
+    content: ""; position: absolute; inset: 0;
+    background: repeating-linear-gradient(0deg, transparent 0 4px, rgba(0,0,0,0.18) 4px 5px);
+  }
+  .barSlot__lbl {
+    position: absolute; top: 6px; left: 6px; right: 6px;
+    font-size: 9px; letter-spacing: 0.14em; color: var(--c); opacity: 0.9;
+  }
+  .barSlot__num {
+    position: absolute; bottom: 4px; right: 6px;
+    font-size: 9px; color: #4a8a6a;
+  }
+  .barSlot.empty .barSlot__lbl { color: #4a8a6a; }
+
+  .d5__phone {
+    background: #0e0e16; color: #c8e8d8; border-radius: 24px;
+    padding: 16px 16px 20px;
+    width: 280px; margin: 0 auto;
+    border: 1px solid #2a2a3a;
+    font-family: var(--font-mono);
+    box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+    background-image: repeating-linear-gradient(0deg, transparent 0 3px, rgba(200,232,216,0.02) 3px 4px);
+  }
+  .d5__phoneTopline {
+    font-size: 9px; letter-spacing: 0.14em; color: #4a8a6a;
+    margin: 16px 0 8px;
+    display: flex; justify-content: space-between;
+  }
+  .d5__phoneTopline em { font-style: normal; color: var(--accent); background: var(--accent); color: #0e0e16; padding: 0 4px; }
+  .d5__phoneBars { height: 64px; gap: 6px; }
+  .d5__phoneBars .barSlot__lbl { font-size: 7px; }
+  .d5__phoneBars .barSlot__num { font-size: 7px; }
+  .d5__phoneQ {
+    margin-top: 12px; padding: 12px;
+    border: 1px solid #2a2a3a;
+    font-size: 14px; line-height: 1.35; color: var(--white);
+    background: rgba(200,232,216,0.04);
+  }
+  .d5__phoneQ b {
+    font-size: 9px; letter-spacing: 0.16em; color: var(--cat-entertainment);
+    margin-bottom: 6px; display: block;
+  }
+  .d5__phoneQ s { text-decoration: none; }
+
+  /* ── recommendation footer ───────────────────────────────────────── */
+  .rec {
+    margin-top: 80px;
+    background: linear-gradient(180deg, var(--surface) 0%, var(--bg-deep) 100%);
+    border: 3px solid var(--pink);
+    border-radius: 20px;
+    padding: 40px 48px;
+  }
+  .rec h2 { font-family: var(--font-main); font-size: 32px; margin: 0 0 12px; }
+  .rec p { font-size: 15px; color: var(--muted); line-height: 1.6; max-width: 70ch; }
+  .rec p + p { margin-top: 12px; }
+  .rec b { color: var(--white); }
+  .rec ol { padding-left: 20px; margin-top: 16px; }
+  .rec li { margin-bottom: 8px; color: var(--muted); font-size: 14px; line-height: 1.6; }
+  .rec li b { color: var(--white); }
+  .rec__pill {
+    display: inline-block;
+    font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.18em;
+    text-transform: uppercase;
+    background: var(--accent); color: var(--bg-deep);
+    padding: 4px 10px; border-radius: 4px; font-weight: 700;
+    margin-bottom: 12px;
+  }
+
+  /* size helpers for favicon grids */
+  .fv-16 { width: 16px; height: 16px; }
+  .fv-24 { width: 24px; height: 24px; }
+  .fv-32 { width: 32px; height: 32px; }
+  .fv-64 { width: 64px; height: 64px; }
+</style>
+</head>
+<body>
+<main class="page">
+
+<header class="hd">
+  <div>
+    <div class="hd__title">Logo rethink <em>v8</em></div>
+    <div style="font-family:var(--font-mono); font-size:13px; color:var(--muted); margin-top:8px; letter-spacing:0.06em;">
+      because from across the room, our wedge is wearing someone else's clothes
+    </div>
+  </div>
+  <div class="hd__meta">
+    PASS 8 · <b>NEW DIRECTION STUDIES</b><br>
+    SUPERSEDES THE WEDGE FROM v2
+  </div>
+</header>
+
+<!-- ════════════════════════════════════════════════════════════════
+     SECTION: THE DIAGNOSIS
+     ════════════════════════════════════════════════════════════════ -->
+<section>
+  <div class="sec__eyebrow">§ 1 · The diagnosis</div>
+  <h2 class="sec__h">From a distance, the wedge IS Trivial Pursuit.</h2>
+  <p class="sec__lede">
+    A six-slice pie + saturated primary palette + thick white outlines is the most
+    recognizable trivia game silhouette ever printed. We borrowed it on purpose to
+    say "trivia night" — but the cost is that <b>Obsessed</b> reads as a TP knock-off
+    before the wordmark has a chance to land. That's a brand-equity tax we shouldn't
+    pay, especially since our actual product isn't a coffee-table almanac of facts.
+    It's <b>a dossier on someone you know</b>. The visual language should match that.
+  </p>
+
+  <div class="diag">
+    <div class="diag__col">
+      <div class="diag__label bad">Our current mark (v2)</div>
+      <svg class="currentWedge" viewBox="-110 -110 220 220" aria-label="Current Obsessed wedge">
+        <g>
+          <!-- 6 slices, starting at 12 o'clock, going clockwise -->
+          <path class="slice" fill="#ff6d00"
+                d="M 0 0 L 0 -100 A 100 100 0 0 1 86.6 -50 Z"/>
+          <path class="slice" fill="#d500f9"
+                d="M 0 0 L 86.6 -50 A 100 100 0 0 1 86.6 50 Z"/>
+          <path class="slice" fill="#2979ff"
+                d="M 0 0 L 86.6 50 A 100 100 0 0 1 0 100 Z"/>
+          <path class="slice" fill="#00e676"
+                d="M 0 0 L 0 100 A 100 100 0 0 1 -86.6 50 Z"/>
+          <path class="slice" fill="#ff1744"
+                d="M 0 0 L -86.6 50 A 100 100 0 0 1 -86.6 -50 Z"/>
+          <path class="slice" fill="#ffea00"
+                d="M 0 0 L -86.6 -50 A 100 100 0 0 1 0 -100 Z"/>
+        </g>
+      </svg>
+      <div class="diag__caption">Six slices, primaries + secondaries, thick white outlines.</div>
+    </div>
+    <div class="diag__col">
+      <div class="diag__label">A generic 6-slice trivia pie</div>
+      <svg class="tpPie" viewBox="-110 -110 220 220" aria-label="Reference 6-slice pie">
+        <g>
+          <path class="slice" fill="#e57373" d="M 0 0 L 0 -100 A 100 100 0 0 1 86.6 -50 Z"/>
+          <path class="slice" fill="#f1c659" d="M 0 0 L 86.6 -50 A 100 100 0 0 1 86.6 50 Z"/>
+          <path class="slice" fill="#7fb069" d="M 0 0 L 86.6 50 A 100 100 0 0 1 0 100 Z"/>
+          <path class="slice" fill="#5fa5d6" d="M 0 0 L 0 100 A 100 100 0 0 1 -86.6 50 Z"/>
+          <path class="slice" fill="#a87fc8" d="M 0 0 L -86.6 50 A 100 100 0 0 1 -86.6 -50 Z"/>
+          <path class="slice" fill="#d68949" d="M 0 0 L -86.6 -50 A 100 100 0 0 1 0 -100 Z"/>
+        </g>
+      </svg>
+      <div class="diag__caption">Different colors. Same silhouette. Same read.</div>
+    </div>
+    <div class="diag__verdict">
+      <b>The fix isn't to swap colors.</b> It's to retire the pie entirely.
+      The wedge needs to do three jobs — <code>logo mark</code>, <code>0–6 scoring indicator</code>,
+      and <code>round-end celebration</code> — but none of them require a circle cut into
+      six pieces. Below are five directions that solve all three without borrowing TP's silhouette.
+      Each leans into the <b>dossier / hyper-personal investigation</b> story that's already
+      baked into the rest of the product (the profile editor, the Special Elite labels, the
+      "tonight's victim" framing on the host TV).
+    </div>
+  </div>
+</section>
+
+<!-- ════════════════════════════════════════════════════════════════
+     SECTION: DIRECTIONS
+     ════════════════════════════════════════════════════════════════ -->
+<section>
+  <div class="sec__eyebrow">§ 2 · Five directions</div>
+  <h2 class="sec__h">One brand object, three jobs — five ways.</h2>
+  <p class="sec__lede">
+    Each direction gives a <b>logo lockup</b>, a <b>favicon ladder</b>
+    (16 / 24 / 32 / 64), and the <b>scoring mechanic</b> that replaces the wedge —
+    sized first as a board, then in the player's pocket. Tagline copy is placeholder.
+  </p>
+
+  <!-- ─────── DIRECTION 1 — STAMPS ─────────────────────────────────── -->
+  <div class="dir">
+    <div class="dir__head">
+      <div class="dir__num">01</div>
+      <div>
+        <h3 class="dir__name">The Case File — <em>stamps</em></h3>
+        <p class="dir__thesis">
+          Manila paper, rubber stamps, a stamped wordmark. Each round won inks a new
+          stamp on the dossier. Borrows from the profile editor's existing dossier-flavored
+          accents. Strong type-only logo + visceral scoring animation.
+        </p>
+      </div>
+      <div class="dir__pick">strong fit</div>
+    </div>
+    <div class="dir__body">
+      <div class="dir__cell">
+        <div class="cell__label">Logo lockup</div>
+        <div class="d1__bg" style="min-height: 280px;">
+          <div class="d1__tab">CONFIDENTIAL</div>
+          <div class="d1__caseno">OBS-7741<br>EYES ONLY</div>
+          <div class="d1__lockup">
+            <div class="d1__stampWord">OBSESSED<em>!</em></div>
+          </div>
+          <div class="d1__sub">
+            A DOSSIER ON <span class="d1__redact">REDACTED REDACTED</span> ·
+            EVIDENCE COMPILED FOR TRIVIA NIGHT
+          </div>
+        </div>
+        <div class="faviconRow">
+          <div><div class="fvBox fv-16"><div class="d1__fav"><b style="font-size:14px">!</b></div></div><span>16</span></div>
+          <div><div class="fvBox fv-24"><div class="d1__fav"><b style="font-size:20px">!</b></div></div><span>24</span></div>
+          <div><div class="fvBox fv-32"><div class="d1__fav"><b style="font-size:28px">!</b></div></div><span>32</span></div>
+          <div><div class="fvBox fv-64"><div class="d1__fav"><b style="font-size:54px">!</b></div></div><span>64</span></div>
+        </div>
+        <p class="cell__note">
+          Type stack: <code>Archivo Black</code> for the stamp word, <code>Special Elite</code>
+          for marginalia. The "!" alone passes the favicon test at 16px — readable, distinct
+          from any TP iconography.
+        </p>
+      </div>
+      <div class="dir__cell">
+        <div class="cell__label">Scoring — 0 / 6 → 3 / 6</div>
+        <div class="d1__rack" style="margin-bottom: 14px;">
+          <div class="stampSlot">001</div><div class="stampSlot">002</div>
+          <div class="stampSlot">003</div><div class="stampSlot">004</div>
+          <div class="stampSlot">005</div><div class="stampSlot">006</div>
+        </div>
+        <div class="d1__rack">
+          <div class="stampSlot filled c-his" data-stamp="HIST">001</div>
+          <div class="stampSlot">002</div>
+          <div class="stampSlot filled c-geo" data-stamp="GEO">003</div>
+          <div class="stampSlot">004</div>
+          <div class="stampSlot filled c-spo" data-stamp="SPRT">005</div>
+          <div class="stampSlot">006</div>
+        </div>
+        <p class="cell__note">
+          Win a round → a category-colored seal lands with a 6° rotation + ink-bleed splatter.
+          (Animated rotation/scale in production.)
+        </p>
+      </div>
+    </div>
+    <div class="dir__body" style="border-top: 1px solid var(--surface-2);">
+      <div class="dir__cell" style="border-right: 1px solid var(--surface-2);">
+        <div class="cell__label">In context — player view</div>
+        <div class="d1__phone">
+          <div class="d1__phoneHead">
+            <span>CASE OBS-7741</span>
+            <b>BRANDON</b>
+            <span>Q 02/05</span>
+          </div>
+          <div class="d1__phoneRack">
+            <div class="stampSlot filled c-his" data-stamp="H">1</div>
+            <div class="stampSlot">2</div>
+            <div class="stampSlot filled c-geo" data-stamp="G">3</div>
+            <div class="stampSlot">4</div>
+            <div class="stampSlot">5</div>
+            <div class="stampSlot">6</div>
+          </div>
+          <div class="d1__qcard">
+            <span class="catTag">ENTERTAINMENT · ROUND 3</span><br>
+            Which game has Maya logged 1,400+ hours of on Steam?
+          </div>
+        </div>
+      </div>
+      <div class="dir__cell">
+        <div class="cell__label">Why this works</div>
+        <p class="cell__note" style="margin-top: 0;">
+          The dossier metaphor is <b>already in the product</b> — the profile editor uses
+          Special Elite labels and a red corner stamp. Promoting it to the main brand
+          tightens the system instead of inventing a new one. The "!" mark is unique,
+          ownable, and scales to favicon. Round-end animation (a stamp landing with ink
+          spatter) is more satisfying than a wedge filling in.
+        </p>
+        <p class="cell__note">
+          <b>Trade-off:</b> shifts the app's overall surface toward warm paper tones —
+          either the whole UI moves to that palette, or we keep the dark-navy app and
+          treat dossier stamps as an inserted "evidence layer."
+        </p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ─────── DIRECTION 2 — PINBOARD ─────────────────────────────── -->
+  <div class="dir">
+    <div class="dir__head">
+      <div class="dir__num">02</div>
+      <div>
+        <h3 class="dir__name">The Corkboard — <em>pinned cards</em></h3>
+        <p class="dir__thesis">
+          The detective's wall. Each round won = a polaroid pinned to the board.
+          Conspiracy-board energy maps perfectly onto "I have spent a suspicious
+          amount of time learning about this person."
+        </p>
+      </div>
+      <div class="dir__pick">strong fit</div>
+    </div>
+    <div class="dir__body">
+      <div class="dir__cell">
+        <div class="cell__label">Logo lockup</div>
+        <div class="d2__bg" style="min-height: 280px;">
+          <div class="d2__lockup">
+            <div>
+              <div class="d2__wordmark"><span class="pinO">O</span>BSESSED<em style="color:var(--ink-red); font-style:normal;">!</em></div>
+              <div class="d2__sub">the hyper-personal trivia game</div>
+            </div>
+          </div>
+        </div>
+        <div class="faviconRow">
+          <div><div class="fvBox fv-16"><div class="d2__fav"><b></b></div></div><span>16</span></div>
+          <div><div class="fvBox fv-24"><div class="d2__fav"><b></b></div></div><span>24</span></div>
+          <div><div class="fvBox fv-32"><div class="d2__fav"><b></b></div></div><span>32</span></div>
+          <div><div class="fvBox fv-64"><div class="d2__fav"><b></b></div></div><span>64</span></div>
+        </div>
+        <p class="cell__note">
+          The wordmark sits on a pinned index card (rotated −1°). At favicon scale, the
+          mark collapses to <b>just the red pushpin</b>. Hand-drawn tagline in Caveat
+          gestures at "I scribbled this last night."
+        </p>
+      </div>
+      <div class="dir__cell">
+        <div class="cell__label">Scoring — 0 / 6 → 3 / 6</div>
+        <div class="d2__bg" style="padding: 24px 20px 30px;">
+          <div class="d2__rack">
+            <div class="pinCard empty"><div class="pinCard__photo"></div><div class="pinCard__cap">001</div></div>
+            <div class="pinCard empty"><div class="pinCard__photo"></div><div class="pinCard__cap">002</div></div>
+            <div class="pinCard empty"><div class="pinCard__photo"></div><div class="pinCard__cap">003</div></div>
+            <div class="pinCard empty"><div class="pinCard__photo"></div><div class="pinCard__cap">004</div></div>
+            <div class="pinCard empty"><div class="pinCard__photo"></div><div class="pinCard__cap">005</div></div>
+            <div class="pinCard empty"><div class="pinCard__photo"></div><div class="pinCard__cap">006</div></div>
+          </div>
+          <div class="d2__rack" style="margin-top: 16px;">
+            <div class="pinCard" style="--cat: var(--cat-history)"><div class="pinCard__photo"></div><div class="pinCard__cap">History</div></div>
+            <div class="pinCard empty"><div class="pinCard__photo"></div><div class="pinCard__cap">??</div></div>
+            <div class="pinCard" style="--cat: var(--cat-geography)"><div class="pinCard__photo"></div><div class="pinCard__cap">Geography</div></div>
+            <div class="pinCard empty"><div class="pinCard__photo"></div><div class="pinCard__cap">??</div></div>
+            <div class="pinCard" style="--cat: var(--cat-sports)"><div class="pinCard__photo"></div><div class="pinCard__cap">Sports</div></div>
+            <div class="pinCard empty"><div class="pinCard__photo"></div><div class="pinCard__cap">??</div></div>
+          </div>
+        </div>
+        <p class="cell__note">
+          Round-end: a polaroid drops in at a slight rotation, the pin "thwacks" into
+          place. Each category gets its own photo treatment (color tint).
+        </p>
+      </div>
+    </div>
+    <div class="dir__body" style="border-top: 1px solid var(--surface-2);">
+      <div class="dir__cell" style="border-right: 1px solid var(--surface-2);">
+        <div class="cell__label">In context — player view</div>
+        <div class="d2__phoneWrap">
+          <div class="d2__phone">
+            <div class="d2__phoneHead"><span>9:41</span><span>OBSESSED!</span></div>
+            <div class="d2__catTag">ENTERTAINMENT · Q 02/05</div>
+            <div class="d2__qtext">Which game has Maya logged 1,400+ hours of on Steam?</div>
+            <div class="d2__phoneMini">
+              <b style="--c: var(--cat-history)"></b>
+              <b class="empty"></b>
+              <b style="--c: var(--cat-geography)"></b>
+              <b class="empty"></b>
+              <b style="--c: var(--cat-sports)"></b>
+              <b class="empty"></b>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="dir__cell">
+        <div class="cell__label">Why this works</div>
+        <p class="cell__note" style="margin-top: 0;">
+          The conspiracy-corkboard read is <b>specifically about knowing too much</b>
+          about one person — exactly what Obsessed is. No competitor owns it. The pinned-card
+          rack is a much more textured win-state than a slice filling. The pushpin can be
+          rendered crisply at 16px (red dot with a metal-rod glint), which solves favicons.
+        </p>
+        <p class="cell__note">
+          <b>Trade-off:</b> Warm/earthy palette fights the existing neon-on-navy app.
+          Probably needs a coordinated palette shift, or we treat the corkboard as a
+          framing layer around darker question cards.
+        </p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ─────── DIRECTION 3 — HIGHLIGHTER ──────────────────────────── -->
+  <div class="dir">
+    <div class="dir__head">
+      <div class="dir__num">03</div>
+      <div>
+        <h3 class="dir__name">The Highlighter — <em>marginalia</em></h3>
+        <p class="dir__thesis">
+          A bio with the juicy parts highlighted. Each round won lights up one line on
+          the page. Logo is the wordmark with a chunky highlighter swipe — the swipe
+          alone is the mark.
+        </p>
+      </div>
+      <div class="dir__pick subtle">option</div>
+    </div>
+    <div class="dir__body">
+      <div class="dir__cell">
+        <div class="cell__label">Logo lockup</div>
+        <div class="d3__bg" style="min-height: 260px; padding-top: 60px;">
+          <div class="d3__lockup">
+            <span class="d3__highlight">OBSESSED</span><em>!</em>
+          </div>
+          <div class="d3__sub">the hyper-personal trivia game</div>
+        </div>
+        <div class="faviconRow">
+          <div><div class="fvBox fv-16"><div class="d3__fav"><b style="font-size:11px">O!</b></div></div><span>16</span></div>
+          <div><div class="fvBox fv-24"><div class="d3__fav"><b style="font-size:17px">O!</b></div></div><span>24</span></div>
+          <div><div class="fvBox fv-32"><div class="d3__fav"><b style="font-size:22px">O!</b></div></div><span>32</span></div>
+          <div><div class="fvBox fv-64"><div class="d3__fav"><b style="font-size:44px">O!</b></div></div><span>64</span></div>
+        </div>
+        <p class="cell__note">
+          The wordmark gets a yellow highlighter swipe. Tagline scribbled in Caveat.
+          Favicon collapses to a highlighted "O!" inside a notebook-paper background.
+        </p>
+      </div>
+      <div class="dir__cell">
+        <div class="cell__label">Scoring — 0 / 6 → 3 / 6</div>
+        <div class="d3__bio">
+          <h4 class="d3__bio__title">tonight's subject: Maya L-H</h4>
+          <ul>
+            <li style="--c: var(--cat-history)"><span>played classical violin from age 7 through college</span><span class="d3__bio__tag">HIST</span></li>
+            <li class="miss" style="--c: var(--cat-entertainment)"><span>currently three episodes behind on Severance</span><span class="d3__bio__tag">ENT</span></li>
+            <li class="hit" style="--c: var(--cat-geography)"><span>spent fourteen months teaching English in Oaxaca</span><span class="d3__bio__tag">GEO</span></li>
+            <li class="miss" style="--c: var(--cat-science)"><span>can't remember the third law of motion to save her life</span><span class="d3__bio__tag">SCI</span></li>
+            <li class="hit" style="--c: var(--cat-sports)"><span>finished a half marathon in 1:48 last October</span><span class="d3__bio__tag">SPRT</span></li>
+            <li class="hit" style="--c: var(--cat-history)"><span>has reread The Secret History every January since 2019</span><span class="d3__bio__tag">ART</span></li>
+          </ul>
+        </div>
+        <p class="cell__note">
+          Round-end: the next line gets a highlighter swipe (left → right, 280ms),
+          plus a small Caveat note in the margin. Lines stay highlighted forever; this
+          is your <b>readout of the night</b>, not a fresh game state every round.
+        </p>
+      </div>
+    </div>
+    <div class="dir__body" style="border-top: 1px solid var(--surface-2);">
+      <div class="dir__cell" style="border-right: 1px solid var(--surface-2);">
+        <div class="cell__label">In context — player view</div>
+        <div class="d3__phone">
+          <div class="d3__phoneHead">
+            <span>BRANDON · 2 of 6</span>
+            <span class="lock">Lock it in</span>
+          </div>
+          <ul class="d3__phoneBio" style="list-style:none; padding:0; margin:10px 0 0;">
+            <li class="hit" style="--c: var(--cat-history)">&nbsp;<b>plays violin since 7</b></li>
+            <li class="miss" style="--c: var(--cat-entertainment)">&nbsp;<b>behind on Severance</b></li>
+            <li class="hit" style="--c: var(--cat-geography)">&nbsp;<b>14 mo. in Oaxaca</b></li>
+            <li class="miss" style="--c: var(--cat-science)">&nbsp;<b>third law? no clue</b></li>
+            <li class="miss" style="--c: var(--cat-sports)">&nbsp;<b>1:48 half marathon</b></li>
+            <li class="miss" style="--c: var(--cat-art)">&nbsp;<b>Secret History rereads</b></li>
+          </ul>
+          <div class="d3__phoneQ">
+            <b>ENTERTAINMENT · Q 02/05</b>
+            Which game has Maya logged 1,400+ hours of on Steam?
+          </div>
+        </div>
+      </div>
+      <div class="dir__cell">
+        <div class="cell__label">Why this works</div>
+        <p class="cell__note" style="margin-top: 0;">
+          The "highlighted bio" idea is the only one that <b>doubles as the answer key</b>
+          — the player progress and the actual facts about the subject are the same
+          surface. That's a tight conceptual loop. Particularly satisfying on the host TV
+          where the highlight stroke can be huge and theatrical.
+        </p>
+        <p class="cell__note">
+          <b>Trade-off:</b> the logo is the most text-heavy of the five — there's no
+          pictorial mark at all (just a swipe). Some merch surfaces will want a glyph.
+          The "!" with a highlighter under it is the fallback.
+        </p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ─────── DIRECTION 4 — EXCLAMATION ────────────────────────── -->
+  <div class="dir">
+    <div class="dir__head">
+      <div class="dir__num">04</div>
+      <div>
+        <h3 class="dir__name">The Bang — <em>! is the mark</em></h3>
+        <p class="dir__thesis">
+          Lean into the name. The exclamation in "Obsessed!" IS the logo. Bold italic
+          slab "!" in a rounded chip. Each round collects an exclamation — six bangs to
+          fill the rack.
+        </p>
+      </div>
+      <div class="dir__pick">strong fit</div>
+    </div>
+    <div class="dir__body">
+      <div class="dir__cell">
+        <div class="cell__label">Logo lockup</div>
+        <div class="d4__bg" style="min-height: 240px; display: flex; align-items: center; padding-left: 48px;">
+          <div>
+            <div class="d4__lockup">
+              <div class="d4__bang"><b>!</b></div>
+              <div class="d4__word"><span class="ghost-o">O</span>BSESSED</div>
+            </div>
+            <div class="d4__sub" style="margin-left: 68px;">the <b>hyper-personal</b> trivia game</div>
+          </div>
+        </div>
+        <div class="faviconRow">
+          <div><div class="fvBox fv-16"><div class="d4__fav"><b style="font-size:13px">!</b></div></div><span>16</span></div>
+          <div><div class="fvBox fv-24"><div class="d4__fav"><b style="font-size:20px">!</b></div></div><span>24</span></div>
+          <div><div class="fvBox fv-32"><div class="d4__fav"><b style="font-size:28px">!</b></div></div><span>32</span></div>
+          <div><div class="fvBox fv-64"><div class="d4__fav"><b style="font-size:56px">!</b></div></div><span>64</span></div>
+        </div>
+        <p class="cell__note">
+          Pink chip with a chunky-italic exclamation. The "!" reads as a logo at <b>any
+          size</b>, including the home-screen icon. Wordmark stays Fredoka so the existing
+          deck cues remain.
+        </p>
+      </div>
+      <div class="dir__cell">
+        <div class="cell__label">Scoring — 0 / 6 → 3 / 6</div>
+        <div class="d4__rack" style="margin-bottom: 14px;">
+          <div class="bangSlot"><b>!</b><span class="bangSlot__lbl">HIST</span></div>
+          <div class="bangSlot"><b>!</b><span class="bangSlot__lbl">ENT</span></div>
+          <div class="bangSlot"><b>!</b><span class="bangSlot__lbl">GEO</span></div>
+          <div class="bangSlot"><b>!</b><span class="bangSlot__lbl">SCI</span></div>
+          <div class="bangSlot"><b>!</b><span class="bangSlot__lbl">SPRT</span></div>
+          <div class="bangSlot"><b>!</b><span class="bangSlot__lbl">ART</span></div>
+        </div>
+        <div class="d4__rack">
+          <div class="bangSlot filled" style="--c: var(--cat-history); --rot: -4deg"><b>!</b><span class="bangSlot__lbl">HIST</span></div>
+          <div class="bangSlot"><b>!</b><span class="bangSlot__lbl">ENT</span></div>
+          <div class="bangSlot filled" style="--c: var(--cat-geography); --rot: 3deg"><b>!</b><span class="bangSlot__lbl">GEO</span></div>
+          <div class="bangSlot"><b>!</b><span class="bangSlot__lbl">SCI</span></div>
+          <div class="bangSlot filled" style="--c: var(--cat-sports); --rot: -2deg"><b>!</b><span class="bangSlot__lbl">SPRT</span></div>
+          <div class="bangSlot"><b>!</b><span class="bangSlot__lbl">ART</span></div>
+        </div>
+        <p class="cell__note">
+          Round-end: empty slot fires up to category color, "!" lands italic with a 5°
+          rotation kick and the bottom-shadow pop the existing tile system uses.
+        </p>
+      </div>
+    </div>
+    <div class="dir__body" style="border-top: 1px solid var(--surface-2);">
+      <div class="dir__cell" style="border-right: 1px solid var(--surface-2);">
+        <div class="cell__label">In context — player view</div>
+        <div class="d4__phone">
+          <div class="d4__phoneHead">
+            <div class="d4__phoneHead__bub">B</div>
+            <div class="d4__phoneHead__name">Brandon</div>
+            <div class="d4__phoneHead__score">3 / 6 BANGS</div>
+          </div>
+          <div class="d4__phoneRack">
+            <div class="bangSlot filled" style="--c: var(--cat-history); --rot: -3deg"><b>!</b></div>
+            <div class="bangSlot"><b>!</b></div>
+            <div class="bangSlot filled" style="--c: var(--cat-geography); --rot: 2deg"><b>!</b></div>
+            <div class="bangSlot"><b>!</b></div>
+            <div class="bangSlot filled" style="--c: var(--cat-sports); --rot: -2deg"><b>!</b></div>
+            <div class="bangSlot"><b>!</b></div>
+          </div>
+          <div class="d4__phoneQ">
+            <b>ENTERTAINMENT · Q 02/05</b>
+            Which game has Maya logged 1,400+ hours on Steam?
+          </div>
+        </div>
+      </div>
+      <div class="dir__cell">
+        <div class="cell__label">Why this works</div>
+        <p class="cell__note" style="margin-top: 0;">
+          <b>Least disruption.</b> The existing app palette/typography stay, we just swap
+          the brand object. Six bangs feels celebratory, plays well with the "Lock it
+          in!" gesture, and is genuinely fun on the host TV when the winner's bang flies
+          in. The "!" as a standalone mark is uniquely ownable in trivia
+          (nobody else is doing it).
+        </p>
+        <p class="cell__note">
+          <b>Trade-off:</b> The mark is purely typographic — it lives or dies on the
+          wordmark/chip pairing. We should treat the pink chip as the official
+          standalone, not a naked "!".
+        </p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ─────── DIRECTION 5 — SIGNAL BARS / TERMINAL ─────────────── -->
+  <div class="dir">
+    <div class="dir__head">
+      <div class="dir__num">05</div>
+      <div>
+        <h3 class="dir__name">The Readout — <em>signal bars</em></h3>
+        <p class="dir__thesis">
+          Pure terminal aesthetic. The brand mark is the wordmark, set in monospace with
+          a yellow-highlight on the "!". Scoring is six vertical signal bars that fill
+          per round — like a stalker's polygraph readout.
+        </p>
+      </div>
+      <div class="dir__pick subtle">most divergent</div>
+    </div>
+    <div class="dir__body">
+      <div class="dir__cell">
+        <div class="cell__label">Logo lockup</div>
+        <div class="d5__bg" data-time="22:41:07 LOCAL" style="min-height: 240px;">
+          <div class="d5__lockup">
+            <span class="bracket">[</span>OBSESSED<em>!</em><span class="bracket">]</span>
+          </div>
+          <div class="d5__sub">
+            $ SCRAPE --SUBJECT="MAYA_L_H" --DEPTH=<b>EVERYTHING</b> <span class="d5__cursor"></span>
+          </div>
+        </div>
+        <div class="faviconRow">
+          <div><div class="fvBox fv-16"><div class="d5__fav"><b style="font-size:12px">!</b></div></div><span>16</span></div>
+          <div><div class="fvBox fv-24"><div class="d5__fav"><b style="font-size:18px">!</b></div></div><span>24</span></div>
+          <div><div class="fvBox fv-32"><div class="d5__fav"><b style="font-size:24px">!</b></div></div><span>32</span></div>
+          <div><div class="fvBox fv-64"><div class="d5__fav"><b style="font-size:48px">!</b></div></div><span>64</span></div>
+        </div>
+        <p class="cell__note">
+          Mono wordmark + highlighted "!" + CRT scanlines + blinking cursor. Favicon =
+          highlighted "!" alone. Reads like an unauthorized terminal — fits the
+          "uncomfortably-good dossier" energy.
+        </p>
+      </div>
+      <div class="dir__cell">
+        <div class="cell__label">Scoring — 0 / 6 → 3 / 6</div>
+        <div class="d5__rack" style="margin-bottom: 14px;">
+          <div class="d5__rack__title">// READOUT · 6 SIGNALS · 0 LOCKED</div>
+          <div class="barRack">
+            <div class="barSlot empty" style="--c: var(--cat-history)"><span class="barSlot__lbl">HIST</span><span class="barSlot__num">--</span></div>
+            <div class="barSlot empty" style="--c: var(--cat-entertainment)"><span class="barSlot__lbl">ENT</span><span class="barSlot__num">--</span></div>
+            <div class="barSlot empty" style="--c: var(--cat-geography)"><span class="barSlot__lbl">GEO</span><span class="barSlot__num">--</span></div>
+            <div class="barSlot empty" style="--c: var(--cat-science)"><span class="barSlot__lbl">SCI</span><span class="barSlot__num">--</span></div>
+            <div class="barSlot empty" style="--c: var(--cat-sports)"><span class="barSlot__lbl">SPRT</span><span class="barSlot__num">--</span></div>
+            <div class="barSlot empty" style="--c: var(--cat-art)"><span class="barSlot__lbl">ART</span><span class="barSlot__num">--</span></div>
+          </div>
+        </div>
+        <div class="d5__rack">
+          <div class="d5__rack__title">// READOUT · 6 SIGNALS · 3 LOCKED</div>
+          <div class="barRack">
+            <div class="barSlot" style="--c: var(--cat-history)"><div class="barSlot__fill" style="--h: 100%"></div><span class="barSlot__lbl">HIST</span><span class="barSlot__num">5/5</span></div>
+            <div class="barSlot empty" style="--c: var(--cat-entertainment)"><span class="barSlot__lbl">ENT</span><span class="barSlot__num">2/5</span></div>
+            <div class="barSlot" style="--c: var(--cat-geography)"><div class="barSlot__fill" style="--h: 100%"></div><span class="barSlot__lbl">GEO</span><span class="barSlot__num">4/5</span></div>
+            <div class="barSlot empty" style="--c: var(--cat-science)"><span class="barSlot__lbl">SCI</span><span class="barSlot__num">1/5</span></div>
+            <div class="barSlot" style="--c: var(--cat-sports)"><div class="barSlot__fill" style="--h: 100%"></div><span class="barSlot__lbl">SPRT</span><span class="barSlot__num">5/5</span></div>
+            <div class="barSlot empty" style="--c: var(--cat-art)"><span class="barSlot__lbl">ART</span><span class="barSlot__num">0/5</span></div>
+          </div>
+        </div>
+        <p class="cell__note">
+          Round-end: signal bar rises with a 500ms tween, brief flicker, plus per-question
+          partial fills so the bars are always doing something (unlike the wedge).
+        </p>
+      </div>
+    </div>
+    <div class="dir__body" style="border-top: 1px solid var(--surface-2);">
+      <div class="dir__cell" style="border-right: 1px solid var(--surface-2);">
+        <div class="cell__label">In context — player view</div>
+        <div class="d5__phone">
+          <div class="d5__phoneTopline"><span>$ player.<em>brandon</em></span><span>22:41:07</span></div>
+          <div class="barRack d5__phoneBars">
+            <div class="barSlot" style="--c: var(--cat-history)"><div class="barSlot__fill" style="--h: 100%"></div><span class="barSlot__lbl">HI</span><span class="barSlot__num">5</span></div>
+            <div class="barSlot empty" style="--c: var(--cat-entertainment)"><span class="barSlot__lbl">EN</span><span class="barSlot__num">2</span></div>
+            <div class="barSlot" style="--c: var(--cat-geography)"><div class="barSlot__fill" style="--h: 100%"></div><span class="barSlot__lbl">GE</span><span class="barSlot__num">4</span></div>
+            <div class="barSlot empty" style="--c: var(--cat-science)"><span class="barSlot__lbl">SC</span><span class="barSlot__num">1</span></div>
+            <div class="barSlot" style="--c: var(--cat-sports)"><div class="barSlot__fill" style="--h: 100%"></div><span class="barSlot__lbl">SP</span><span class="barSlot__num">5</span></div>
+            <div class="barSlot empty" style="--c: var(--cat-art)"><span class="barSlot__lbl">AR</span><span class="barSlot__num">0</span></div>
+          </div>
+          <div class="d5__phoneQ">
+            <b>// ENTERTAINMENT · Q_02_OF_05</b>
+            Which game has Maya logged 1,400+ hours on Steam?
+          </div>
+        </div>
+      </div>
+      <div class="dir__cell">
+        <div class="cell__label">Why this works</div>
+        <p class="cell__note" style="margin-top: 0;">
+          The most divergent direction. Treats the game as <b>surveillance output</b>
+          rather than party trivia, which fits the "we scraped their Reddit" reality of
+          the product more honestly than the playful pie ever did. Also the cheapest
+          to animate (height tween only).
+        </p>
+        <p class="cell__note">
+          <b>Trade-off:</b> Pretty stark for a social party game. Probably scares off
+          casual players. Best as a "host mode" or admin-view inflection, not the main
+          consumer surface.
+        </p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ════════════════════════════════════════════════════════════════
+     SECTION: RECOMMENDATION
+     ════════════════════════════════════════════════════════════════ -->
+<section class="rec">
+  <div class="rec__pill">RECOMMENDED PATH</div>
+  <h2>Pick one of <b>01 · Case File</b>, <b>02 · Corkboard</b>, or <b>04 · Bang</b>.</h2>
+  <p>
+    These three solve the TP problem cleanly and each has a real shot at owning a
+    visual lane in the trivia category. <b>04 (Bang)</b> is the lowest-risk path —
+    it keeps the existing app palette and only swaps the brand object, so we can
+    ship it in a sprint. <b>01 (Case File)</b> is the boldest brand statement —
+    it commits to the dossier metaphor everywhere and would let us write better
+    copy throughout. <b>02 (Corkboard)</b> is the most playful and the most "scrolly,
+    physical, fun."
+  </p>
+  <p>
+    The other two are useful as <b>secondary visual languages</b> — 03 (Highlighter)
+    is a great pattern for the post-game readout screen, and 05 (Readout) is a
+    great host-admin / debug overlay aesthetic. Don't waste them.
+  </p>
+  <ol>
+    <li><b>Pick a primary.</b> I'd put it on 04 unless you want the brand to be louder than the gameplay.</li>
+    <li><b>Adapt the wedge component's API</b> to the new mark — the controller methods (<code>fillCategory</code>, <code>setFills</code>, <code>isComplete</code>) all transfer 1:1.</li>
+    <li><b>Update the host TV hero</b> first; it's where the TP collision is most embarrassing.</li>
+    <li><b>Defer favicon + app icon</b> until the mark is locked — there's no point pixel-fitting twice.</li>
+  </ol>
+</section>
+
+</main>
+</body>
+</html>

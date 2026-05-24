@@ -7,6 +7,7 @@ let myProfileName = '';
 let myProfileType = 'person';
 let myRoomCode = null;
 let selectedThings = [];  // [{profile_id, num_questions}]
+let bangRack = null;
 let pollInterval = null;
 let timerInterval = null;
 let timerSeconds = 30;
@@ -88,6 +89,9 @@ function showScreen(name) {
     startLobbyPoll(); // fallback polling — can be reduced or removed once WS is stable
   }
   if (name === 'game') {
+    bangRack = BangRack.attach(document.getElementById('bang-rack'), {
+      categories: ['history', 'entertainment', 'geography', 'science', 'sports', 'art_literature'],
+    });
     if (myRoomCode) connectWS(myRoomCode);
     startGamePoll();
   }
@@ -168,7 +172,7 @@ async function loadProfiles() {
       <h3>${esc(p.name)}</h3>
       <div class="meta">${p.entity_type ? p.entity_type.toUpperCase() : 'PERSON'} • @${esc(p.reddit_handle || p.twitter_handle || '—')}</div>
       <div class="meta">${p.question_count} questions</div>
-      ${p.consent_obtained ? '<span style="color:var(--correct);font-size:12px;font-weight:700">✓ CONSENT</span>' : '<span style="color:var(--wrong);font-size:12px;font-weight:700">⚠ GUEST CONSENT REQUIRED</span>'}
+      ${p.consent_obtained ? '<span class="badge badge--success">✓ Consent</span>' : '<span class="badge badge--danger">⚠ Guest consent required</span>'}
       ${(p.scrape_status === 'pending' || p.scrape_status === 'failed' || p.scrape_status === null) && p.consent_obtained ? `<button id="scrape-btn-${p.id}" class="btn" style="margin-top:0.5rem;font-size:14px;padding:0.5rem;color:var(--accent)" onclick="triggerScrape(${p.id}, event)">Scrape</button>` : ''}
       <span class="status-badge status-${p.scrape_status}">${p.scrape_status}</span>
       ${p.content_quality ? `<span style="font-size:11px;font-weight:700;color:${p.content_quality==='insufficient'?'var(--wrong)':p.content_quality==='limited'?'var(--accent)':p.content_quality==='rich'?'var(--correct)':'var(--text-secondary)'}">${p.content_quality.toUpperCase()} (${p.content_chunks||0} facts)</span>` : ''}
@@ -337,6 +341,8 @@ function renderQuestionWS(q) {
   const badge = document.getElementById('category-badge');
   badge.textContent = q.category.replace('_', ' ').toUpperCase();
   badge.style.background = q.category_color;
+  const gameScreen = document.getElementById('screen-game');
+  gameScreen.style.setProperty('--q-cat-color', q.category_color);
   const grid = document.getElementById('answer-grid');
   grid.innerHTML = (q.options || []).map(opt => `
     <button class="answer-btn" onclick="submitAnswer(this, '${esc(opt)}')">${esc(opt)}</button>`).join('');
@@ -365,6 +371,7 @@ function renderQuestion(q) {
   const badge = document.getElementById('category-badge');
   badge.textContent = q.category.replace('_', ' ').toUpperCase();
   badge.style.background = q.category_color;
+  document.getElementById('screen-game').style.setProperty('--q-cat-color', q.category_color);
   const grid = document.getElementById('answer-grid');
   grid.innerHTML = q.options.map(opt => `
     <button class="answer-btn" onclick="submitAnswer(this, '${esc(opt)}')">${esc(opt)}</button>`).join('');
@@ -393,6 +400,9 @@ function showAnswerResultWS(msg) {
     else if (b.textContent === msg.answer_text && !msg.is_correct) b.classList.add('wrong');
     b.disabled = true;
   });
+  if (msg.is_correct && msg.category && bangRack) {
+    bangRack.fill(msg.category, { burst: true });
+  }
   toast(msg.is_correct ? `+${msg.points_earned} pts!` : 'Wrong!');
 }
 
@@ -414,9 +424,12 @@ async function submitAnswer(btn, answer) {
       else if (b === btn && !result.is_correct) b.classList.add('wrong');
       b.disabled = true;
     });
+    if (result.is_correct && result.category && bangRack) {
+      bangRack.fill(result.category, { burst: true });
+    }
     toast(result.is_correct ? `+${result.points_earned} pts!` : 'Wrong!');
   }
-  
+
   setTimeout(async () => {
     await fetch(API + `/api/games/${myRoomCode}/next`, { method: 'POST' });
     const nextRes = await fetch(API + `/api/games/${myRoomCode}/question`);
@@ -436,13 +449,7 @@ function showResultsWS() {
   fetch(API + `/api/games/${myRoomCode}/scores`).then(async res => {
     if (!res.ok) return;
     const scores = await res.json();
-    const winner = scores[0];
-    document.getElementById('winner-display').textContent = winner ? `🏆 ${esc(winner.player_name)} wins!` : 'No winner';
-    document.getElementById('final-scores').innerHTML = scores.map((s, i) => `
-      <div class="score-row ${i === 0 ? 'top' : ''}">
-        <span>${i+1}. ${esc(s.player_name)}</span>
-        <span class="score-val">${s.score.toLocaleString()}</span>
-      </div>`).join('');
+    renderResults(scores);
   });
 }
 
@@ -453,13 +460,47 @@ async function showResults() {
   const res = await fetch(API + `/api/games/${myRoomCode}/scores`);
   if (!res.ok) return;
   const scores = await res.json();
+  renderResults(scores);
+}
+
+function renderResults(scores) {
   const winner = scores[0];
-  document.getElementById('winner-display').textContent = winner ? `🏆 ${esc(winner.player_name)} wins!` : 'No winner';
+  const logoEl = document.getElementById('winner-bang-logo');
+  // PR-8 wants a big celebratory lockup on the winner card — stacked (120px
+  // circle above the wordmark) reads large and pulses, unlike compact.
+  if (logoEl) renderBang(logoEl, { variant: 'stacked', wordmark: true });
+  document.getElementById('winner-display').textContent = winner
+    ? `${esc(winner.player_name)} wins!  ${winner.score.toLocaleString()} pts`
+    : 'No winner';
   document.getElementById('final-scores').innerHTML = scores.map((s, i) => `
     <div class="score-row ${i === 0 ? 'top' : ''}">
       <span>${i+1}. ${esc(s.player_name)}</span>
       <span class="score-val">${s.score.toLocaleString()}</span>
     </div>`).join('');
+  fireConfetti();
+}
+
+function fireConfetti() {
+  const layer = document.getElementById('confetti-layer');
+  if (!layer) return;
+  layer.innerHTML = '';
+  if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  const COLORS = ['#e94560','#ffeb3b','#00e676','#2979ff','#d500f9','#ff6d00'];
+  const SHAPES = ['2px', '6px', '10px'];
+  for (let i = 0; i < 60; i++) {
+    const p = document.createElement('div');
+    p.className = 'piece';
+    p.style.left = Math.random() * 100 + '%';
+    p.style.background = COLORS[i % COLORS.length];
+    p.style.borderRadius = Math.random() > 0.5 ? '50%' : '2px';
+    const size = SHAPES[Math.floor(Math.random() * SHAPES.length)];
+    p.style.width = size;
+    p.style.height = size;
+    p.style.animationDuration = (1.5 + Math.random() * 2) + 's';
+    p.style.animationDelay = (Math.random() * 1.2) + 's';
+    layer.appendChild(p);
+  }
+  setTimeout(() => { layer.innerHTML = ''; }, 4000);
 }
 
 async function startGamePoll() {
@@ -479,6 +520,9 @@ async function loadLeaderboard() {
       <span class="score-val">${e.total_score.toLocaleString()}</span>
     </div>`).join('');
 }
+
+// ── Boot ─────────────────────────────────────────────────────────────────────
+renderBang(document.getElementById('home-logo'), { variant: 'primary', wordmark: true });
 
 // ── Utilities ────────────────────────────────────────────────────────────────
 function esc(s) {

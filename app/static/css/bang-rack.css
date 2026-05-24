@@ -1,0 +1,90 @@
+/* ════════════════════════════════════════════════════════════════
+   bang-rack.css — 6-slot Bang scoring rack
+   PHA-801 Phase 1, PR-5.
+
+   CSS from design/Obsessed v9 - Bang Refined.html (.bangSlot / .d4__rack).
+   Loaded after bang.css. Managed by BangRack in js/components/bang-rack.js.
+   ════════════════════════════════════════════════════════════════ */
+
+/* ── Rack container ────────────────────────────────────────────── */
+.bang-rack {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 10px;
+  padding: 16px;
+  background: var(--surface);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--surface-elevated);
+  width: 100%;
+  max-width: 420px;
+}
+
+/* ── Individual slot ───────────────────────────────────────────── */
+.bang-slot {
+  aspect-ratio: 0.75;
+  border-radius: 10px;
+  border: 2px dashed var(--surface-elevated);
+  display: grid;
+  place-items: center;
+  font-family: 'Archivo Black', system-ui, sans-serif;
+  color: var(--text-secondary);
+  font-size: 24px;
+  font-style: italic;
+  position: relative;
+  transition: all var(--dur-reveal) var(--ease-overshoot);
+}
+
+/* ── Filled slot ───────────────────────────────────────────────── */
+.bang-slot.filled {
+  border-style: solid;
+  border-color: var(--c);
+  background: var(--c);
+  color: var(--white);
+  box-shadow:
+    0 3px 0 color-mix(in oklab, var(--c) 60%, #000),
+    0 8px 24px color-mix(in oklab, var(--c) 35%, transparent);
+  transform: rotate(var(--rot, -3deg));
+}
+.bang-slot.filled b {
+  transform: skew(-6deg);
+  display: block;
+}
+
+/* ── Slot label (category name) ────────────────────────────────── */
+.bang-slot__lbl {
+  position: absolute;
+  bottom: 5px;
+  left: 0;
+  right: 0;
+  text-align: center;
+  font-family: var(--font-mono);
+  font-size: 7px;
+  letter-spacing: 0.1em;
+  font-style: normal;
+  transform: none;
+  color: rgba(255, 255, 255, 0.7);
+  font-weight: 700;
+  text-transform: uppercase;
+  line-height: 1;
+}
+.bang-slot:not(.filled) .bang-slot__lbl {
+  color: var(--text-secondary);
+}
+
+/* ── Burst pop animation (on fill) ────────────────────────────── */
+@keyframes bangSlotBurst {
+  0%   { transform: rotate(var(--rot, -3deg)) scale(0.6); opacity: 0; }
+  60%  { transform: rotate(var(--rot, -3deg)) scale(1.18); }
+  100% { transform: rotate(var(--rot, -3deg)) scale(1); opacity: 1; }
+}
+.bang-slot.filled.burst {
+  animation: bangSlotBurst var(--dur-reveal) var(--ease-overshoot) forwards;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bang-slot,
+  .bang-slot.filled.burst {
+    transition: none !important;
+    animation: none !important;
+  }
+}
