@@ -1,4 +1,4 @@
-from sqlalchemy import create_engine, event, Column, Integer, String, Text, Float, DateTime, Boolean, ForeignKey, JSON
+from sqlalchemy import create_engine, event, Column, Integer, String, Text, Float, DateTime, Boolean, ForeignKey, JSON, Index
 from sqlalchemy.orm import DeclarativeBase
 from sqlalchemy.orm import sessionmaker, relationship
 from datetime import datetime, timezone
@@ -42,6 +42,7 @@ class Profile(Base):
     court_query = Column(String(500), default="")  # municipal court search query (person)
     sos_query = Column(String(500), default="")  # Secretary of State business entity search (person/business)
     auditor_query = Column(String(500), default="")  # county auditor property records (place/person)
+    voter_query = Column(String(500), default="")  # Ohio voter file lookup: "LastName, FirstName" or "LastName, FirstName, YYYY-MM-DD"
     wikipedia_handle = Column(String(500), default="")  # place name for Wikipedia scrape
     osm_query = Column(String(500), default="")  # place name for OpenStreetMap
     travel_url = Column(String(500), default="")  # travel blog or TripAdvisor URL
@@ -150,6 +151,53 @@ class EntityCache(Base):
 
 
 
+class OhioVoterFile(Base):
+    """Indexed Ohio SoS voter file — one row per registered voter."""
+    __tablename__ = "ohio_voter_file"
+    __table_args__ = (
+        Index("ix_ovf_name", "last_name", "first_name"),
+        Index("ix_ovf_dob", "dob"),
+    )
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    sos_voterid = Column(String(50), unique=True, nullable=False)
+    county = Column(String(50), nullable=False)
+    last_name = Column(String(100), nullable=False)
+    first_name = Column(String(100), nullable=False)
+    middle_name = Column(String(100), default="")
+    suffix = Column(String(20), default="")
+    dob = Column(String(12), default="")
+    registration_date = Column(String(12), default="")
+    voter_status = Column(String(5), default="")
+    party = Column(String(5), default="")
+    address1 = Column(String(200), default="")
+    address2 = Column(String(100), default="")
+    city = Column(String(100), default="")
+    state = Column(String(5), default="OH")
+    zipcode = Column(String(15), default="")
+    precinct_name = Column(String(100), default="")
+    precinct_code = Column(String(20), default="")
+    congressional_district = Column(String(20), default="")
+    state_rep_district = Column(String(20), default="")
+    state_senate_district = Column(String(20), default="")
+    voting_history = Column(Text, default="")  # JSON: {"GENERAL_11_2024": "Y", ...}
+    imported_at = Column(Integer, default=lambda: int(datetime.now(timezone.utc).timestamp()))
+
+
+class OhioVoterFileImport(Base):
+    """Tracks each voter file download/ingest run."""
+    __tablename__ = "ohio_voter_file_imports"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    county = Column(String(50), nullable=False)
+    download_url = Column(String(500), default="")
+    status = Column(String(20), default="running")  # running|done|error
+    rows_inserted = Column(Integer, default=0)
+    error = Column(Text, default="")
+    started_at = Column(Integer, default=0)
+    finished_at = Column(Integer, default=0)
+
+
 def init_db():
     """Initialize database tables and seed data."""
     Base.metadata.create_all(bind=engine)
@@ -172,5 +220,18 @@ def init_db():
         cursor.executemany("INSERT OR IGNORE INTO category_seeds (name, color, icon) VALUES (?,?,?)", seeds)
         conn.commit()
     conn.close()
+
+    # Add new columns to pre-existing tables (idempotent — SQLite silently
+    # ignores "duplicate column" errors).
+    with engine.connect() as conn2:
+        for ddl in [
+            "ALTER TABLE profiles ADD COLUMN voter_query TEXT DEFAULT ''",
+        ]:
+            try:
+                conn2.execute(__import__("sqlalchemy").text(ddl))
+                conn2.commit()
+            except Exception:
+                pass  # column already exists
+
 
 init_db()

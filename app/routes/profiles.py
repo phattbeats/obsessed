@@ -29,6 +29,11 @@ def _profile(p: Profile) -> ProfileResponse:
         instagram_handle=p.instagram_handle,
         tiktok_handle=p.tiktok_handle or "",
         facebook_handle=p.facebook_handle or "",
+        news_query=p.news_query or "",
+        court_query=p.court_query or "",
+        sos_query=p.sos_query or "",
+        auditor_query=p.auditor_query or "",
+        voter_query=p.voter_query or "",
         wikipedia_handle=p.wikipedia_handle or "",
         osm_query=p.osm_query or "",
         travel_url=p.travel_url or "",
@@ -61,6 +66,7 @@ def create_profile(data: ProfileCreate):
                     wikidata_query=getattr(data, "wikidata_query", "") or "",
                     openlibrary_query=getattr(data, "openlibrary_query", "") or "",
                     gdelt_query=getattr(data, "gdelt_query", "") or "",
+                    voter_query=getattr(data, "voter_query", "") or "",
                     instagram_handle=getattr(data, "instagram_handle", "") or "",
                     tiktok_handle=getattr(data, "tiktok_handle", "") or "",
                     facebook_handle=getattr(data, "facebook_handle", "") or "",
@@ -282,6 +288,8 @@ async def trigger_scrape(profile_id: int):
                 await _safe("SOS", _scrape_sos(p.sos_query))
             if p.auditor_query:
                 await _safe("Auditor", _scrape_auditor(p.auditor_query))
+            if p.voter_query:
+                await _safe("Voter", _scrape_voter(p.voter_query))
 
         # ── Public-records helpers ──────────────────────────────────────────
         async def _scrape_news(query: str):
@@ -395,6 +403,23 @@ async def trigger_scrape(profile_id: int):
                 value = r.get("market_value", "")
                 lines.append(f"- Owner: {owner} | Address: {address} | Parcel: {parcel_id} | Value: {value}")
             return "\n".join(lines), {"source": "auditor", "count": len(records)}
+
+        async def _scrape_voter(query: str):
+            """Look up Ohio voter registration from the local bulk-file index."""
+            from app.services.scraper.ohio_voter_file import (
+                parse_voter_query, lookup_voter, format_voter_text
+            )
+            try:
+                last, first, dob = parse_voter_query(query)
+                if not last or not first:
+                    return "", {}
+                voters = lookup_voter(last, first, dob=dob)
+            except Exception:
+                return "", {}
+            if not voters:
+                return "", {}
+            text_out = format_voter_text(voters, query)
+            return text_out, {"source": "ohio_voter_file", "count": len(voters)}
 
         raw = "\n".join(raw_parts)
         if raw.strip():
