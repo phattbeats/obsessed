@@ -83,11 +83,20 @@ function showScreen(name) {
   const el = document.getElementById(map[name]);
   if (el) el.classList.add('active');
   if (name !== 'game') { clearInterval(pollInterval); clearInterval(timerInterval); }
+  if (name === 'home') renderHomeReturning();
   if (name === 'lobby') {
+    // Fresh entrance: forget who we'd already popped in so bubbles re-animate.
+    _lobbyKnownIds.clear();
+    updateRoomCode();
     // Brand centerpiece: render the empty wheel + legend, then fill it
     // slice-by-slice (center-out bounce + burst) as a "box-cover" entrance.
     const lw = document.getElementById('lobby-wedge');
-    if (lw) { renderWedge(lw); fillWedge(lw, WEDGE_KEYS, { stagger: 110 }); }
+    if (lw) {
+      renderWedge(lw);
+      fillWedge(lw, WEDGE_KEYS, { stagger: 110 });
+      // Wheel-complete is a celebration beat → confetti once the last slice lands.
+      setTimeout(() => launchConfetti(), WEDGE_KEYS.length * 110 + 200);
+    }
     renderLegend(document.getElementById('lobby-legend'));
     connectWS(myRoomCode);
     startLobbyPoll(); // fallback polling — can be reduced or removed once WS is stable
@@ -276,8 +285,8 @@ async function joinGame() {
   if (!res.ok) { toast('Room not found or game already started'); return; }
   const result = await res.json();
   myRoomCode = roomCode;
+  closeJoinModal();
   showScreen('lobby');
-  startLobbyPoll();
 }
 
 async function requestConsentLink(profileId) {
@@ -291,11 +300,13 @@ function exitLobby() {
   clearInterval(pollInterval);
   if (ws) { ws.close(); ws = null; }
   myRoomCode = null;
+  _lobbyKnownIds.clear();
   showScreen('profile');
 }
 
 async function startLobbyPoll() {
   if (!myRoomCode) return;
+  clearInterval(pollInterval); // guard against a second poller (callers also enter via showScreen)
   await pollLobby();
   pollInterval = setInterval(pollLobby, 3000);
 }
@@ -305,6 +316,7 @@ async function pollLobby() {
   const res = await fetch(API + `/api/games/${myRoomCode}`);
   if (!res.ok) return;
   const game = await res.json();
+  updateGuestCard(game);
   updateLobbyPlayers(game.players || []);
   if (game.status === 'active') {
     clearInterval(pollInterval);
@@ -313,11 +325,106 @@ async function pollLobby() {
   }
 }
 
+// Player ids already popped-in this lobby session (so polling doesn't re-animate
+// everyone every 3s — only genuinely new joiners bounce in). Reset on entry/exit.
+const _lobbyKnownIds = new Set();
+
+function _initials(name) {
+  const parts = String(name || '?').trim().split(/\s+/);
+  const a = (parts[0] || '?')[0] || '?';
+  const b = parts.length > 1 ? (parts[1][0] || '') : '';
+  return (a + b).toUpperCase();
+}
+
 function updateLobbyPlayers(players) {
   const list = document.getElementById('lobby-players');
-  if (list) {
-    list.innerHTML = (players || []).map(p => `
-      <div class="player-entry ${p.is_host ? 'host-tag' : ''}">${esc(p.player_name)} ${p.is_host ? '👑' : ''}</div>`).join('');
+  if (!list) return;
+  players = players || [];
+  if (players.length === 0) {
+    list.innerHTML = '<span class="player-bubbles__empty">Waiting for players to join…</span>';
+  } else {
+    list.innerHTML = players.map((p, i) => {
+      const id = p.player_id || p.player_name;
+      const cat = WEDGE_KEYS[i % WEDGE_KEYS.length]; // cycle the 6 brand colors
+      const isNew = id && !_lobbyKnownIds.has(id);
+      if (id) _lobbyKnownIds.add(id);
+      const cls = 'player-bubble' +
+        (p.is_host ? ' player-bubble--host' : '') +
+        (isNew ? ' player-bubble--pop' : '');
+      return `<div class="${cls}" data-cat="${cat}">` +
+               `<div class="player-bubble__avatar">${esc(_initials(p.player_name))}</div>` +
+               `<div class="player-bubble__name">${esc(p.player_name)}</div>` +
+             `</div>`;
+    }).join('');
+  }
+  // Start pulses once there are enough players to actually play.
+  const startBtn = document.getElementById('start-game-btn');
+  if (startBtn) {
+    const active = players.filter(p => p.is_active !== false).length;
+    startBtn.classList.toggle('is-ready', active >= 2);
+  }
+}
+
+// Guest-profile card up top — who this game is about + pool size. Name comes
+// from myProfileName when the host already knows it; otherwise resolved once
+// from the game's profile_id (read-only /api/profiles/{id}). Multi-profile
+// ("things") games have no single profile_id → labelled "Party Mix".
+let _guestNameCache = {};
+async function updateGuestCard(game) {
+  const card = document.getElementById('lobby-guest');
+  if (!card) return;
+  let name = myProfileName || '';
+  const pool = game && game.total_questions;
+  if (!name && game && game.profile_id) {
+    if (_guestNameCache[game.profile_id]) {
+      name = _guestNameCache[game.profile_id];
+    } else {
+      try {
+        const r = await fetch(API + '/api/profiles/' + game.profile_id);
+        if (r.ok) {
+          const p = await r.json();
+          name = p.name || '';
+          _guestNameCache[game.profile_id] = name;
+          myProfileName = name;
+        }
+      } catch (e) { /* card stays hidden if we can't resolve a name */ }
+    }
+  }
+  if (!name && game && !game.profile_id) name = 'Party Mix';
+  if (!name) { card.hidden = true; return; }
+  card.hidden = false;
+  card.innerHTML =
+    `<div class="guest-card__avatar">${esc((name[0] || '?').toUpperCase())}</div>` +
+    `<div class="guest-card__text">` +
+      `<span class="guest-card__name">${esc(name)}</span>` +
+      (pool ? `<span class="guest-card__meta">${pool} questions</span>` : '') +
+    `</div>`;
+}
+
+// ── Room code + share ─────────────────────────────────────────────────────────
+function updateRoomCode() {
+  const el = document.getElementById('room-code-display');
+  if (el) el.textContent = myRoomCode || '------';
+  const urlEl = document.getElementById('share-url');
+  if (urlEl) urlEl.textContent = _joinUrl();
+}
+function _joinUrl() {
+  return location.origin + '/?join=' + encodeURIComponent(myRoomCode || '');
+}
+function copyRoomCode() {
+  if (!myRoomCode) { toast('No room code yet'); return; }
+  _copyText(myRoomCode, 'Room code copied');
+}
+function copyShareLink() { _copyText(_joinUrl(), 'Join link copied'); }
+function toggleSharePanel() {
+  const p = document.getElementById('share-panel');
+  if (p) p.classList.toggle('is-shown');
+}
+function _copyText(text, okMsg) {
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(text).then(() => toast(okMsg)).catch(() => toast(text));
+  } else {
+    toast(text); // clipboard API unavailable (insecure context) — show it to copy by hand
   }
 }
 
@@ -450,6 +557,7 @@ function showResultsWS() {
         <span>${i+1}. ${esc(s.player_name)}</span>
         <span class="score-val">${s.score.toLocaleString()}</span>
       </div>`).join('');
+    _celebrateWin(winner);
   });
 }
 
@@ -467,6 +575,7 @@ async function showResults() {
       <span>${i+1}. ${esc(s.player_name)}</span>
       <span class="score-val">${s.score.toLocaleString()}</span>
     </div>`).join('');
+  _celebrateWin(winner);
 }
 
 async function startGamePoll() {
@@ -600,3 +709,97 @@ function renderLegend(el) {
       `<span>${c.label}</span>` +
     `</div>`).join('');
 }
+
+// ── Confetti (PHA-806 / PR-3) ─────────────────────────────────────────────────
+// CSS-keyframe particle system — no canvas, no library (brief §4.3/§4.5). Each
+// particle is a 6×16 rounded rect that tumbles down a 2D arc in a category color.
+// Count is capped at 60. JS only seeds per-particle randomness via custom props;
+// the motion lives entirely in the `confetti-fall` keyframes. Skipped wholesale
+// under prefers-reduced-motion. Triggered on wedge-complete + game win.
+const CONFETTI_CSS_COLORS = [
+  '--cat-history', '--cat-entertainment', '--cat-geography',
+  '--cat-science', '--cat-sports', '--cat-art',
+];
+const CONFETTI_MAX = 60;
+function launchConfetti(count = CONFETTI_MAX) {
+  if (_prefersReducedMotion()) return;
+  const layer = document.getElementById('confetti-layer');
+  if (!layer) return;
+  const n = Math.min(count, CONFETTI_MAX);
+  const frag = document.createDocumentFragment();
+  let longest = 0;
+  for (let i = 0; i < n; i++) {
+    const p = document.createElement('div');
+    p.className = 'confetti__particle';
+    p.style.background = `var(${CONFETTI_CSS_COLORS[i % CONFETTI_CSS_COLORS.length]})`;
+    p.style.left = (Math.random() * 100).toFixed(2) + 'vw';
+    const drift = (Math.random() * 2 - 1) * 30;                 // ±30vw horizontal arc
+    const dur = 2600 + Math.random() * 800;                     // 2.6–3.4s lifespan
+    const delay = Math.round(Math.random() * 400);
+    p.style.setProperty('--cf-x', drift.toFixed(1) + 'vw');
+    p.style.setProperty('--cf-rot', (360 + Math.random() * 720).toFixed(0) + 'deg');
+    p.style.setProperty('--cf-dur', dur.toFixed(0) + 'ms');
+    p.style.setProperty('--cf-delay', delay + 'ms');
+    longest = Math.max(longest, dur + delay);
+    frag.appendChild(p);
+  }
+  layer.appendChild(frag);
+  // Sweep the layer once the last particle has fallen — keep the DOM clean.
+  setTimeout(() => { layer.innerHTML = ''; }, longest + 300);
+}
+
+// Record the just-finished game for the home returning-card + celebrate (§5.1).
+function _celebrateWin(winner) {
+  if (winner && winner.player_name) localStorage.setItem('obsessed_last_winner', winner.player_name);
+  if (myProfileName) localStorage.setItem('obsessed_last_guest', myProfileName);
+  launchConfetti(); // §4.3 game-win trigger
+}
+
+// ── Join modal (PHA-806 / PR-3) ───────────────────────────────────────────────
+function openJoinModal() {
+  const m = document.getElementById('join-modal');
+  if (!m) return;
+  const nameEl = document.getElementById('player-name-input');
+  if (nameEl && myPlayerName) nameEl.value = myPlayerName;
+  m.classList.add('is-open');
+  const codeEl = document.getElementById('room-code-input');
+  if (codeEl) codeEl.focus();
+}
+function closeJoinModal() {
+  const m = document.getElementById('join-modal');
+  if (m) m.classList.remove('is-open');
+}
+
+// ── Home: returning-visitor mini-card + brand art (PHA-806 / PR-3) ────────────
+function renderHomeReturning() {
+  const el = document.getElementById('home-returning');
+  if (!el) return;
+  const guest = localStorage.getItem('obsessed_last_guest');
+  const winner = localStorage.getItem('obsessed_last_winner');
+  if (!guest && !winner) { el.classList.remove('is-shown'); return; }
+  el.innerHTML =
+    (guest ? `<span>Last game · <b>${esc(guest)}</b></span>` : '') +
+    (winner ? `<span>Champion · <b>${esc(winner)}</b> 🏆</span>` : '');
+  el.classList.add('is-shown');
+}
+
+function _initHomeBrand() {
+  // Emblem beside the wordmark: a fully-filled wheel = the brand mark.
+  renderWedge(document.getElementById('home-emblem'), WEDGE_KEYS);
+  // Bottom-right decorative silhouette: full wheel, dimmed by CSS opacity.
+  renderWedge(document.getElementById('home-corner-wedge'), WEDGE_KEYS);
+}
+
+// Shared join links land on /?join=CODE → prefill + open the join modal.
+function _maybeAutoJoin() {
+  const code = new URLSearchParams(location.search).get('join');
+  if (!code) return;
+  const codeEl = document.getElementById('room-code-input');
+  if (codeEl) codeEl.value = code;
+  openJoinModal();
+}
+
+// ── Page init ─────────────────────────────────────────────────────────────────
+_initHomeBrand();
+renderHomeReturning();
+_maybeAutoJoin();

@@ -86,17 +86,46 @@
 
 
 
-<!-- HOME -->
-<div id="screen-home" class="screens active">
-  <div class="app-title">OBSESSED</div>
-  <p class="app-tagline">The trivia game that knows your friends better than you do</p>
-  <div class="action-grid">
-    <button class="btn primary" onclick="showScreen('profile')">New Game</button>
-    <button class="btn" onclick="showScreen('history')">History</button>
-    <button class="btn" onclick="showScreen('settings')">Settings</button>
-    <a class="btn" href="/admin.html">Admin</a>
+<!-- JOIN GAME MODAL -->
+<div id="join-modal" class="modal" role="dialog" aria-modal="true" aria-labelledby="join-modal-title">
+  <div class="modal__card">
+    <h2 class="modal__title" id="join-modal-title">Join a Game</h2>
+    <div class="form-group">
+      <label for="room-code-input">Room Code</label>
+      <input id="room-code-input" maxlength="6" inputmode="numeric" autocomplete="off" placeholder="123456">
+    </div>
+    <div class="form-group">
+      <label for="player-name-input">Your Name</label>
+      <input id="player-name-input" maxlength="24" autocomplete="off" placeholder="What should we call you?">
+    </div>
+    <div class="modal__actions">
+      <button class="btn btn--primary" onclick="joinGame()">Join</button>
+      <button class="btn btn--ghost" onclick="closeJoinModal()">Cancel</button>
+    </div>
   </div>
-  <div id="home-stats" class="stats-bar"></div>
+</div>
+
+<!-- Confetti layer (particles injected by JS; CSS-keyframe driven) -->
+<div id="confetti-layer" aria-hidden="true"></div>
+
+<!-- HOME (cold-open) -->
+<div id="screen-home" class="screens active dot-grid-bg">
+  <div class="home__wordmark">
+    <div class="app-title">OBSESSED</div>
+    <div id="home-emblem" class="wedge home__emblem" aria-hidden="true"></div>
+  </div>
+  <p class="app-tagline">The trivia game that knows your friends better than you do</p>
+  <div class="home__cta">
+    <button class="btn btn--primary" onclick="showScreen('profile')">New Game</button>
+    <button class="btn btn--ghost" onclick="openJoinModal()">Join Game</button>
+  </div>
+  <div id="home-returning" class="home__returning"></div>
+  <nav class="home__nav">
+    <button class="home__nav-link" onclick="showScreen('history')">History</button>
+    <button class="home__nav-link" onclick="showScreen('settings')">Settings</button>
+    <a class="home__nav-link" href="/admin.html">Admin</a>
+  </nav>
+  <div id="home-corner-wedge" class="wedge home__corner-wedge" aria-hidden="true"></div>
 </div>
 
 <!-- PROFILE MANAGEMENT -->
@@ -294,22 +323,32 @@
   <div id="profile-list" style="margin-top: 1rem;"></div>
 </div>
 
-<div id="screen-lobby" class="screens">
-  <div class="screen-header">
-    <button class="back-btn" onclick="exitLobby()">←</button>
-    <h2>Waiting Room</h2>
+<div id="screen-lobby" class="screens dot-grid-bg">
+  <div class="screen-header lobby__header">
+    <button class="back-btn" onclick="exitLobby()" aria-label="Leave lobby">←</button>
   </div>
+  <div id="lobby-guest" class="guest-card" hidden></div>
   <div class="wedge-brand">
     <div id="lobby-wedge" class="wedge wedge--md"></div>
     <div id="lobby-legend" class="wedge-legend"></div>
   </div>
-  <div class="room-code-display" id="room-code-display">------</div>
-  <p style="color: var(--text-secondary); font-size: 14px;">Share this code with friends</p>
+  <div class="room-code">
+    <span class="room-code__caption">Room Code</span>
+    <span class="room-code__value" id="room-code-display">------</span>
+    <div class="room-code__actions">
+      <button class="room-code__btn" onclick="copyRoomCode()">Copy</button>
+      <button class="room-code__btn" onclick="toggleSharePanel()">QR / Link</button>
+    </div>
+    <div id="share-panel" class="share-panel">
+      <span class="share-panel__url" id="share-url"></span>
+      <button class="room-code__btn" onclick="copyShareLink()">Copy link</button>
+    </div>
+  </div>
   <div class="player-list">
     <h3>Players</h3>
-    <div id="lobby-players"></div>
+    <div id="lobby-players" class="player-bubbles"></div>
   </div>
-  <button class="btn primary" id="start-game-btn" onclick="startGame()">Start Game</button>
+  <button class="btn btn--primary" id="start-game-btn" onclick="startGame()">Start Game</button>
 </div>
 
 <!-- GAME PLAY -->
