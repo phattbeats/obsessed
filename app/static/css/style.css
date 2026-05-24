@@ -27,16 +27,6 @@ body {
   background: radial-gradient(ellipse at 50% 0%, #0f3460 0%, var(--bg) 70%);
 }
 
-.app-title {
-  font-family: var(--font-main);
-  font-size: 72px;
-  background: linear-gradient(135deg, var(--border) 0%, #ff8a80 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
-  line-height: 1;
-  text-align: center;
-}
 .app-tagline {
   font-family: var(--font-body);
   color: var(--text-secondary);
