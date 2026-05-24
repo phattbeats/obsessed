@@ -7,8 +7,70 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Fredoka+One&family=JetBrains+Mono:wght@700&family=Nunito:wght@400;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/static/css/style.css">
+  <link rel="stylesheet" href="/static/css/wedge.css">
 </head>
 <body>
+<!-- ── Category-icon sprite (PHA-805) ──────────────────────────────────────────
+     Six "sharpie on whiteboard" marker icons, referenced via <use href="#cat-icon-…">.
+     Hidden; <symbol>s render only where used. Icon keys match the backend category
+     set. The #cat-icon-rough filter adds the hand-drawn marker wobble. -->
+<svg width="0" height="0" aria-hidden="true" focusable="false" style="position:absolute">
+  <defs>
+    <filter id="cat-icon-rough" x="-20%" y="-20%" width="140%" height="140%">
+      <feTurbulence type="fractalNoise" baseFrequency="0.018" numOctaves="2" seed="7" result="noise"/>
+      <feDisplacementMap in="SourceGraphic" in2="noise" scale="1.7" xChannelSelector="R" yChannelSelector="G"/>
+    </filter>
+  </defs>
+  <symbol id="cat-icon-history" viewBox="0 0 24 24">
+    <g fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" filter="url(#cat-icon-rough)">
+      <path d="M7 4h9a2 2 0 0 1 2 2v11a3 3 0 0 0 3 3H9a3 3 0 0 1-3-3V6"/>
+      <path d="M7 4a2 2 0 0 0-2 2 2 2 0 0 0 2 2h2"/>
+      <line x1="9.5" y1="9" x2="15.5" y2="9"/>
+      <line x1="9.5" y1="12.5" x2="15.5" y2="12.5"/>
+      <line x1="9.5" y1="16" x2="13.5" y2="16"/>
+    </g>
+  </symbol>
+  <symbol id="cat-icon-entertainment" viewBox="0 0 24 24">
+    <g fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" filter="url(#cat-icon-rough)">
+      <rect x="3" y="9" width="18" height="11" rx="1.8"/>
+      <path d="M3.4 9 6.6 4.7M9 9l3.2-4.3M14.6 9l3.2-4.3"/>
+      <path d="M3 9 4.6 4.9A1.6 1.6 0 0 1 6.1 3.8H19A1.6 1.6 0 0 1 20.5 5.4V9"/>
+    </g>
+  </symbol>
+  <symbol id="cat-icon-geography" viewBox="0 0 24 24">
+    <g fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" filter="url(#cat-icon-rough)">
+      <circle cx="12" cy="12" r="8.5"/>
+      <ellipse cx="12" cy="12" rx="3.6" ry="8.5"/>
+      <line x1="3.5" y1="12" x2="20.5" y2="12"/>
+    </g>
+  </symbol>
+  <symbol id="cat-icon-science" viewBox="0 0 24 24">
+    <g fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" filter="url(#cat-icon-rough)">
+      <ellipse cx="12" cy="12" rx="9" ry="3.6"/>
+      <ellipse cx="12" cy="12" rx="9" ry="3.6" transform="rotate(60 12 12)"/>
+      <ellipse cx="12" cy="12" rx="9" ry="3.6" transform="rotate(120 12 12)"/>
+      <circle cx="12" cy="12" r="1.7" fill="currentColor" stroke="none"/>
+    </g>
+  </symbol>
+  <symbol id="cat-icon-sports" viewBox="0 0 24 24">
+    <g fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" filter="url(#cat-icon-rough)">
+      <circle cx="12" cy="12" r="8.5"/>
+      <line x1="12" y1="3.5" x2="12" y2="20.5"/>
+      <line x1="3.5" y1="12" x2="20.5" y2="12"/>
+      <path d="M5.5 5.5C9 9 9 15 5.5 18.5"/>
+      <path d="M18.5 5.5C15 9 15 15 18.5 18.5"/>
+    </g>
+  </symbol>
+  <symbol id="cat-icon-art_literature" viewBox="0 0 24 24">
+    <g stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" filter="url(#cat-icon-rough)">
+      <path fill="none" d="M12 3.5a8.5 8 0 1 0 0 17c1.2 0 1.8-1 1.5-2-.3-1 .3-2 1.5-2H18a3 3 0 0 0 3-3.2C20.6 6.4 16.8 3.5 12 3.5Z"/>
+      <circle cx="8" cy="9" r="1.1" fill="currentColor" stroke="none"/>
+      <circle cx="12" cy="7.4" r="1.1" fill="currentColor" stroke="none"/>
+      <circle cx="16" cy="9.6" r="1.1" fill="currentColor" stroke="none"/>
+      <circle cx="8" cy="13.6" r="1.1" fill="currentColor" stroke="none"/>
+    </g>
+  </symbol>
+</svg>
 <!-- THINGS BUILDER MODAL -->
 <div id="things-modal" style="display:none;position:fixed;inset:0;z-index:100;background:rgba(0,0,0,0.85);align-items:center;justify-content:center">
   <div style="background:var(--surface-elevated);border:2px solid var(--accent);border-radius:8px;padding:2rem;max-width:500px;width:90%;max-height:80vh;overflow-y:auto">
@@ -237,6 +299,10 @@
     <button class="back-btn" onclick="exitLobby()">←</button>
     <h2>Waiting Room</h2>
   </div>
+  <div class="wedge-brand">
+    <div id="lobby-wedge" class="wedge wedge--md"></div>
+    <div id="lobby-legend" class="wedge-legend"></div>
+  </div>
   <div class="room-code-display" id="room-code-display">------</div>
   <p style="color: var(--text-secondary); font-size: 14px;">Share this code with friends</p>
   <div class="player-list">
@@ -249,7 +315,7 @@
 <!-- GAME PLAY -->
 <div id="screen-game" class="screens">
   <div id="profile-context" style="font-size:14px;color:var(--accent);text-align:center;margin-bottom:0.5rem;"></div>
-  <div id="wedge-board" class="wedge-board" style="margin-bottom: 1rem;"></div>
+  <div id="wedge-board" class="wedge wedge--sm" aria-hidden="true" style="margin-bottom: 1rem;"></div>
   <div id="category-badge" class="category-badge">HISTORY</div>
   <div id="question-progress">Question 1 / 50</div>
   <div id="timer-bar" class="timer-bar"><div id="timer-fill"></div></div>

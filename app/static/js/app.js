@@ -84,10 +84,17 @@ function showScreen(name) {
   if (el) el.classList.add('active');
   if (name !== 'game') { clearInterval(pollInterval); clearInterval(timerInterval); }
   if (name === 'lobby') {
+    // Brand centerpiece: render the empty wheel + legend, then fill it
+    // slice-by-slice (center-out bounce + burst) as a "box-cover" entrance.
+    const lw = document.getElementById('lobby-wedge');
+    if (lw) { renderWedge(lw); fillWedge(lw, WEDGE_KEYS, { stagger: 110 }); }
+    renderLegend(document.getElementById('lobby-legend'));
     connectWS(myRoomCode);
     startLobbyPoll(); // fallback polling — can be reduced or removed once WS is stable
   }
   if (name === 'game') {
+    // In-game progress board — empty wheel; later passes fill earned wedges.
+    renderWedge(document.getElementById('wedge-board'));
     if (myRoomCode) connectWS(myRoomCode);
     startGamePoll();
   }
@@ -484,4 +491,112 @@ async function loadLeaderboard() {
 function esc(s) {
   if (!s) return '';
   return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// ── Wedge component (PHA-805 / PR-2) ──────────────────────────────────────────
+// The Trivial-Pursuit wheel: one reusable SVG, six fillable slices. Render order
+// must match the backend category set (app/services/generator.py CATEGORIES) and
+// the colors in app/routes/games.py CATEGORY_COLORS. Colors resolve in CSS via
+// the [data-cat="…"] → --slice-color mapping in wedge.css; JS only sets geometry.
+const SVG_NS = 'http://www.w3.org/2000/svg';
+const WEDGE_CATEGORIES = [
+  { key: 'history',        label: 'History' },
+  { key: 'entertainment',  label: 'Entertainment' },
+  { key: 'geography',      label: 'Geography' },
+  { key: 'science',        label: 'Science' },
+  { key: 'sports',         label: 'Sports' },
+  { key: 'art_literature', label: 'Arts' },
+];
+const WEDGE_KEYS = WEDGE_CATEGORIES.map(c => c.key);
+
+const WEDGE_R = 44;       // slice radius (viewBox is -50..50)
+const WEDGE_SEG = 60;     // degrees per slice (6 × 60 = 360)
+const WEDGE_GAP = 1.6;    // angular gap (deg) each side → dark separators
+const WEDGE_CENTROID_R = 27; // burst origin distance from center along bisector
+
+function _wedgePolar(deg, r) {
+  const a = deg * Math.PI / 180;
+  return [r * Math.cos(a), r * Math.sin(a)];
+}
+// Pie sector with apex at center (0,0); each slice scales from there outward.
+function _wedgeSlicePath(i) {
+  const a0 = -90 + i * WEDGE_SEG + WEDGE_GAP;
+  const a1 = -90 + (i + 1) * WEDGE_SEG - WEDGE_GAP;
+  const [x0, y0] = _wedgePolar(a0, WEDGE_R);
+  const [x1, y1] = _wedgePolar(a1, WEDGE_R);
+  return `M0 0 L${x0.toFixed(2)} ${y0.toFixed(2)} ` +
+         `A${WEDGE_R} ${WEDGE_R} 0 0 1 ${x1.toFixed(2)} ${y1.toFixed(2)} Z`;
+}
+
+function _prefersReducedMotion() {
+  return window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+}
+
+// Render the SVG board into `el`. `filledKeys` paint instantly (no animation);
+// use fillWedge()/fillWedgeSlice() afterward for the animated center-out fill.
+function renderWedge(el, filledKeys = []) {
+  if (!el) return;
+  const filled = new Set(filledKeys);
+  const slices = WEDGE_CATEGORIES.map((c, i) => {
+    const d = _wedgeSlicePath(i);
+    const on = filled.has(c.key) ? ' wedge__slice--filled' : '';
+    return `<path class="wedge__ghost" data-cat="${c.key}" d="${d}"></path>` +
+           `<path class="wedge__slice${on}" data-cat="${c.key}" d="${d}"></path>`;
+  }).join('');
+  el.innerHTML =
+    `<svg viewBox="-50 -50 100 100" role="img" aria-label="Trivia category wedge board">` +
+      `<circle class="wedge__rim" r="47" stroke-width="3"></circle>` +
+      slices +
+      `<circle class="wedge__hub" r="8.5" stroke-width="2"></circle>` +
+      `<g class="wedge__burst"></g>` +
+    `</svg>`;
+}
+
+// Fill one slice (center-out bounce) + centroid particle burst.
+function fillWedgeSlice(el, key) {
+  if (!el) return;
+  const slice = el.querySelector(`.wedge__slice[data-cat="${key}"]`);
+  if (!slice || slice.classList.contains('wedge__slice--filled')) return;
+  slice.classList.add('wedge__slice--filled');
+  if (_prefersReducedMotion()) return; // opacity fade only, no burst
+  _wedgeBurst(el, key);
+}
+
+// Fill several slices with a stagger (the lobby "box-cover" entrance).
+function fillWedge(el, keys = WEDGE_KEYS, { stagger = 90 } = {}) {
+  keys.forEach((key, i) => setTimeout(() => fillWedgeSlice(el, key), i * stagger));
+}
+
+function _wedgeBurst(el, key) {
+  const burst = el.querySelector('.wedge__burst');
+  if (!burst) return;
+  const i = WEDGE_KEYS.indexOf(key);
+  if (i < 0) return;
+  const mid = (-90 + i * WEDGE_SEG + WEDGE_SEG / 2) * Math.PI / 180;
+  const [cx, cy] = [Math.cos(mid) * WEDGE_CENTROID_R, Math.sin(mid) * WEDGE_CENTROID_R];
+  for (let p = 0; p < 10; p++) {
+    const ang = mid + (Math.random() - 0.5) * (50 * Math.PI / 180); // ±25° spread
+    const dist = 12 + Math.random() * 16;
+    const c = document.createElementNS(SVG_NS, 'circle');
+    c.setAttribute('class', 'wedge__particle');
+    c.setAttribute('data-cat', key);
+    c.setAttribute('cx', cx.toFixed(2));
+    c.setAttribute('cy', cy.toFixed(2));
+    c.setAttribute('r', (0.9 + Math.random() * 1.3).toFixed(2));
+    c.style.setProperty('--dx', (Math.cos(ang) * dist).toFixed(2));
+    c.style.setProperty('--dy', (Math.sin(ang) * dist).toFixed(2));
+    c.style.animationDelay = Math.round(Math.random() * 40) + 'ms';
+    burst.appendChild(c);
+    setTimeout(() => c.remove(), 900);
+  }
+}
+
+// Render the 6-icon legend from the same category source.
+function renderLegend(el) {
+  if (!el) return;
+  el.innerHTML = WEDGE_CATEGORIES.map(c =>
+    `<div class="wedge-legend__item" data-cat="${c.key}">` +
+      `<svg class="category-icon" aria-hidden="true"><use href="#cat-icon-${c.key}"></use></svg>` +
+      `<span>${c.label}</span>` +
+    `</div>`).join('');
 }

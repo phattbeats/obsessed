@@ -418,24 +418,8 @@ body {
 .score-row .score-val { font-family: var(--font-mono); color: var(--accent); }
 
 /* ── Wedge board ─────────────────────────────────── */
-.wedge-board {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  grid-template-rows: repeat(2, 1fr);
-  gap: 0.5rem;
-  width: 120px;
-}
-.wedge-slot {
-  width: 36px;
-  height: 36px;
-  border-radius: 50%;
-  border: 3px solid;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 10px;
-}
-.wedge-slot.filled { color: var(--bg); font-weight: bold; }
+/* Replaced (PR-2) by the real SVG wedge component — see css/wedge.css.
+   The old 3×2 circle grid (.wedge-board / .wedge-slot) is retired. */
 
 /* ── Spinner / Loading ───────────────────────────── */
 .spinner {

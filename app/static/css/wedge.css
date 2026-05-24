@@ -1,0 +1,131 @@
+/* ════════════════════════════════════════════════════════════════
+   PHA-801 PR-2 — Wedge component + category icons  (the brand)
+   The Trivial-Pursuit wheel is the persistent brand object. One SVG,
+   four sizes, six fillable slices. Center-out bounce fill + centroid
+   particle burst. Consumes the PR-1 foundation tokens (style.css).
+   ════════════════════════════════════════════════════════════════ */
+
+:root {
+  /* Wedge render sizes (brief §4.2 inventory) */
+  --wedge-sm: 48px;     /* player top bar / in-game progress */
+  --wedge-md: 200px;    /* lobby brand centerpiece */
+  --wedge-lg: 400px;    /* host / TV hero */
+  --wedge-inline: 24px; /* score-pill chip */
+
+  /* Category-icon sizes (brief §4.2: 24 / 32 / 64) */
+  --icon-sm: 24px;
+  --icon-md: 32px;
+  --icon-lg: 64px;
+
+  /* Wedge tuning */
+  --wedge-ghost-opacity: 0.14;  /* unfilled slice — faint colored ghost */
+  --wedge-burst-dur: 620ms;
+  --wedge-shadow: drop-shadow(0 6px 16px rgba(0, 0, 0, 0.45));
+}
+
+/* Per-category color channel. Set once here; every wedge slice, ghost,
+   particle, icon, and legend label downstream reads var(--slice-color). */
+[data-cat="history"]        { --slice-color: var(--cat-history); }
+[data-cat="entertainment"]  { --slice-color: var(--cat-entertainment); }
+[data-cat="geography"]      { --slice-color: var(--cat-geography); }
+[data-cat="science"]        { --slice-color: var(--cat-science); }
+[data-cat="sports"]         { --slice-color: var(--cat-sports); }
+[data-cat="art_literature"] { --slice-color: var(--cat-art); }
+
+/* ── Wedge ─────────────────────────────────────────────── */
+.wedge {
+  display: inline-block;
+  width: var(--wedge-md);
+  line-height: 0;
+  filter: var(--wedge-shadow);
+}
+.wedge svg {
+  width: 100%;
+  height: auto;
+  display: block;
+  overflow: visible; /* drop-shadow + burst particles escape the viewBox */
+}
+.wedge--sm     { width: var(--wedge-sm); }
+.wedge--md     { width: var(--wedge-md); }
+.wedge--lg     { width: var(--wedge-lg); }
+.wedge--inline { width: var(--wedge-inline); filter: none; }
+
+/* Frame + hub — the board-game-box edge and the center pivot */
+.wedge__rim { fill: none; stroke: var(--white); }
+.wedge__hub { fill: var(--surface); stroke: var(--white); }
+
+/* Unfilled slice: a faint colored ghost so the empty board still reads
+   as a full wheel. Filled slice: full color, grown from center outward. */
+.wedge__ghost {
+  fill: var(--slice-color);
+  fill-opacity: var(--wedge-ghost-opacity);
+}
+.wedge__slice {
+  fill: var(--slice-color);
+  transform: scale(0);
+  transform-box: view-box;   /* scale about the board center (0,0) */
+  transform-origin: center;
+  transition: transform var(--dur-reveal) var(--ease-bounce);
+}
+.wedge__slice--filled { transform: scale(1); }
+
+/* Centroid particle burst — appended by JS on fill, removed after play */
+.wedge__particle {
+  fill: var(--slice-color);
+  transform-box: view-box;
+  animation: wedge-burst var(--wedge-burst-dur) var(--ease-out) forwards;
+}
+@keyframes wedge-burst {
+  0%   { opacity: 1; transform: translate(0, 0); }
+  70%  { opacity: 0.9; }
+  100% { opacity: 0; transform: translate(calc(var(--dx) * 1px), calc(var(--dy) * 1px)); }
+}
+
+/* ── Category icon ("sharpie on whiteboard") ───────────── */
+.category-icon {
+  display: inline-block;
+  flex: none;
+  width: var(--icon-md);
+  height: var(--icon-md);
+  color: var(--slice-color, var(--white)); /* strokes/dots use currentColor */
+}
+.category-icon--sm { width: var(--icon-sm); height: var(--icon-sm); }
+.category-icon--lg { width: var(--icon-lg); height: var(--icon-lg); }
+
+/* ── Wedge legend ──────────────────────────────────────── */
+.wedge-legend {
+  display: grid;
+  grid-template-columns: repeat(3, auto);
+  gap: var(--space-3) var(--space-5);
+  justify-content: center;
+  align-items: center;
+}
+.wedge-legend__item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-family: var(--font-body);
+  font-weight: 700;
+  font-size: var(--fs-caption);
+  color: var(--white); /* label stays white for AA; icon carries the color */
+}
+
+/* ── Lobby brand block ─────────────────────────────────── */
+.wedge-brand {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-4);
+  margin: var(--space-4) 0 var(--space-5);
+}
+
+/* ── Reduced motion: collapse fill to an opacity fade, no burst ── */
+@media (prefers-reduced-motion: reduce) {
+  .wedge__slice {
+    transform: none;
+    opacity: 0;
+    transition: opacity var(--dur-fast) linear;
+  }
+  .wedge__slice--filled { transform: none; opacity: 1; }
+  .wedge__particle { display: none; }
+}
