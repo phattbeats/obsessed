@@ -44,7 +44,8 @@ body {
 }
 
 .btn {
-  font-family: var(--font-main);
+  font-family: var(--font-logo);
+  font-weight: 700;
   font-size: 20px;
   padding: 1rem 2rem;
   border: 3px solid var(--white);
@@ -89,7 +90,8 @@ body {
   border-bottom: 2px solid var(--surface-elevated);
 }
 .screen-header h2 {
-  font-family: var(--font-main);
+  font-family: var(--font-logo);
+  font-weight: 900;
   font-size: 36px;
   color: var(--white);
 }
@@ -155,7 +157,8 @@ body {
   gap: 0.5rem;
 }
 .profile-card h3 {
-  font-family: var(--font-main);
+  font-family: var(--font-logo);
+  font-weight: 900;
   font-size: 22px;
   color: var(--white);
 }
@@ -204,7 +207,8 @@ body {
   width: 100%;
 }
 .player-list h3 {
-  font-family: var(--font-main);
+  font-family: var(--font-logo);
+  font-weight: 900;
   font-size: 20px;
   margin-bottom: 0.5rem;
   color: var(--text-secondary);
@@ -233,12 +237,12 @@ body {
   padding: 1rem;
 }
 .category-badge {
-  font-family: var(--font-main);
+  font-family: var(--font-logo);
+  font-weight: 700;
   font-size: 18px;
   padding: 0.4rem 1rem;
   border-radius: 20px;
   color: var(--bg);
-  font-weight: bold;
 }
 #question-progress {
   font-family: var(--font-mono);
@@ -246,7 +250,8 @@ body {
   font-size: 14px;
 }
 #question-text {
-  font-family: var(--font-main);
+  font-family: var(--font-logo);
+  font-weight: 900;
   font-size: 36px;
   text-align: center;
   max-width: 900px;
@@ -260,9 +265,9 @@ body {
   max-width: 700px;
 }
 .answer-btn {
-  font-family: var(--font-body);
-  font-size: 20px;
+  font-family: var(--font-logo);
   font-weight: 700;
+  font-size: 20px;
   padding: 1.2rem 1.5rem;
   border: 3px solid var(--white);
   background: var(--surface);
@@ -302,7 +307,8 @@ body {
   padding: 2rem;
 }
 .winner-display {
-  font-family: var(--font-main);
+  font-family: var(--font-logo);
+  font-weight: 900;
   font-size: 48px;
   color: var(--accent);
   text-align: center;

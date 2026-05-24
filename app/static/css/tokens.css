@@ -36,10 +36,6 @@
   --font-logo: 'Rubik', system-ui, sans-serif;   /* logo + headings + questions (900) */
   --font-body: 'Nunito', sans-serif;              /* body / prose */
   --font-mono: 'JetBrains Mono', monospace;       /* room codes, captions, timestamps */
-  /* Transitional: existing style.css still references --font-main (Fredoka).
-     Kept loaded until the PR-4 typography sweep retires it. */
-  --font-main: 'Fredoka One', cursive;
-
   /* Type scale */
   --fs-display:  72px;  /* hero / app name */
   --fs-h1:       48px;  /* room code, winner */
