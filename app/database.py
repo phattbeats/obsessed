@@ -62,6 +62,7 @@ class Profile(Base):
     consent_token = Column(String(200), default="")
     content_quality = Column(String(20), default="")  # insufficient|limited|adequate|rich
     content_chunks = Column(Integer, default=0)
+    address_type = Column(String(20), default="unknown")  # business|residence|unknown; None for non-place profiles
     created_at = Column(Integer, default=lambda: int(datetime.now(timezone.utc).timestamp()))
     updated_at = Column(Integer, default=lambda: int(datetime.now(timezone.utc).timestamp()))
 
@@ -171,6 +172,22 @@ def init_db():
         ]
         cursor.executemany("INSERT OR IGNORE INTO category_seeds (name, color, icon) VALUES (?,?,?)", seeds)
         conn.commit()
+    # Non-destructive column additions for existing databases
+    migrations = [
+        "ALTER TABLE profiles ADD COLUMN tiktok_handle TEXT DEFAULT ''",
+        "ALTER TABLE profiles ADD COLUMN facebook_handle TEXT DEFAULT ''",
+        "ALTER TABLE profiles ADD COLUMN news_query TEXT DEFAULT ''",
+        "ALTER TABLE profiles ADD COLUMN court_query TEXT DEFAULT ''",
+        "ALTER TABLE profiles ADD COLUMN sos_query TEXT DEFAULT ''",
+        "ALTER TABLE profiles ADD COLUMN auditor_query TEXT DEFAULT ''",
+        "ALTER TABLE profiles ADD COLUMN address_type TEXT DEFAULT 'unknown'",
+    ]
+    for stmt in migrations:
+        try:
+            cursor.execute(stmt)
+            conn.commit()
+        except sqlite3.OperationalError:
+            pass  # column already exists
     conn.close()
 
 init_db()
