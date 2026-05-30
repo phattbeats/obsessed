@@ -218,3 +218,161 @@ def test_extract_turnstile_sitekey_picks_up_cf_turnstile_div():
 
 def test_extract_turnstile_sitekey_returns_none_on_clean_html():
     assert people_search._extract_turnstile_sitekey(_REAL_DETAIL_HTML) is None
+
+
+# --- _build_address_url --------------------------------------------------
+
+
+def test_build_address_url_formats_correctly():
+    url = people_search._build_address_url("123 Main St", "Columbus", "OH")
+    assert url == "https://www.fastpeoplesearch.com/address/123-main-st_columbus-oh"
+
+
+def test_build_address_url_lowercases_and_hyphenates():
+    url = people_search._build_address_url("456 Oak Avenue", "Grove City", "Ohio")
+    assert url == "https://www.fastpeoplesearch.com/address/456-oak-avenue_grove-city-ohio"
+
+
+# --- _detect_wall --------------------------------------------------------
+
+
+_DATADOME_HTML = """<!doctype html>
+<html><body>
+  <script src="https://geo.captcha-delivery.com/captcha/?initialCid=abc"></script>
+  <script src="/js/dd.js"></script>
+</body></html>"""
+
+_CF_INTERSTITIAL_HTML = """<!doctype html>
+<html><body>
+  <h2>Waiting for www.fastpeoplesearch.com to respond...</h2>
+</body></html>"""
+
+
+def test_detect_wall_identifies_datadome():
+    wall = people_search._detect_wall(_DATADOME_HTML)
+    assert wall is not None
+    assert wall["kind"] == "datadome"
+
+
+def test_detect_wall_identifies_cf_interstitial():
+    wall = people_search._detect_wall(_CF_INTERSTITIAL_HTML)
+    assert wall is not None
+    assert wall["kind"] == "cf_interstitial"
+
+
+def test_detect_wall_returns_none_on_clean_html():
+    assert people_search._detect_wall(_REAL_DETAIL_HTML) is None
+
+
+def test_detect_wall_returns_none_on_empty():
+    assert people_search._detect_wall("") is None
+
+
+# --- search_people_by_address --------------------------------------------
+
+_ADDRESS_LISTING_HTML = """<!doctype html>
+<html><body>
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org/",
+  "@type": "Person",
+  "@id": "https://www.fastpeoplesearch.com/jane-doe_id_X1",
+  "url": "https://www.fastpeoplesearch.com/jane-doe_id_X1",
+  "name": "Jane Doe",
+  "HomeLocation": [{
+    "@type": "Place",
+    "address": {
+      "@type": "PostalAddress",
+      "streetAddress": "123 Main St",
+      "addressLocality": "Columbus",
+      "addressRegion": "OH",
+      "postalCode": "43215"
+    }
+  }]
+}
+</script>
+</body></html>"""
+
+
+def test_search_people_by_address_returns_people_via_flaresolverr():
+    fs_get_mock = AsyncMock(return_value=(_ADDRESS_LISTING_HTML, "ok"))
+    with patch.object(people_search, "fs_get", fs_get_mock):
+        result = asyncio.run(
+            people_search.search_people_by_address("123 Main St", "Columbus", "OH")
+        )
+    assert fs_get_mock.await_count == 1
+    called_url = fs_get_mock.await_args.args[0]
+    assert called_url == "https://www.fastpeoplesearch.com/address/123-main-st_columbus-oh"
+    assert result["wall"] is None
+    assert len(result["people"]) == 1
+    assert result["people"][0]["name"] == "Jane Doe"
+    assert result["people"][0]["addresses"][0]["region"] == "OH"
+
+
+def test_search_people_by_address_captures_cloudflare_wall():
+    fs_get_mock = AsyncMock(side_effect=people_search.CloudflareWallError("blocked", 0))
+    with patch.object(people_search, "fs_get", fs_get_mock):
+        result = asyncio.run(
+            people_search.search_people_by_address("123 Main St", "Columbus", "OH")
+        )
+    assert result["wall"]["kind"] == "cloudflare_wall"
+    assert result["people"] == []
+
+
+def test_search_people_by_address_captures_datadome():
+    fs_get_mock = AsyncMock(return_value=(_DATADOME_HTML, "ok"))
+    with patch.object(people_search, "fs_get", fs_get_mock):
+        result = asyncio.run(
+            people_search.search_people_by_address("123 Main St", "Columbus", "OH")
+        )
+    assert result["wall"]["kind"] == "datadome"
+    assert result["people"] == []
+
+
+def test_search_people_by_address_turnstile_pending_when_no_captcha_key():
+    fs_get_mock = AsyncMock(return_value=(_TURNSTILE_CHALLENGE_HTML, "ok"))
+    solve_mock = AsyncMock()
+    with patch.object(people_search, "fs_get", fs_get_mock), \
+         patch.object(captcha_solver.settings, "twocaptcha_api_key", ""), \
+         patch.object(captcha_solver, "solve_turnstile", solve_mock):
+        result = asyncio.run(
+            people_search.search_people_by_address("123 Main St", "Columbus", "OH",
+                                                   use_captcha=True)
+        )
+    assert result["wall"]["kind"] == "turnstile_pending"
+    assert solve_mock.await_count == 0
+    assert result["people"] == []
+
+
+def test_search_people_by_address_solves_turnstile_when_configured():
+    fs_get_mock = AsyncMock(return_value=(_TURNSTILE_CHALLENGE_HTML, "ok"))
+    fs_post_mock = AsyncMock(return_value=(_ADDRESS_LISTING_HTML, "ok"))
+    solve_mock = AsyncMock(return_value="0.TOKEN_XYZ")
+
+    with patch.object(people_search, "fs_get", fs_get_mock), \
+         patch.object(people_search, "fs_post", fs_post_mock), \
+         patch.object(captcha_solver.settings, "twocaptcha_api_key", "key-abc"), \
+         patch.object(captcha_solver, "solve_turnstile", solve_mock):
+        result = asyncio.run(
+            people_search.search_people_by_address("123 Main St", "Columbus", "OH",
+                                                   use_captcha=True)
+        )
+
+    assert solve_mock.await_count == 1
+    assert result["wall"] is None
+    assert len(result["people"]) == 1
+    assert result["people"][0]["name"] == "Jane Doe"
+
+
+def test_search_people_by_address_falls_back_to_direct_on_flaresolverr_error():
+    from app.services.scraper.flaresolverr import FlareSolverrError
+    fs_get_mock = AsyncMock(side_effect=FlareSolverrError("timeout"))
+    direct_mock = AsyncMock(return_value=(_ADDRESS_LISTING_HTML, 200))
+    with patch.object(people_search, "fs_get", fs_get_mock), \
+         patch.object(people_search, "_fetch_direct", direct_mock):
+        result = asyncio.run(
+            people_search.search_people_by_address("123 Main St", "Columbus", "OH")
+        )
+    assert direct_mock.await_count == 1
+    assert result["wall"] is None
+    assert result["people"][0]["name"] == "Jane Doe"
