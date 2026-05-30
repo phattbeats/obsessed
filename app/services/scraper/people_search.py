@@ -49,6 +49,16 @@ _TURNSTILE_SITEKEY_RE = re.compile(
     r'turnstile[^>]*?sitekey|sitekey["\'\s:=]+)["\']?(0x[A-Za-z0-9_-]{8,})',
     re.IGNORECASE,
 )
+# DataDome challenge pages include a captcha-delivery.com link or dd.js asset.
+_DATADOME_RE = re.compile(
+    r'captcha-delivery\.com|/js/dd\.js|datadome\.co/captcha',
+    re.IGNORECASE,
+)
+# CF JS interstitial that leaks through when FlareSolverr doesn't fully clear it.
+_CF_INTERSTITIAL_RE = re.compile(
+    r'Waiting for (?:www\.)?fastpeoplesearch\.com to respond',
+    re.IGNORECASE,
+)
 
 
 def _build_search_url(first: str, last: str, state: Optional[str], city: Optional[str]) -> str:
@@ -64,6 +74,25 @@ def _build_search_url(first: str, last: str, state: Optional[str], city: Optiona
     if suffix_bits:
         return f"{FPS_BASE}/name/{name_part}_{'-'.join(suffix_bits)}"
     return f"{FPS_BASE}/name/{name_part}"
+
+
+def _build_address_url(street: str, city: str, state: str) -> str:
+    """FPS address search URL pattern: /address/{street-slug}_{city}-{state}."""
+    street_s = (street or "").strip().lower().replace(" ", "-")
+    city_s = (city or "").strip().lower().replace(" ", "-")
+    state_s = (state or "").strip().lower().replace(" ", "-")
+    return f"{FPS_BASE}/address/{street_s}_{city_s}-{state_s}"
+
+
+def _detect_wall(html: str) -> Optional[dict]:
+    """Detect known anti-bot walls in HTML. Returns a wall descriptor or None."""
+    if not html:
+        return None
+    if _DATADOME_RE.search(html):
+        return {"kind": "datadome", "detail": "DataDome challenge detected; stop to avoid proxy burn"}
+    if _CF_INTERSTITIAL_RE.search(html):
+        return {"kind": "cf_interstitial", "detail": "Cloudflare JS interstitial not cleared by FlareSolverr"}
+    return None
 
 
 def _iter_json_ld_objects(html: str):
@@ -186,6 +215,67 @@ async def search_people(
     else:
         html, _ = await _fetch_direct(url)
     return parse_listing_people(html)
+
+
+async def search_people_by_address(
+    street: str,
+    city: str,
+    state: str,
+    *,
+    use_flaresolverr: bool = True,
+    use_captcha: bool = True,
+) -> dict:
+    """
+    Search FastPeopleSearch by address and return normalized Person records.
+
+    Returns a dict with:
+      - url: the URL fetched
+      - people: list of normalized Person records (empty when a wall blocked parsing)
+      - wall: None or a descriptor dict if an anti-bot wall was encountered
+
+    Wall descriptor kinds:
+      "cloudflare_wall"   — FlareSolverr raised CloudflareWallError (JS challenge not cleared)
+      "turnstile_pending" — Turnstile challenge present; captcha solve not attempted
+      "turnstile_unsolved"— Turnstile challenge remained after 2Captcha solve attempt
+      "datadome"          — DataDome challenge detected; stop, do not burn proxy budget
+      "cf_interstitial"   — Cloudflare JS interstitial leaked through FlareSolverr
+    """
+    url = _build_address_url(street, city, state)
+    html = ""
+    wall: Optional[dict] = None
+
+    if use_flaresolverr:
+        try:
+            html, _ = await fs_get(url)
+        except CloudflareWallError as exc:
+            wall = {"kind": "cloudflare_wall", "detail": str(exc)}
+        except FlareSolverrError:
+            html, _ = await _fetch_direct(url)
+    else:
+        html, _ = await _fetch_direct(url)
+
+    # Hard-wall detection: DataDome or leaking CF interstitial — stop immediately.
+    if wall is None:
+        wall = _detect_wall(html)
+
+    # Turnstile challenge within a page that FlareSolverr partially loaded.
+    if wall is None:
+        sitekey = _extract_turnstile_sitekey(html)
+        if sitekey is not None:
+            if use_captcha and captcha_solver.is_configured():
+                token = await captcha_solver.solve_turnstile(sitekey, url)
+                html, _ = await _fetch_detail(
+                    url,
+                    use_flaresolverr=use_flaresolverr,
+                    post_data={"cf-turnstile-response": token},
+                )
+                if _extract_turnstile_sitekey(html) is not None:
+                    wall = {"kind": "turnstile_unsolved", "sitekey": sitekey}
+            else:
+                wall = {"kind": "turnstile_pending", "sitekey": sitekey}
+
+    people = parse_listing_people(html) if html and wall is None else []
+    return {"url": url, "people": people, "wall": wall}
 
 
 async def get_person_detail(
