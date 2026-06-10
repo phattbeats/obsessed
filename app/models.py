@@ -14,6 +14,7 @@ class ProfileCreate(BaseModel):
     instagram_handle: str = ""
     tiktok_handle: str = ""
     facebook_handle: str = ""
+    venmo_handle: str = ""
     news_query: str = ""
     court_query: str = ""
     sos_query: str = ""
@@ -44,6 +45,7 @@ class ProfileUpdate(BaseModel):
     instagram_handle: Optional[str] = None
     tiktok_handle: Optional[str] = None
     facebook_handle: Optional[str] = None
+    venmo_handle: Optional[str] = None
     news_query: Optional[str] = None
     court_query: Optional[str] = None
     sos_query: Optional[str] = None
@@ -77,6 +79,7 @@ class ProfileResponse(BaseModel):
     instagram_handle: str
     tiktok_handle: str
     facebook_handle: str
+    venmo_handle: str
     news_query: str
     court_query: str
     sos_query: str

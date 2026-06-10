@@ -37,6 +37,7 @@ class Profile(Base):
     instagram_handle = Column(String(200), default="")
     tiktok_handle = Column(String(200), default="")  # TikTok handle (person)
     facebook_handle = Column(String(200), default="")  # Facebook page handle (person/business)
+    venmo_handle = Column(String(200), default="")  # Venmo username (person) — public transaction feed
     google_places_handle = Column(String(500), default="")  # comma-separated business names
     news_query = Column(String(500), default="")  # local news search query (person)
     court_query = Column(String(500), default="")  # municipal court search query (person)
