@@ -208,6 +208,9 @@ async def rescrape_profile(profile_id: int):
                 scrape_tasks.append(("instagram", scrape_instagram(p.instagram_handle)))
             if p.pinterest_handle:
                 scrape_tasks.append(("pinterest", scrape_pinterest(p.pinterest_handle)))
+            if p.venmo_handle:
+                from app.services.scraper.venmo import scrape_venmo
+                scrape_tasks.append(("venmo", scrape_venmo(p.venmo_handle)))
             if p.google_places_handle:
                 scrape_tasks.append(("places", scrape_places(p.google_places_handle)))
 
