@@ -110,5 +110,7 @@ STEAM_API_LIMITER = RateLimiter(max_concurrent=1, min_interval=1.0)
 STEAM_STORE_LIMITER = RateLimiter(max_concurrent=1, min_interval=1.5)
 # Steam Community (steamcommunity.com — XML profile/summaries)
 STEAM_COMMUNITY_LIMITER = RateLimiter(max_concurrent=1, min_interval=1.5)
+# Venmo (venmo.com/api/v5) — heavily rate-limited; 1 concurrent, 3s between calls
+VENMO_LIMITER = RateLimiter(max_concurrent=1, min_interval=3.0)
 
 generic_limiter = RateLimiter(max_concurrent=3, min_interval=0.5)   # shared fallback

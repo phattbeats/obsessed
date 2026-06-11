@@ -14,6 +14,7 @@ class ProfileCreate(BaseModel):
     instagram_handle: str = ""
     tiktok_handle: str = ""
     facebook_handle: str = ""
+    venmo_handle: str = ""
     news_query: str = ""
     court_query: str = ""
     sos_query: str = ""
@@ -31,6 +32,7 @@ class ProfileCreate(BaseModel):
     consent_obtained: bool = False
     content_quality: str = ""
     content_chunks: int = 0
+    address_type: str = "unknown"
 
 class ProfileUpdate(BaseModel):
     name: Optional[str] = None
@@ -43,6 +45,7 @@ class ProfileUpdate(BaseModel):
     instagram_handle: Optional[str] = None
     tiktok_handle: Optional[str] = None
     facebook_handle: Optional[str] = None
+    venmo_handle: Optional[str] = None
     news_query: Optional[str] = None
     court_query: Optional[str] = None
     sos_query: Optional[str] = None
@@ -62,6 +65,7 @@ class ProfileUpdate(BaseModel):
     consent_obtained: Optional[bool] = None
     content_quality: Optional[str] = None
     content_chunks: Optional[int] = None
+    address_type: Optional[str] = None
 
 class ProfileResponse(BaseModel):
     id: int
@@ -75,6 +79,7 @@ class ProfileResponse(BaseModel):
     instagram_handle: str
     tiktok_handle: str
     facebook_handle: str
+    venmo_handle: str
     news_query: str
     court_query: str
     sos_query: str
@@ -97,6 +102,7 @@ class ProfileResponse(BaseModel):
     content_quality: str
     content_chunks: int
     entity_type: str
+    address_type: str
     created_at: int
     updated_at: int
 
