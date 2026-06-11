@@ -29,6 +29,9 @@ async def get_settings():
             **litellm_status,
         },
         "crawl4ai": crawl4ai_status,
+        "captcha_solver": {
+            "configured": bool(settings.twocaptcha_api_key),
+        },
         "questions": {
             "default_count": settings.question_count,
             "timeout_seconds": settings.question_timeout,
