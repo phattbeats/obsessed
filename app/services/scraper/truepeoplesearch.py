@@ -13,9 +13,18 @@ container), so this env var will not be set in normal operation.  All entry
 points return a wall dict with kind="datadome_proxy_missing" when unset, and
 the caller (profiles.py) skips to the next data source.
 
-If the proxy situation ever changes, set:
+To activate:
   TWOCAPTCHA_API_KEY   — 2captcha.com solver key
-  DATADOME_SOLVE_PROXY — USER:PASS@HOST:PORT pointing at a same-IP proxy
+  DATADOME_SOLVE_PROXY — proxy URL that egresses the same IP as this container
+                         (USER:PASS@HOST:PORT or HOST:PORT; scheme optional)
+
+  When set, ALL requests to TPS (not just the 2Captcha solve) route through this
+  proxy so both the solve and the data requests share the same exit IP.
+
+  On PHATT-RAID the existing privoxy inside the deluge container works:
+    DATADOME_SOLVE_PROXY=10.0.0.100:8118
+  That proxy egresses via AirVPN.  The AirVPN exit IP must be stable across the
+  solve + request cycle; the in-process 12-hour cookie cache limits re-solves.
 """
 
 from __future__ import annotations
@@ -172,6 +181,19 @@ async def _solve_datadome(captcha_url: str, page_url: str) -> str:
     )
 
 
+def _proxy_url() -> Optional[str]:
+    """Return the HTTP proxy URL for scraping requests, or None when unconfigured.
+
+    When DATADOME_SOLVE_PROXY is set, all TPS requests route through it so the
+    same exit IP is used for both the 2Captcha solve and the data requests —
+    DataDome binds the solved cookie to the solving IP, so they must match.
+    """
+    raw = (settings.datadome_solve_proxy or "").strip()
+    if not raw:
+        return None
+    return raw if "://" in raw else f"http://{raw}"
+
+
 async def _fetch(url: str, *, datadome_cookie: Optional[str] = None) -> tuple[str, int]:
     """Fetch a TPS URL, optionally injecting the datadome cookie."""
     headers = dict(_HEADERS)
@@ -182,6 +204,7 @@ async def _fetch(url: str, *, datadome_cookie: Optional[str] = None) -> tuple[st
         timeout=_REQUEST_TIMEOUT,
         follow_redirects=True,
         headers=headers,
+        proxy=_proxy_url(),
     ) as client:
         resp = await client.get(url, cookies=cookies)
         return resp.text, resp.status_code
