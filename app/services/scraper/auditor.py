@@ -727,7 +727,8 @@ async def search_property_records(
         key = county.lower().replace(" county", "").replace(" ", "_")
         entry = COUNTY_FALLBACK_URLS.get(key)
         if entry:
-            auditor_url = entry[0]
+            base, hints = entry
+            auditor_url = base.rstrip('/') + (hints[0] if hints else '')
 
     if not auditor_url:
         return []

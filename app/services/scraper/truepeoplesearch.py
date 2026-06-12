@@ -316,19 +316,6 @@ def parse_listing_people(html: str) -> list[dict]:
 # Public API
 # ---------------------------------------------------------------------------
 
-def _build_search_url(first: str, last: str, city: Optional[str], state: Optional[str]) -> str:
-    first_s = (first or "").strip().lower().replace(" ", "-")
-    last_s = (last or "").strip().lower().replace(" ", "-")
-    name_part = f"{first_s}-{last_s}".strip("-")
-    loc_bits = []
-    if city:
-        loc_bits.append(city.strip().lower().replace(" ", "-"))
-    if state:
-        loc_bits.append(state.strip().lower().replace(" ", "-"))
-    suffix = "_" + "-".join(loc_bits) if loc_bits else ""
-    return f"{TPS_BASE}/results?name={name_part.replace('-', '%20')}&citystatezip={'%20'.join(loc_bits)}"
-
-
 async def search_people(
     first: str,
     last: str,

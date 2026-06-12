@@ -194,6 +194,8 @@ def init_db():
         ("sos_query", "TEXT DEFAULT ''"),
         ("auditor_query", "TEXT DEFAULT ''"),
         ("address_type", "TEXT DEFAULT 'unknown'"),
+        ("venmo_handle", "TEXT DEFAULT ''"),
+        ("voter_query", "TEXT DEFAULT ''"),
     ]
     for col_name, col_def in migrations:
         try:
