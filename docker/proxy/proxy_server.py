@@ -14,7 +14,7 @@ Docker:
         -e PROXY_USER=proxyuser \
         -e PROXY_PASS=<secret> \
         python:3.12-slim \
-        sh -c "pip install -q asyncio && python /proxy_server.py"
+        sh -c "python /proxy_server.py"
 
     (Or use the Dockerfile in this directory for a self-contained image.)
 
