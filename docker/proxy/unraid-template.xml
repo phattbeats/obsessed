@@ -1,0 +1,28 @@
+<?xml version="1.0"?>
+<Container version="2">
+  <Name>dd-proxy</Name>
+  <Repository>therealphatt/dd-proxy:latest</Repository>
+  <Registry>https://hub.docker.com/r/therealphatt/dd-proxy</Registry>
+  <Network>phattvip</Network>
+  <MyIP/>
+  <Shell>sh</Shell>
+  <Privileged>false</Privileged>
+  <Support/>
+  <Project/>
+  <Overview>Minimal authenticated HTTP CONNECT proxy. Runs on PHATT-RAID so 2Captcha DataDome solves egress from the same Breezeline residential IP (23.245.109.252) as the obsessed scraper.</Overview>
+  <Category>Other:</Category>
+  <WebUI/>
+  <TemplateURL/>
+  <Icon/>
+  <ExtraParams>--restart unless-stopped</ExtraParams>
+  <PostArgs/>
+  <CPUset/>
+  <DateInstalled/>
+  <DonateText/>
+  <DonateLink/>
+  <Requires/>
+  <Config Name="PROXY_USER" Target="PROXY_USER" Default="proxyuser" Mode="" Description="Proxy username for Basic auth" Type="Variable" Display="always" Required="true" Mask="false">proxyuser</Config>
+  <Config Name="PROXY_PASS" Target="PROXY_PASS" Default="" Mode="" Description="Proxy password — use a strong random value (e.g. openssl rand -base64 18)" Type="Variable" Display="always" Required="true" Mask="true"></Config>
+  <Config Name="PROXY_PORT" Target="PROXY_PORT" Default="8888" Mode="" Description="Port the proxy listens on inside the container" Type="Variable" Display="advanced" Required="false" Mask="false">8888</Config>
+  <Config Name="Host Port" Target="8888" Default="8888" Mode="tcp" Description="External port — must be reachable by 2Captcha solver IPs" Type="Port" Display="always" Required="true" Mask="false">8888</Config>
+</Container>
