@@ -1,31 +1,21 @@
 """
-TruePeopleSearch scraper — DataDome solve path (PHA-820, Option 1).
+TruePeopleSearch scraper — DataDome solve path (PHA-820, currently dormant).
 
 DataDome is path-dependent on TPS:
   - Homepage /          → 200, clean (no cookie needed)
   - /results?name=...   → 403 with DD challenge (var dd={...} JS + captcha iframe)
   - /find/person/<id>   → 403 with same DD challenge
 
-Solve flow:
-  1. Fetch results/detail URL via httpx from the obsessed container
-     (egresses from phattvip → same Breezeline residential IP as browserless)
-  2. Detect DataDome 403 challenge via body markers
-  3. Extract dd params (cid/hsh/host/t/s) from the inline dd={} JS
-  4. Check 12-hour in-process cookie cache — skip solve if valid entry exists
-  5. Call captcha_solver.solve_datadome(captcha_url, page_url, proxy=…)
-     The proxy must also egress from the same residential IP so DataDome's cid
-     binding is satisfied. DATADOME_SOLVE_PROXY carries the forward-proxy address.
-  6. Set solved datadome cookie in request headers, re-fetch the page
-  7. Parse JSON-LD Person records from the result HTML
+The solve path requires DATADOME_SOLVE_PROXY — an HTTP forward proxy that
+egresses from the SAME residential IP as this container so DataDome's cid
+binding is satisfied.  Obsessed is deployed standalone (no separate proxy
+container), so this env var will not be set in normal operation.  All entry
+points return a wall dict with kind="datadome_proxy_missing" when unset, and
+the caller (profiles.py) skips to the next data source.
 
-Requires two env vars to be set (inert when absent):
-  TWOCAPTCHA_API_KEY       — solver API key
-  DATADOME_SOLVE_PROXY     — forward proxy that egresses from residential IP,
-                             format: USER:PASS@HOST:PORT  (HTTP proxy)
-
-Cost guardrail:
-  datadome_max_solves_per_run (DATADOME_MAX_SOLVES_PER_RUN env, default 5) caps
-  solver calls per process restart so scrape loops can't drain the 2Captcha balance.
+If the proxy situation ever changes, set:
+  TWOCAPTCHA_API_KEY   — 2captcha.com solver key
+  DATADOME_SOLVE_PROXY — USER:PASS@HOST:PORT pointing at a same-IP proxy
 """
 
 from __future__ import annotations
