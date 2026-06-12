@@ -15,6 +15,8 @@ class Settings(BaseSettings):
     crawl4ai_token: str = ""  # bearer for the crawl4ai service; CRAWL4AI_TOKEN env override
     admin_token: str = ""  # if set, /api/admin/* requires Authorization: Bearer <token>; empty = open (LAN-only deploys)
     twocaptcha_api_key: str = ""  # 2captcha.com solver API key; required only when a scraper opts into captcha solving
+    datadome_solve_proxy: str = ""  # HTTP forward proxy for DataDome solves: USER:PASS@HOST:PORT (must egress same residential IP as the scraper)
+    datadome_max_solves_per_run: int = 5  # hard cap on 2Captcha DataDome solve calls per process restart
     question_count: int = 50
     question_timeout: int = 30  # seconds per question
     ws_heartbeat: int = 30
