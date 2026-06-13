@@ -25,6 +25,129 @@ body {
   gap: 2rem;
   padding: 2rem;
   background: radial-gradient(ellipse at 50% 0%, #0f3460 0%, var(--bg) 70%);
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+}
+
+/* ════════════════════════════════════════════════════════════════
+   PHA-808 — Home splash: ambient background + Bang build animation.
+   The Bang assembles on load (circle drops → ! pops → wordmark unfurls),
+   then the existing bangPulse takes over. A single breathing accent
+   halo keeps the screen alive on every visit. CSS-only; the logo is
+   the default active screen so this runs on first paint.
+   ════════════════════════════════════════════════════════════════ */
+
+/* Ambient halo — minimal, slow breathe behind the logo. */
+#screen-home::before {
+  content: '';
+  position: absolute;
+  z-index: -1;
+  top: 50%;
+  left: 50%;
+  width: 130vmax;
+  height: 130vmax;
+  transform: translate(-50%, -58%);
+  background: radial-gradient(circle,
+    rgba(233, 69, 96, 0.18) 0%,
+    rgba(233, 69, 96, 0.06) 32%,
+    transparent 62%);
+  pointer-events: none;
+  animation: homeHaloBreathe 9s ease-in-out infinite;
+}
+@keyframes homeHaloBreathe {
+  0%, 100% { opacity: 0.55; transform: translate(-50%, -58%) scale(1); }
+  50%      { opacity: 0.95; transform: translate(-50%, -60%) scale(1.08); }
+}
+
+/* Minimal particle field — a sparse tile of faint dots drifting slowly
+   upward behind the logo. Drift is exactly one tile height so it loops
+   seamlessly; fades in after the halo so it doesn't pop on load. */
+#screen-home::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  opacity: 0.7;
+  background-image:
+    radial-gradient(1.5px 1.5px at 40px 50px,   rgba(255, 255, 255, 0.40), transparent),
+    radial-gradient(2px 2px     at 150px 120px, rgba(233, 69, 96, 0.45),   transparent),
+    radial-gradient(1px 1px     at 250px 80px,  rgba(255, 255, 255, 0.30), transparent),
+    radial-gradient(1.5px 1.5px at 90px 220px,  rgba(255, 255, 255, 0.35), transparent),
+    radial-gradient(1.5px 1.5px at 210px 260px, rgba(233, 69, 96, 0.35),   transparent),
+    radial-gradient(1px 1px     at 290px 180px, rgba(255, 255, 255, 0.28), transparent);
+  background-size: 300px 300px;
+  animation:
+    homeParticlesIn 1.4s ease-out 0.4s both,
+    homeParticleDrift 26s linear infinite;
+}
+@keyframes homeParticlesIn {
+  0%   { opacity: 0; }
+  100% { opacity: 0.7; }
+}
+@keyframes homeParticleDrift {
+  from { background-position: 0 0; }
+  to   { background-position: 0 -300px; }
+}
+
+/* The ! circle drops in with a spring. */
+#home-logo .bang-circle {
+  animation:
+    bangCircleDrop 0.75s cubic-bezier(0.34, 1.56, 0.64, 1) both,
+    bangPulse var(--bang-pulse-dur) cubic-bezier(0.45, 0, 0.55, 1) 1.25s infinite;
+}
+@keyframes bangCircleDrop {
+  0%   { opacity: 0; transform: translateY(-54px) scale(0.3) rotate(-18deg); }
+  60%  { opacity: 1; }
+  100% { opacity: 1; transform: translateY(0) scale(1) rotate(0); }
+}
+
+/* The ! glyph snaps in just after the circle lands.
+   Keyframes preserve the primary glyph's base offset (translateY 4px / X 2px). */
+#home-logo .bang-circle b {
+  animation: bangGlyphPop 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) 0.32s both;
+}
+@keyframes bangGlyphPop {
+  0%   { opacity: 0; transform: translateY(4px) translateX(2px) scale(0) rotate(-25deg); }
+  100% { opacity: 1; transform: translateY(4px) translateX(2px) scale(1) rotate(0); }
+}
+
+/* OBSESSED unfurls left-to-right out of the Bang. */
+#home-logo .bang-wordmark {
+  animation: bangWordReveal 0.65s cubic-bezier(0.22, 1, 0.36, 1) 0.5s both;
+}
+@keyframes bangWordReveal {
+  0%   { opacity: 0; clip-path: inset(0 100% 0 0); transform: translateX(-10px); }
+  100% { opacity: 1; clip-path: inset(0 0 0 0);   transform: translateX(0); }
+}
+
+/* Tagline + actions rise in once the lockup is built. */
+.app-tagline { animation: homeRise 0.6s cubic-bezier(0.22, 1, 0.36, 1) 1.05s both; }
+.action-grid > * { animation: homeRise 0.55s cubic-bezier(0.22, 1, 0.36, 1) both; }
+.action-grid > *:nth-child(1) { animation-delay: 1.20s; }
+.action-grid > *:nth-child(2) { animation-delay: 1.30s; }
+.action-grid > *:nth-child(3) { animation-delay: 1.40s; }
+.action-grid > *:nth-child(4) { animation-delay: 1.50s; }
+#home-stats { animation: homeRise 0.55s cubic-bezier(0.22, 1, 0.36, 1) 1.60s both; }
+@keyframes homeRise {
+  0%   { opacity: 0; transform: translateY(14px); }
+  100% { opacity: 1; transform: translateY(0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  #screen-home::before { animation: none; }
+  #screen-home::after { animation: none; opacity: 0.7; }
+  #home-logo .bang-circle,
+  #home-logo .bang-circle b,
+  #home-logo .bang-wordmark,
+  .app-tagline,
+  .action-grid > *,
+  #home-stats {
+    animation: none !important;
+    opacity: 1 !important;
+    clip-path: none !important;
+  }
 }
 
 .app-tagline {
