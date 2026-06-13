@@ -255,6 +255,9 @@ body {
   padding: 1rem;
 }
 .category-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
   font-family: var(--font-mono);
   font-weight: 700;
   font-size: var(--fs-caption);
@@ -263,6 +266,21 @@ body {
   padding: var(--space-1) var(--space-3);
   border-radius: var(--radius-pill);
   color: var(--bg);
+}
+/* Pack glyph in the in-play badge (PHA-1058). Reuses the CategoryIcon set
+   shipped for the bang-rack; inherits the badge's --bg color via currentColor
+   and scales with the label so it reads as one branded unit. */
+.category-badge__icon {
+  display: inline-grid;
+  place-items: center;
+  width: 1.25em;
+  height: 1.25em;
+  flex: none;
+}
+.category-badge__icon .cat-icon__svg {
+  width: 100%;
+  height: 100%;
+  display: block;
 }
 #question-progress {
   font-family: var(--font-mono);
