@@ -12,7 +12,7 @@ from app.services.game_engine import (
     get_or_create_game, generate_room_code, cleanup_game,
 )
 from app.websocket import broadcast, send_to
-from datetime import datetime
+from datetime import datetime, timezone
 
 router = APIRouter(prefix="/api/games", tags=["games"])
 
@@ -267,18 +267,21 @@ async def start_game(room_code: str):
                 n = thing.get("num_questions", 50)
                 qs = db.query(Question).filter(Question.profile_id == pid).all()
                 if qs:
-                    all_qs.extend(qs)
+                    # Honor each thing's num_questions allotment instead of pooling
+                    # everything and slicing by the flat game default.
+                    random.shuffle(qs)
+                    all_qs.extend(qs[:n])
             if not all_qs:
                 raise HTTPException(status_code=400, detail="No questions available for these profiles")
             random.shuffle(all_qs)
-            selected = all_qs[:g.total_questions]
+            selected = all_qs
         else:
             qs = db.query(Question).filter(Question.profile_id == g.profile_id).all()
             if not qs:
                 raise HTTPException(status_code=400, detail="No questions available for this profile")
             random.shuffle(qs)
             selected = qs[:g.total_questions]
-        
+
         gs = get_or_create_game(room_code, g.profile_id)
         gs.questions = [TriviaQuestion(
             category=q.category, question_text=q.question_text,
@@ -286,6 +289,11 @@ async def start_game(room_code: str):
             wrong_answers=json.loads(q.wrong_answers) if q.wrong_answers else [],
             difficulty=q.difficulty,
         ) for q in selected]
+        # Sync the real question count to both DB and in-memory state so
+        # total_questions reflects the actual pool (multi-thing = sum of
+        # per-thing allotments) and next_question() can reach completion.
+        g.total_questions = len(gs.questions)
+        gs.total_q = len(gs.questions)
         gs.status = "active"
         gs.question_started_at = datetime.now(timezone.utc).timestamp()
         
