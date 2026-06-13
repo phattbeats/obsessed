@@ -176,7 +176,7 @@ async function loadProfiles() {
       <div class="meta">${p.question_count} questions</div>
       ${p.consent_obtained ? '<span class="badge badge--success">✓ Consent</span>' : '<span class="badge badge--danger">⚠ Guest consent required</span>'}
       ${(p.scrape_status === 'pending' || p.scrape_status === 'failed' || p.scrape_status === null) && p.consent_obtained ? `<button id="scrape-btn-${p.id}" class="btn" style="margin-top:0.5rem;font-size:14px;padding:0.5rem;color:var(--accent)" onclick="triggerScrape(${p.id}, event)">Scrape</button>` : ''}
-      <span class="status-badge status-${p.scrape_status}">${p.scrape_status}</span>
+      <span class="status-badge status-${p.scrape_status}">${StateIcon.svg(p.scrape_status)}${p.scrape_status}</span>
       ${p.content_quality ? `<span style="font-size:11px;font-weight:700;color:${p.content_quality==='insufficient'?'var(--wrong)':p.content_quality==='limited'?'var(--accent)':p.content_quality==='rich'?'var(--correct)':'var(--text-secondary)'}">${p.content_quality.toUpperCase()} (${p.content_chunks||0} facts)</span>` : ''}
       ${p.scrape_status === 'done' && p.consent_obtained ? `<button class="btn" style="margin-top:0.5rem;font-size:14px;padding:0.5rem" onclick="event.stopPropagation(); showThingsModal([${p.id}])">Host Game</button>` : ''}
       ${p.scrape_status === 'done' && !p.consent_obtained ? `<button class="btn" style="margin-top:0.5rem;font-size:14px;padding:0.5rem;color:var(--accent)" onclick="event.stopPropagation(); requestConsentLink(${p.id})">Send to Guest</button>` : ''}
@@ -387,17 +387,29 @@ function renderQuestionWS(q) {
   startTimerWS(q.timer_seconds || 30);
 }
 
+// Toggle the ≤5s crit stopwatch glyph beside the timer bar (PHA-1062). The bar
+// already pulses; the glyph makes the time-pressure read instantly (and isn't
+// color-only). Idempotent so the per-second tick can call it cheaply.
+function setTimerGlyph(crit) {
+  const g = document.getElementById('timer-glyph');
+  if (!g) return;
+  if (crit === g.classList.contains('is-crit')) return;
+  g.innerHTML = crit ? StateIcon.svg('timer') : '';
+  g.classList.toggle('is-crit', crit);
+}
+
 function startTimerWS(seconds) {
   timerSeconds = seconds;
   const fill = document.getElementById('timer-fill');
   clearInterval(timerInterval);
   fill.style.width = '100%';
   fill.className = '';
+  setTimerGlyph(false);
   timerInterval = setInterval(() => {
     timerSeconds--;
     const pct = (timerSeconds / 30) * 100;
     fill.style.width = pct + '%';
-    if (timerSeconds <= 5) fill.className = 'crit';
+    if (timerSeconds <= 5) { fill.className = 'crit'; setTimerGlyph(true); }
     else if (timerSeconds <= 10) fill.className = 'warn';
     if (timerSeconds <= 0) { clearInterval(timerInterval); submitAnswer(null, '__timeout__'); }
   }, 1000);
@@ -421,11 +433,12 @@ function renderQuestion(q) {
   clearInterval(timerInterval);
   fill.style.width = '100%';
   fill.className = '';
+  setTimerGlyph(false);
   timerInterval = setInterval(() => {
     timerSeconds--;
     const pct = (timerSeconds / 30) * 100;
     fill.style.width = pct + '%';
-    if (timerSeconds <= 5) fill.className = 'crit';
+    if (timerSeconds <= 5) { fill.className = 'crit'; setTimerGlyph(true); }
     else if (timerSeconds <= 10) fill.className = 'warn';
     if (timerSeconds <= 0) { clearInterval(timerInterval); submitAnswer(null, '__timeout__'); }
   }, 1000);
