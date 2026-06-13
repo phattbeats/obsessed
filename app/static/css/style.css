@@ -309,9 +309,39 @@ body {
 }
 .answer-btn:hover { background: var(--surface-elevated); transform: scale(1.02); }
 .answer-btn:active { transform: scale(0.97); box-shadow: var(--shadow-press); }
-.answer-btn.correct { background: var(--correct); color: var(--bg); box-shadow: none; }
+.answer-btn.correct {
+  background: var(--correct);
+  color: var(--bg);
+  box-shadow: none;
+  animation: correctPop var(--dur-reveal) cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
 .answer-btn.wrong { background: var(--wrong); box-shadow: none; }
 .answer-btn.selected { outline: 3px solid var(--accent); outline-offset: 2px; }
+
+/* Correct-answer button scale-pop (PHA-1030) */
+@keyframes correctPop {
+  0%   { transform: scale(1); }
+  45%  { transform: scale(1.09); }
+  72%  { transform: scale(0.97); }
+  100% { transform: scale(1); }
+}
+
+/* Category-color screen-edge glow flashed on a correct answer (PHA-1030).
+   Inherits --q-cat-color from #screen-game; re-triggered by toggling .flash. */
+.edge-glow {
+  position: fixed;
+  inset: 0;
+  z-index: var(--z-edge-glow);
+  pointer-events: none;
+  opacity: 0;
+  box-shadow: inset 0 0 90px 14px var(--q-cat-color, var(--correct));
+}
+.edge-glow.flash { animation: edgeFlash var(--dur-reveal) ease-out; }
+@keyframes edgeFlash {
+  0%   { opacity: 0; }
+  18%  { opacity: 0.9; }
+  100% { opacity: 0; }
+}
 
 .timer-bar {
   width: 100%;
@@ -329,6 +359,19 @@ body {
 }
 #timer-fill.warn { background: var(--timer-warn); }
 #timer-fill.crit { background: var(--timer-crit); }
+
+/* ≤5s crit state: pulse the bar so tension reads peripherally */
+@keyframes timerCritPulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(255, 61, 0, 0); }
+  50%      { box-shadow: 0 0 14px 2px rgba(255, 61, 0, 0.65); }
+}
+.timer-bar:has(#timer-fill.crit) {
+  animation: timerCritPulse 0.8s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .timer-bar:has(#timer-fill.crit) { animation: none; }
+}
 
 /* ── Screen: Results ──────────────────────────────── */
 #screen-results {
@@ -387,6 +430,8 @@ body {
 
 @media (prefers-reduced-motion: reduce) {
   .confetti-layer { display: none; }
+  .answer-btn.correct { animation: none; }
+  .edge-glow.flash { animation: none; }
 }
 .final-scores {
   display: flex;
