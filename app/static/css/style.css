@@ -365,8 +365,20 @@ body {
 }
 .player-entry:last-child { border-bottom: none; }
 .player-entry .player-score { color: var(--accent); font-family: var(--font-mono); }
+/* Branded host crown glyph (PHA-1061), replacing the 👑 emoji so the lobby
+   matches the rest of the system. Kept CSS-only on ::before so it composes with
+   the incremental-diff player renderer (which sets entry.textContent). Masked
+   SVG → crisp vector, filled with brand gold via --accent. */
 .player-entry.host-tag::before {
-  content: '👑 ';
+  content: '';
+  display: inline-block;
+  width: 1em;
+  height: 1em;
+  margin-right: 0.4em;
+  vertical-align: -0.12em;
+  background-color: var(--accent);
+  -webkit-mask: url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%2024%2024'%3E%3Cpath%20d='M3%208l4%203.5%205-7%205%207%204-3.5-1.6%2010.5H4.6L3%208z'%20fill='black'/%3E%3C/svg%3E") center / contain no-repeat;
+          mask: url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%2024%2024'%3E%3Cpath%20d='M3%208l4%203.5%205-7%205%207%204-3.5-1.6%2010.5H4.6L3%208z'%20fill='black'/%3E%3C/svg%3E") center / contain no-repeat;
 }
 .player-entry.active-tag { color: var(--correct); }
 
