@@ -19,50 +19,79 @@
   max-width: 420px;
 }
 
-/* ── Individual slot ───────────────────────────────────────────── */
+/* ── Individual slot ───────────────────────────────────────────────
+   Empty slots are tinted with their own pack color (not grey wireframe
+   boxes) so the rack reads as six waiting packs. Fallback to surface
+   tokens for any padding slot that has no --c set.                    */
 .bang-slot {
+  --c: var(--surface-elevated);
   aspect-ratio: 0.75;
-  border-radius: 10px;
-  border: 2px dashed var(--surface-elevated);
+  border-radius: 12px;
+  border: 1.5px solid color-mix(in oklab, var(--c) 38%, var(--surface-elevated));
+  background:
+    linear-gradient(160deg,
+      color-mix(in oklab, var(--c) 12%, var(--surface)),
+      color-mix(in oklab, var(--c) 4%, var(--surface)));
   display: grid;
   place-items: center;
   font-family: 'Archivo Black', system-ui, sans-serif;
-  color: var(--text-secondary);
-  font-size: 24px;
+  color: color-mix(in oklab, var(--c) 50%, var(--surface-elevated));
+  font-size: 26px;
   font-style: italic;
   position: relative;
   transition: all var(--dur-reveal) var(--ease-overshoot);
 }
+/* lift the ! so it never crowds the glyph chip at the base */
+.bang-slot b {
+  display: block;
+  transform: translateY(-6px);
+}
 
 /* ── Filled slot ───────────────────────────────────────────────── */
 .bang-slot.filled {
-  border-style: solid;
-  border-color: var(--c);
-  background: var(--c);
+  border-color: color-mix(in oklab, var(--c) 80%, #000);
+  background: linear-gradient(165deg,
+    color-mix(in oklab, var(--c) 88%, #fff), var(--c));
   color: var(--white);
   box-shadow:
-    0 3px 0 color-mix(in oklab, var(--c) 60%, #000),
-    0 8px 24px color-mix(in oklab, var(--c) 35%, transparent);
+    0 3px 0 color-mix(in oklab, var(--c) 55%, #000),
+    0 10px 22px color-mix(in oklab, var(--c) 40%, transparent);
   transform: rotate(var(--rot, -3deg));
 }
 .bang-slot.filled b {
-  transform: skew(-6deg);
-  display: block;
+  transform: translateY(-6px) skew(-6deg);
+  text-shadow: 0 1px 2px color-mix(in oklab, var(--c) 65%, #000);
 }
 
-/* ── Pack glyph (category icon) ─────────────────────────────────── */
+/* ── Pack glyph (category icon) ─────────────────────────────────────
+   Glyph rides in a rounded contrast chip at the slot base so it stays
+   legible over any fill — including the bright yellow/green packs.     */
 .bang-slot__icon {
   position: absolute;
-  bottom: 5px;
+  bottom: 6px;
   left: 50%;
   transform: translateX(-50%);
-  width: 16px;
-  height: 16px;
+  display: grid;
+  place-items: center;
+  width: 27px;
+  height: 20px;
+  border-radius: 7px;
   font-style: normal;
-  color: rgba(255, 255, 255, 0.75);
 }
+.bang-slot__icon .cat-icon__svg {
+  width: 18px;
+  height: 18px;
+  display: block;
+}
+/* empty: tinted chip + saturated glyph in the pack color */
 .bang-slot:not(.filled) .bang-slot__icon {
-  color: var(--text-secondary);
+  background: color-mix(in oklab, var(--c) 18%, transparent);
+  color: color-mix(in oklab, var(--c) 80%, var(--white));
+}
+/* filled: dark glass chip + crisp white glyph */
+.bang-slot.filled .bang-slot__icon {
+  background: rgba(0, 0, 0, 0.24);
+  color: #fff;
 }
 
 /* ── Burst pop animation (on fill) ────────────────────────────── */
