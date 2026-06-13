@@ -85,6 +85,8 @@ function showScreen(name) {
   if (el) el.classList.add('active');
   if (name !== 'game') { clearInterval(pollInterval); clearInterval(timerInterval); }
   if (name === 'lobby') {
+    const bangEl = document.getElementById('lobby-bang');
+    if (bangEl) renderBang(bangEl, { variant: 'icon', wordmark: false });
     connectWS(myRoomCode);
     startLobbyPoll(); // fallback polling — can be reduced or removed once WS is stable
   }
@@ -312,10 +314,32 @@ async function pollLobby() {
 
 function updateLobbyPlayers(players) {
   const list = document.getElementById('lobby-players');
-  if (list) {
-    list.innerHTML = (players || []).map(p => `
-      <div class="player-entry ${p.is_host ? 'host-tag' : ''}">${esc(p.player_name)} ${p.is_host ? '👑' : ''}</div>`).join('');
-  }
+  if (!list) return;
+  const incoming = players || [];
+  const seen = new Set();
+  // Incremental diff instead of a blanket innerHTML rewrite: existing entries
+  // stay put (no blink), and only genuinely-new players stagger-pop in — the
+  // same reveal language the results scoreboard uses.
+  let fresh = 0;
+  incoming.forEach((p) => {
+    const pid = String(p.player_id || p.player_name);
+    seen.add(pid);
+    let entry = Array.from(list.children).find((c) => c.dataset.pid === pid);
+    if (!entry) {
+      entry = document.createElement('div');
+      entry.className = 'player-entry pop';
+      entry.dataset.pid = pid;
+      // Stagger the batch on first paint; a lone late joiner pops immediately.
+      entry.style.animationDelay = (fresh++ * 80) + 'ms';
+      list.appendChild(entry);
+    }
+    // Host crown comes from .host-tag::before — no trailing glyph (avoids dupes).
+    entry.classList.toggle('host-tag', !!p.is_host);
+    entry.textContent = p.player_name;
+  });
+  Array.from(list.children).forEach((el) => {
+    if (!seen.has(el.dataset.pid)) el.remove();
+  });
 }
 
 // ── Game ─────────────────────────────────────────────────────────────────────
