@@ -73,14 +73,14 @@
   transform: translateX(-50%);
   display: grid;
   place-items: center;
-  width: 27px;
-  height: 20px;
+  width: 30px;
+  height: 22px;
   border-radius: 7px;
   font-style: normal;
 }
 .bang-slot__icon .cat-icon__svg {
-  width: 18px;
-  height: 18px;
+  width: 21px;
+  height: 21px;
   display: block;
 }
 /* empty: tinted chip + saturated glyph in the pack color */
