@@ -34,17 +34,15 @@ const BangRack = (() => {
     art_literature: '--cat-art',
   };
 
-  const CAT_LABEL = {
-    history:        'HIST',
-    entertainment:  'ENT',
-    geography:      'GEO',
-    science:        'SCI',
-    sports:         'SPT',
-    art_literature: 'ART',
-  };
-
   // Alternating micro-rotations match the design's casual tilted feel
   const ROTATIONS = ['-3deg', '2deg', '-2deg', '3deg', '-1deg', '2.5deg'];
+
+  // Pack glyph (clock/clapper/globe/atom/ball/book). Falls back to '' if the
+  // CategoryIcon component isn't loaded so the rack still renders the ! stamp.
+  const iconSVG = (cat) =>
+    (typeof CategoryIcon !== 'undefined' && CategoryIcon.catIconSVG(cat)) || '';
+  const catName = (cat) =>
+    (typeof CategoryIcon !== 'undefined' && CategoryIcon.LABEL[cat]) || cat;
 
   function attach(hostEl, { categories = [] } = {}) {
     hostEl.innerHTML = '';
@@ -56,6 +54,7 @@ const BangRack = (() => {
       const slot = document.createElement('div');
       slot.className = 'bang-slot';
       slot.dataset.cat = cat;
+      slot.setAttribute('aria-label', catName(cat));
       slot.style.setProperty('--rot', ROTATIONS[i]);
       const token = CAT_TOKEN[cat];
       if (token) slot.style.setProperty('--c', `var(${token})`);
@@ -64,10 +63,12 @@ const BangRack = (() => {
       b.textContent = '!';
       slot.appendChild(b);
 
-      const lbl = document.createElement('span');
-      lbl.className = 'bang-slot__lbl';
-      lbl.textContent = CAT_LABEL[cat] || cat.slice(0, 4).toUpperCase();
-      slot.appendChild(lbl);
+      // Pack glyph identifies the category (replaces the old text abbreviation).
+      // Sits in a contrast chip pinned at the slot's base — see bang-rack.css.
+      const icon = document.createElement('span');
+      icon.className = 'bang-slot__icon';
+      icon.innerHTML = iconSVG(cat);
+      slot.appendChild(icon);
 
       rack.appendChild(slot);
       return slot;
