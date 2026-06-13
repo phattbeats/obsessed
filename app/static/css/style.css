@@ -494,6 +494,28 @@ body {
   100% { opacity: 0; }
 }
 
+/* Question entry: category badge stamp-in + answer-button stagger (PHA-1031).
+   Re-triggered each new question by toggling the class (see app.js).
+   The badge slams down like a rubber stamp; answers cascade in, reusing the
+   results-style stagger driven by the inline --i index. */
+.category-badge.stamp-in {
+  animation: badgeStamp var(--dur-slow) var(--ease-overshoot) both;
+}
+@keyframes badgeStamp {
+  0%   { transform: scale(1.55) rotate(-7deg); opacity: 0; }
+  55%  { transform: scale(0.93) rotate(2deg);  opacity: 1; }
+  100% { transform: scale(1) rotate(0);        opacity: 1; }
+}
+
+.answer-btn.stagger-in {
+  animation: answerStagger var(--dur-base) var(--ease-out) both;
+  animation-delay: calc(var(--i, 0) * 60ms);
+}
+@keyframes answerStagger {
+  0%   { transform: translateY(16px); opacity: 0; }
+  100% { transform: translateY(0);    opacity: 1; }
+}
+
 .timer-bar {
   width: 100%;
   max-width: 700px;
@@ -584,6 +606,8 @@ body {
   .answer-btn.correct { animation: none; }
   .edge-glow.flash { animation: none; }
   .player-entry.pop { animation: none; }
+  .category-badge.stamp-in { animation: none; }
+  .answer-btn.stagger-in { animation: none; }
 }
 .final-scores {
   display: flex;
