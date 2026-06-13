@@ -89,6 +89,7 @@
   --bang-circle: var(--pink);     /* pink disc that replaces the O */
   --bang-mark: #0d0d0d;           /* italic black ! */
   --bang-pulse-dur: 2.4s;         /* pulsation loop (LOGO-DECISION.md) */
+  --bang-breathe-dur: 5s;         /* slow "breathing" loop — landing heartbeat (PHA-1033) */
   --bang-letter-spacing: -0.04em; /* wordmark tracking */
 
   /* ── Misc ──────────────────────────────────────────── */

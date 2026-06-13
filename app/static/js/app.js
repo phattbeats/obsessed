@@ -558,7 +558,8 @@ async function loadLeaderboard() {
 }
 
 // ── Boot ─────────────────────────────────────────────────────────────────────
-renderBang(document.getElementById('home-logo'), { variant: 'primary', wordmark: true });
+// Landing mark breathes (slow pulse) so the front door has a heartbeat — PHA-1033.
+renderBang(document.getElementById('home-logo'), { variant: 'primary', wordmark: true, breathe: true });
 
 // ── Utilities ────────────────────────────────────────────────────────────────
 function esc(s) {
