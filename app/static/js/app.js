@@ -392,6 +392,16 @@ function renderQuestion(q) {
   }, 1000);
 }
 
+// Flash the category-color screen-edge glow on a correct answer (PHA-1030).
+// Re-triggers the CSS animation by removing the class, forcing reflow, re-adding.
+function flashEdgeGlow() {
+  const glow = document.getElementById('edge-glow');
+  if (!glow) return;
+  glow.classList.remove('flash');
+  void glow.offsetWidth; // reflow so the animation restarts each correct answer
+  glow.classList.add('flash');
+}
+
 // ── WS-driven answer result ───────────────────────────────────────────────────
 function showAnswerResultWS(msg) {
   const opts = document.querySelectorAll('.answer-btn');
@@ -400,8 +410,9 @@ function showAnswerResultWS(msg) {
     else if (b.textContent === msg.answer_text && !msg.is_correct) b.classList.add('wrong');
     b.disabled = true;
   });
-  if (msg.is_correct && msg.category && bangRack) {
-    bangRack.fill(msg.category, { burst: true });
+  if (msg.is_correct) {
+    flashEdgeGlow();
+    if (msg.category && bangRack) bangRack.fill(msg.category, { burst: true });
   }
   toast(msg.is_correct ? `+${msg.points_earned} pts!` : 'Wrong!');
 }
@@ -424,8 +435,9 @@ async function submitAnswer(btn, answer) {
       else if (b === btn && !result.is_correct) b.classList.add('wrong');
       b.disabled = true;
     });
-    if (result.is_correct && result.category && bangRack) {
-      bangRack.fill(result.category, { burst: true });
+    if (result.is_correct) {
+      flashEdgeGlow();
+      if (result.category && bangRack) bangRack.fill(result.category, { burst: true });
     }
     toast(result.is_correct ? `+${result.points_earned} pts!` : 'Wrong!');
   }
