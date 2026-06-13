@@ -334,12 +334,25 @@ async function loadQuestion() {
   renderQuestion(q);
 }
 
+// Paint the in-play category badge — the single most-looked-at element in a
+// round — with the matching pack glyph + label (PHA-1058). The glyph reuses the
+// CategoryIcon set shipped for the bang-rack (PHA-810) so the category reads
+// instantly without parsing text. Falls back to label-only if CategoryIcon
+// isn't loaded, so the badge always renders.
+function setCategoryBadge(badge, category) {
+  const label = category.replace('_', ' ').toUpperCase();
+  const svg = (typeof CategoryIcon !== 'undefined' && CategoryIcon.catIconSVG(category)) || '';
+  badge.innerHTML = svg
+    ? `<span class="category-badge__icon">${svg}</span><span>${esc(label)}</span>`
+    : esc(label);
+}
+
 // ── WS-driven question renderer (used by WebSocket new_question events) ───────
 function renderQuestionWS(q) {
   document.getElementById('question-progress').textContent = `Question ${q.question_num} / ${q.total_questions}`;
   document.getElementById('question-text').textContent = q.question_text;
   const badge = document.getElementById('category-badge');
-  badge.textContent = q.category.replace('_', ' ').toUpperCase();
+  setCategoryBadge(badge, q.category);
   badge.style.background = q.category_color;
   const gameScreen = document.getElementById('screen-game');
   gameScreen.style.setProperty('--q-cat-color', q.category_color);
@@ -369,7 +382,7 @@ function renderQuestion(q) {
   document.getElementById('question-progress').textContent = `Question ${q.question_num} / ${q.total_questions}`;
   document.getElementById('question-text').textContent = q.question_text;
   const badge = document.getElementById('category-badge');
-  badge.textContent = q.category.replace('_', ' ').toUpperCase();
+  setCategoryBadge(badge, q.category);
   badge.style.background = q.category_color;
   document.getElementById('screen-game').style.setProperty('--q-cat-color', q.category_color);
   const grid = document.getElementById('answer-grid');
