@@ -6,6 +6,8 @@
  * @param {'primary'|'stacked'|'icon'|'compact'|'wide'|'square'|'badge'|'hero'} options.variant
  * @param {boolean} [options.wordmark=true] - Show OBSESSED wordmark (false = icon-only)
  * @param {string}  [options.tagline]       - Override tagline text (wide/square variants)
+ * @param {boolean} [options.breathe=false] - Slow the pulse to a calm "breathing"
+ *                                            tempo (landing heartbeat — PHA-1033)
  *
  * Pulsation is CSS-driven (bangPulse in bang.css). No JS animation runs here.
  * prefers-reduced-motion is handled by the CSS media query in bang.css.
@@ -20,13 +22,18 @@
  *   badge    → Variation G — pill badge, no pulse
  *   hero     → Variation H — TV/landing-page scale
  */
-function renderBang(host, { variant = 'primary', wordmark = true, tagline } = {}) {
+function renderBang(host, { variant = 'primary', wordmark = true, tagline, breathe = false } = {}) {
   host.innerHTML = '';
+
+  // Slow-pulse modifier — appended to the outermost element of each variant so
+  // the `.bang--breathe .bang-circle` rule (or `.bang-circle.bang--breathe` for
+  // icon) picks it up. PHA-1033.
+  const b = breathe ? ' bang--breathe' : '';
 
   // icon variant ignores wordmark option
   if (variant === 'icon') {
     const circle = _circle('');
-    circle.classList.add('bang--icon');
+    circle.className += ' bang--icon' + b;
     host.appendChild(circle);
     return;
   }
@@ -34,7 +41,7 @@ function renderBang(host, { variant = 'primary', wordmark = true, tagline } = {}
   // badge variant: pill wrapper
   if (variant === 'badge') {
     const wrap = document.createElement('span');
-    wrap.className = 'bang--badge';
+    wrap.className = 'bang--badge' + b;
     wrap.appendChild(_circle(''));
     if (wordmark) wrap.appendChild(_wordmark('OBSESSED', false));
     host.appendChild(wrap);
@@ -44,7 +51,7 @@ function renderBang(host, { variant = 'primary', wordmark = true, tagline } = {}
   // stacked variant: circle above wordmark
   if (variant === 'stacked') {
     const wrap = document.createElement('div');
-    wrap.className = 'bang--stacked';
+    wrap.className = 'bang--stacked' + b;
     wrap.appendChild(_circle(''));
     if (wordmark) wrap.appendChild(_wordmark('OBSESSED', false));
     host.appendChild(wrap);
@@ -54,7 +61,7 @@ function renderBang(host, { variant = 'primary', wordmark = true, tagline } = {}
   // wide variant: primary inline + tagline below
   if (variant === 'wide') {
     const wrap = document.createElement('div');
-    wrap.className = 'bang--wide';
+    wrap.className = 'bang--wide' + b;
     const main = document.createElement('div');
     main.className = 'bang-main';
     main.appendChild(_circle(''));
@@ -71,7 +78,7 @@ function renderBang(host, { variant = 'primary', wordmark = true, tagline } = {}
   // square variant: centered + tagline below
   if (variant === 'square') {
     const wrap = document.createElement('div');
-    wrap.className = 'bang--square';
+    wrap.className = 'bang--square' + b;
     const main = document.createElement('div');
     main.className = 'bang-main';
     main.appendChild(_circle(''));
@@ -93,7 +100,7 @@ function renderBang(host, { variant = 'primary', wordmark = true, tagline } = {}
   }[variant] || 'bang--primary';
 
   const wrap = document.createElement('div');
-  wrap.className = variantClass;
+  wrap.className = variantClass + b;
   wrap.appendChild(_circle(''));
   if (wordmark) wrap.appendChild(_wordmark('OBSESSED', true));
   host.appendChild(wrap);

@@ -44,6 +44,18 @@
   text-shadow: 0 2px 0 rgba(0, 0, 0, 0.3);
 }
 
+/* ── Breathing modifier ────────────────────────────────────────────
+   Slow, calm version of the pulse for the landing mark, so the front
+   door has a heartbeat. Reuses the bangPulse keyframe (same motion the
+   results stacked lockup runs) but stretched to a gentler tempo via the
+   breathe duration token. Opt-in by passing { breathe: true } to
+   renderBang(). prefers-reduced-motion still kills it via the
+   .bang-circle rule above. PHA-1033. */
+.bang--breathe .bang-circle,
+.bang-circle.bang--breathe {
+  animation-duration: var(--bang-breathe-dur);
+}
+
 .bang-wordmark {
   font-family: var(--font-logo);
   font-weight: 900;
