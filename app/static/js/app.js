@@ -365,11 +365,12 @@ function renderQuestionWS(q) {
   const badge = document.getElementById('category-badge');
   badge.textContent = q.category.replace('_', ' ').toUpperCase();
   badge.style.background = q.category_color;
+  stampBadge(badge);
   const gameScreen = document.getElementById('screen-game');
   gameScreen.style.setProperty('--q-cat-color', q.category_color);
   const grid = document.getElementById('answer-grid');
-  grid.innerHTML = (q.options || []).map(opt => `
-    <button class="answer-btn" onclick="submitAnswer(this, '${esc(opt)}')">${esc(opt)}</button>`).join('');
+  grid.innerHTML = (q.options || []).map((opt, i) => `
+    <button class="answer-btn stagger-in" style="--i:${i}" onclick="submitAnswer(this, '${esc(opt)}')">${esc(opt)}</button>`).join('');
   startTimerWS(q.timer_seconds || 30);
 }
 
@@ -395,10 +396,11 @@ function renderQuestion(q) {
   const badge = document.getElementById('category-badge');
   badge.textContent = q.category.replace('_', ' ').toUpperCase();
   badge.style.background = q.category_color;
+  stampBadge(badge);
   document.getElementById('screen-game').style.setProperty('--q-cat-color', q.category_color);
   const grid = document.getElementById('answer-grid');
-  grid.innerHTML = q.options.map(opt => `
-    <button class="answer-btn" onclick="submitAnswer(this, '${esc(opt)}')">${esc(opt)}</button>`).join('');
+  grid.innerHTML = q.options.map((opt, i) => `
+    <button class="answer-btn stagger-in" style="--i:${i}" onclick="submitAnswer(this, '${esc(opt)}')">${esc(opt)}</button>`).join('');
   
   // Timer
   timerSeconds = q.timer_seconds;
@@ -416,6 +418,16 @@ function renderQuestion(q) {
   }, 1000);
 }
 
+// Stamp the category badge in on each new question (PHA-1031). The badge is a
+// persistent element, so restart the CSS animation by toggling the class with a
+// forced reflow (the answer buttons re-animate for free — innerHTML replaces them).
+function stampBadge(badge) {
+  if (!badge) return;
+  badge.classList.remove('stamp-in');
+  void badge.offsetWidth; // reflow so the stamp animation restarts each question
+  badge.classList.add('stamp-in');
+}
+
 // Flash the category-color screen-edge glow on a correct answer (PHA-1030).
 // Re-triggers the CSS animation by removing the class, forcing reflow, re-adding.
 function flashEdgeGlow() {
@@ -430,6 +442,7 @@ function flashEdgeGlow() {
 function showAnswerResultWS(msg) {
   const opts = document.querySelectorAll('.answer-btn');
   opts.forEach(b => {
+    b.classList.remove('stagger-in'); // drop entry anim so correctPop (PHA-1030) isn't overridden
     if (b.textContent === msg.correct_answer) b.classList.add('correct');
     else if (b.textContent === msg.answer_text && !msg.is_correct) b.classList.add('wrong');
     b.disabled = true;
@@ -455,6 +468,7 @@ async function submitAnswer(btn, answer) {
     const result = await res.json();
     const opts = document.querySelectorAll('.answer-btn');
     opts.forEach(b => {
+      b.classList.remove('stagger-in'); // drop entry anim so correctPop (PHA-1030) isn't overridden
       if (b.textContent === result.correct_answer) b.classList.add('correct');
       else if (b === btn && !result.is_correct) b.classList.add('wrong');
       b.disabled = true;
