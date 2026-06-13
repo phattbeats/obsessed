@@ -51,7 +51,15 @@
 }
 
 /* ── Slot label (category name) ────────────────────────────────── */
+/* The rack only ever renders in the player game view (#bang-rack). Per the v9
+   mock that view hides the per-slot label (`.d4__phoneRack .bangSlot__lbl {
+   display: none }`): at phone width each ~50px slot can't fit the 24px "!"
+   *and* a caption without the two reading as overlapping clutter. The slot
+   colors already carry category identity, so the label is hidden here.
+   The styling below is retained for any future large/host rack that opts back
+   in by overriding `display`. */
 .bang-slot__lbl {
+  display: none;
   position: absolute;
   bottom: 5px;
   left: 0;
