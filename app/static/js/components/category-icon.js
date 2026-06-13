@@ -1,11 +1,16 @@
 /**
- * CategoryIcon — six geometric pack glyphs.
+ * CategoryIcon — six bold filled pack glyphs.
  *
- * Per design/OBSESSED-DESIGN-HANDOFF.md ("Category icons — six geometric
- * glyphs"): History (clock) · Entertainment (clapper) · Geography (globe) ·
- * Science (atom) · Sports (ball) · Art & Lit (book). Geometric primitives,
- * thick rounded strokes, no detailed illustration. Color inherits from
- * `currentColor`; size is driven by the host (CSS width/height).
+ * Based on design/OBSESSED-DESIGN-HANDOFF.md ("Category icons — six glyphs"):
+ * History (clock) · Entertainment (clapper) · Geography (globe) ·
+ * Science (flask) · Sports (ball) · Art & Lit (book). Solid silhouettes with
+ * evenodd knockout detail — chosen over thin outlines so they read as branded
+ * marks and stay legible down to ~16px. Color inherits from `currentColor`;
+ * size is driven by the host (CSS width/height).
+ *
+ * Science uses a flask rather than the spec's atom: an atom is line-native and
+ * illegible as a small filled silhouette. Easy to swap back if the canonical
+ * art lands.
  *
  * Keys match app/routes/games.py CATEGORY_COLORS:
  *   history, entertainment, geography, science, sports, art_literature
@@ -19,35 +24,47 @@
  *   renderCatIcon(hostEl, cat)   → sets hostEl innerHTML to the glyph, returns hostEl
  */
 const CategoryIcon = (() => {
-  // All glyphs: 24×24 box, fill none, stroke currentColor, round caps/joins.
-  // Drawn for legibility at ~18px — confident strokes, no fine detail.
+  // All glyphs: 24×24 box, solid silhouettes filled with currentColor,
+  // fill-rule evenodd so interior detail knocks out the chip behind it.
+  // Bold filled shapes (vs thin outlines) stay legible down to ~18px and
+  // read as branded marks rather than generic line icons. Each value is a
+  // single <path> d-string (outer silhouette + interior knockout subpaths).
   const PATHS = {
-    // clock — circle + hands
+    // clock — filled face with an L-shaped knockout for the hands
     history:
-      '<circle cx="12" cy="12" r="8.5"/><path d="M12 7.5v4.8l3.3 2"/>',
-    // clapperboard — board + hinged striped top bar
+      'M3.8 12a8.2 8.2 0 1 0 16.4 0a8.2 8.2 0 1 0-16.4 0Z' +
+      'M11.2 7.4H12.8V11.5L15.5 13.05 14.7 14.45 11.2 12.43Z',
+    // clapperboard — solid board + hinged bar with knockout stripes
     entertainment:
-      '<rect x="3" y="9.4" width="18" height="10.6" rx="1.8"/>' +
-      '<path d="M3 9.4 4.3 5.3 21 7.2 19.7 9.4Z"/>' +
-      '<path d="M8.5 8.9 9.8 5.2M13.8 9.2 15.1 5.5"/>',
-    // globe — circle + equator + meridians
+      'M5 9.8H19a2 2 0 0 1 2 2V18a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-6.2a2 2 0 0 1 2-2Z' +
+      'M3.1 9.3 4.5 5.0 20.9 6.8 19.6 9.3Z' +
+      'M6.9 8.9 7.9 5.55 9.0 5.68 8.0 9.0Z' +
+      'M11.1 9.0 12.1 5.7 13.2 5.83 12.2 9.1Z' +
+      'M15.3 9.1 16.3 5.85 17.4 5.98 16.4 9.2Z',
+    // globe — filled disc with knockout equator + meridians
     geography:
-      '<circle cx="12" cy="12" r="8.5"/><path d="M3.5 12h17"/>' +
-      '<path d="M12 3.5c3.2 2.5 3.2 14.5 0 17M12 3.5c-3.2 2.5-3.2 14.5 0 17"/>',
-    // atom — nucleus + two crossed orbits
+      'M3.8 12a8.2 8.2 0 1 0 16.4 0a8.2 8.2 0 1 0-16.4 0Z' +
+      'M4.2 11.1H19.8V12.9H4.2Z' +
+      'M11.2 4.2V19.8H12.8V4.2Z' +
+      'M9 5.5C6.5 8 6.5 16 9 18.5C8 16 8 8 9 5.5Z' +
+      'M15 5.5C17.5 8 17.5 16 15 18.5C16 16 16 8 15 5.5Z',
+    // flask — solid beaker silhouette with knockout bubbles
     science:
-      '<circle cx="12" cy="12" r="1.9" fill="currentColor" stroke="none"/>' +
-      '<ellipse cx="12" cy="12" rx="8.6" ry="3.5" transform="rotate(60 12 12)"/>' +
-      '<ellipse cx="12" cy="12" rx="8.6" ry="3.5" transform="rotate(-60 12 12)"/>',
-    // ball — circle + central pentagon + seams
+      'M9.6 3.2H14.4V4.8H13.6V8.8L18.8 18C19.6 19.4 18.6 21 17 21H7' +
+      'C5.4 21 4.4 19.4 5.2 18L10.4 8.8V4.8H9.6Z' +
+      'M12 15.6a1 1 0 1 0 0.02 0Z' +
+      'M14.1 13.7a0.8 0.8 0 1 0 0.02 0Z',
+    // soccer ball — filled disc with knockout pentagon + edge marks
     sports:
-      '<circle cx="12" cy="12" r="8.5"/>' +
-      '<path d="M12 8 15 10.2 13.9 13.8H10.1L9 10.2Z"/>' +
-      '<path d="M12 8V4.2M14.9 13.6 17.8 15.4M9.1 13.6 6.2 15.4"/>',
-    // open book — two pages off a center spine
+      'M3.8 12a8.2 8.2 0 1 0 16.4 0a8.2 8.2 0 1 0-16.4 0Z' +
+      'M12 8 15 10.2 13.85 13.8H10.15L9 10.2Z' +
+      'M12 4.3 13 5.75 11 5.75Z' +
+      'M5.7 14.7 7.1 15 6.6 16.35Z' +
+      'M18.3 14.7 16.9 15 17.4 16.35Z',
+    // open book — two solid pages with a center-spine gap
     art_literature:
-      '<path d="M12 6.4C9.9 5.1 6.9 4.5 4 4.9v12.4c2.9-.4 5.9.2 8 1.5 2.1-1.3 5.1-1.9 8-1.5V4.9c-2.9-.4-5.9.2-8 1.4Z"/>' +
-      '<path d="M12 6.4V18.8"/>',
+      'M11.2 6.6C8.8 5.3 6 4.9 3.8 5.3V17.3C6 16.9 8.8 17.3 11.2 18.6Z' +
+      'M12.8 6.6C15.2 5.3 18 4.9 20.2 5.3V17.3C18 16.9 15.2 17.3 12.8 18.6Z',
   };
 
   const LABEL = {
@@ -63,13 +80,10 @@ const CategoryIcon = (() => {
     const inner = PATHS[cat];
     if (!inner) return '';
     return (
-      '<svg class="cat-icon__svg" viewBox="0 0 24 24" fill="none" ' +
-      'stroke="currentColor" stroke-width="2.2" stroke-linecap="round" ' +
-      'stroke-linejoin="round" role="img" aria-label="' +
+      '<svg class="cat-icon__svg" viewBox="0 0 24 24" ' +
+      'fill="currentColor" fill-rule="evenodd" role="img" aria-label="' +
       (LABEL[cat] || cat) +
-      '">' +
-      inner +
-      '</svg>'
+      '"><path d="' + inner + '"/></svg>'
     );
   }
 
