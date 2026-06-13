@@ -264,6 +264,44 @@ body {
 .row-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
 .scrape-btn { align-self: flex-start; }
 
+/* Entity-type picker — branded segmented control (PHA-1060). Replaces the
+   OS-emoji <select>; each option pairs a category-icon-style glyph (24×24,
+   stroke currentColor) with its label. The active option fills with --accent. */
+.entity-picker {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: var(--space-2);
+}
+.entity-opt {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-1);
+  padding: var(--space-3) var(--space-2);
+  background: var(--surface);
+  border: 2px solid var(--surface-elevated);
+  border-radius: var(--radius-md);
+  color: var(--text-secondary);
+  font-family: var(--font-body);
+  font-size: var(--fs-caption);
+  font-weight: 800;
+  cursor: pointer;
+  transition: border-color var(--dur-fast) var(--ease-out),
+              color var(--dur-fast) var(--ease-out),
+              background var(--dur-fast) var(--ease-out);
+}
+.entity-opt__svg { width: 28px; height: 28px; display: block; }
+.entity-opt:hover { color: var(--white); border-color: var(--accent); }
+.entity-opt.is-active {
+  color: var(--bg);
+  background: var(--accent);
+  border-color: var(--accent);
+}
+.entity-opt:focus-visible { outline: var(--focus-ring); outline-offset: 2px; }
+@media (max-width: 380px) {
+  .entity-picker { grid-template-columns: repeat(2, 1fr); }
+}
+
 #profile-list {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));

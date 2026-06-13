@@ -57,12 +57,28 @@
     </div>
     <div class="form-group" id="fg-entity-type">
       <label>Entity Type</label>
-      <select name="entity_type" id="entity-type-selector" style="background:var(--surface);border:2px solid var(--surface-elevated);color:var(--white);font-family:var(--font-body);font-size:16px;padding:0.5rem;border-radius:4px;width:100%">
-        <option value="person">👤 Person</option>
-        <option value="place">📍 Place</option>
-        <option value="thing">💡 Thing</option>
-        <option value="event">📅 Event</option>
-      </select>
+      <!-- Branded segmented control replacing OS emoji (PHA-1060). Glyphs follow
+           the category-icon house style: 24×24, stroke currentColor, round joins.
+           A hidden input keeps `entity_type` flowing through the form's FormData. -->
+      <input type="hidden" name="entity_type" id="entity-type-input" value="person">
+      <div class="entity-picker" id="entity-type-selector" role="group" aria-label="Entity type">
+        <button type="button" class="entity-opt is-active" data-value="person" aria-pressed="true">
+          <svg class="entity-opt__svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="3.5"/><path d="M5.5 19.5a6.5 6.5 0 0 1 13 0"/></svg>
+          <span>Person</span>
+        </button>
+        <button type="button" class="entity-opt" data-value="place" aria-pressed="false">
+          <svg class="entity-opt__svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 21c4-4.6 6-7.9 6-10.8A6 6 0 0 0 6 10.2c0 2.9 2 6.2 6 10.8z"/><circle cx="12" cy="10" r="2.2"/></svg>
+          <span>Place</span>
+        </button>
+        <button type="button" class="entity-opt" data-value="thing" aria-pressed="false">
+          <svg class="entity-opt__svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8.5 14.5a5 5 0 1 1 7 0c-.7.7-1 1.4-1 2.5h-5c0-1.1-.3-1.8-1-2.5z"/><path d="M9.5 17.5h5M10.5 20.5h3"/></svg>
+          <span>Thing</span>
+        </button>
+        <button type="button" class="entity-opt" data-value="event" aria-pressed="false">
+          <svg class="entity-opt__svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4.5" y="6" width="15" height="14" rx="2"/><path d="M4.5 10h15M9 4v4M15 4v4"/></svg>
+          <span>Event</span>
+        </button>
+      </div>
       <p style="font-size:12px;color:var(--text-secondary);margin-top:0.3rem">Choose the type of subject. The form adapts to show relevant data sources.</p>
     </div>
 
@@ -317,17 +333,34 @@ loadProfiles();
 loadLeaderboard();
 
 // ── Entity type switching ──────────────────────────────────────────────────────
-const entitySelector = document.getElementById('entity-type-selector');
+const entityPicker = document.getElementById('entity-type-selector');
+const entityInput = document.getElementById('entity-type-input');
 
 function switchEntityType() {
-  const type = entitySelector ? entitySelector.value : 'person';
+  const type = entityInput ? entityInput.value : 'person';
   document.querySelectorAll('.entity-fields').forEach(section => {
     section.style.display = section.getAttribute('data-for') === type ? '' : 'none';
   });
+  if (entityPicker) {
+    entityPicker.querySelectorAll('.entity-opt').forEach(opt => {
+      const on = opt.getAttribute('data-value') === type;
+      opt.classList.toggle('is-active', on);
+      opt.setAttribute('aria-pressed', on ? 'true' : 'false');
+    });
+  }
 }
 
-if (entitySelector) {
-  entitySelector.addEventListener('change', switchEntityType);
+if (entityPicker) {
+  entityPicker.addEventListener('click', (e) => {
+    const opt = e.target.closest('.entity-opt');
+    if (!opt || !entityInput) return;
+    entityInput.value = opt.getAttribute('data-value');
+    switchEntityType();
+  });
+  // form.reset() restores the hidden input to its default ("person"); resync the
+  // glyph state after the native reset settles.
+  const profileForm = document.getElementById('profile-form');
+  if (profileForm) profileForm.addEventListener('reset', () => setTimeout(switchEntityType, 0));
 }
 // Init on page load
 switchEntityType();
