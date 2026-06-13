@@ -29,6 +29,10 @@ def _profile(p: Profile) -> ProfileResponse:
         instagram_handle=p.instagram_handle,
         tiktok_handle=p.tiktok_handle or "",
         facebook_handle=p.facebook_handle or "",
+        news_query=p.news_query or "",
+        court_query=p.court_query or "",
+        sos_query=p.sos_query or "",
+        auditor_query=p.auditor_query or "",
         wikipedia_handle=p.wikipedia_handle or "",
         osm_query=p.osm_query or "",
         travel_url=p.travel_url or "",
@@ -494,6 +498,10 @@ async def _generate_questions_async(profile_id: int, raw_content: str, name: str
                 difficulty=q.get("difficulty", 1),
                 source_snippet=q.get("source_snippet", "")[:500],
             ))
+        # SessionLocal runs with autoflush=False, so the pending inserts above are
+        # invisible to the COUNT below until we flush — otherwise question_count is
+        # persisted as 0 even though the questions were generated.
+        db.flush()
 
         p = db.query(Profile).filter(Profile.id == profile_id).first()
         if p:
@@ -527,6 +535,9 @@ async def trigger_generate(profile_id: int):
             raise HTTPException(status_code=404, detail="Profile not found")
         raw = p.raw_content or p.manual_facts
         await _generate_questions_async(p.id, raw, p.name, budget=p.question_budget)
+        # _generate_questions_async commits in its own session; end this session's
+        # read transaction so the refresh sees the freshly-committed count.
+        db.commit()
         db.refresh(p)
         return {"ok": True, "question_count": p.question_count}
     finally:

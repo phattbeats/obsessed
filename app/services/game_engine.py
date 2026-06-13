@@ -19,6 +19,7 @@ class PlayerState:
     answered_current: bool = False
     last_answer_correct: bool = False
     is_host: bool = False
+    is_active: bool = True  # get_scores()/winner()/all_answered() filter on this
 
 @dataclass
 class GameState:
