@@ -63,9 +63,10 @@ const BangRack = (() => {
       b.textContent = '!';
       slot.appendChild(b);
 
-      // Pack glyph identifies the category (replaces the old text abbreviation)
+      // Pack glyph identifies the category (replaces the old text abbreviation).
+      // Sits in a contrast chip pinned at the slot's base — see bang-rack.css.
       const icon = document.createElement('span');
-      icon.className = 'cat-icon bang-slot__icon';
+      icon.className = 'bang-slot__icon';
       icon.innerHTML = iconSVG(cat);
       slot.appendChild(icon);
 
