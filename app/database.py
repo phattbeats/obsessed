@@ -37,6 +37,7 @@ class Profile(Base):
     instagram_handle = Column(String(200), default="")
     tiktok_handle = Column(String(200), default="")  # TikTok handle (person)
     facebook_handle = Column(String(200), default="")  # Facebook page handle (person/business)
+    venmo_handle = Column(String(200), default="")  # Venmo username (person) — public transaction feed
     google_places_handle = Column(String(500), default="")  # comma-separated business names
     news_query = Column(String(500), default="")  # local news search query (person)
     court_query = Column(String(500), default="")  # municipal court search query (person)
@@ -62,6 +63,8 @@ class Profile(Base):
     consent_token = Column(String(200), default="")
     content_quality = Column(String(20), default="")  # insufficient|limited|adequate|rich
     content_chunks = Column(Integer, default=0)
+    address_type = Column(String(20), default="unknown")  # business|residence|unknown; None for non-place profiles
+    voter_query = Column(Text, default="")  # voter records search query (person)
     created_at = Column(Integer, default=lambda: int(datetime.now(timezone.utc).timestamp()))
     updated_at = Column(Integer, default=lambda: int(datetime.now(timezone.utc).timestamp()))
 
@@ -171,6 +174,35 @@ def init_db():
         ]
         cursor.executemany("INSERT OR IGNORE INTO category_seeds (name, color, icon) VALUES (?,?,?)", seeds)
         conn.commit()
+    # Non-destructive column additions for existing databases
+    # Columns added before the migration system (original table):
+    #   id, name, bio, reddit_handle, twitter_handle, steam_id, discord_handle,
+    #   pinterest_handle, threads_handle, instagram_handle, wikipedia_handle,
+    #   osm_query, travel_url, wikidata_query, openlibrary_query, gdelt_query,
+    #   entity_type, manual_link, manual_facts, scrape_status, scrape_error,
+    #   raw_content, question_count, llm_calls, llm_spend_cents, question_budget,
+    #   consent_obtained, consent_token, content_quality, content_chunks,
+    #   created_at, updated_at
+    # Columns added after migration system introduction (bc557f1 / PHA-688):
+    migrations = [
+        ("threads_handle", "TEXT DEFAULT ''"),
+        ("google_places_handle", "TEXT DEFAULT ''"),
+        ("tiktok_handle", "TEXT DEFAULT ''"),
+        ("facebook_handle", "TEXT DEFAULT ''"),
+        ("news_query", "TEXT DEFAULT ''"),
+        ("court_query", "TEXT DEFAULT ''"),
+        ("sos_query", "TEXT DEFAULT ''"),
+        ("auditor_query", "TEXT DEFAULT ''"),
+        ("address_type", "TEXT DEFAULT 'unknown'"),
+        ("venmo_handle", "TEXT DEFAULT ''"),
+        ("voter_query", "TEXT DEFAULT ''"),
+    ]
+    for col_name, col_def in migrations:
+        try:
+            cursor.execute(f"ALTER TABLE profiles ADD COLUMN {col_name} {col_def}")
+            conn.commit()
+        except sqlite3.OperationalError:
+            pass  # column already exists
     conn.close()
 
 init_db()
