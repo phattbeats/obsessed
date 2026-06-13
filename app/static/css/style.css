@@ -445,6 +445,7 @@ body {
   max-width: 700px;
 }
 .answer-btn {
+  position: relative; /* anchor the result glyph (PHA-1059) */
   font-family: var(--font-logo);
   font-weight: 700;
   font-size: var(--fs-answer);
@@ -468,6 +469,32 @@ body {
 }
 .answer-btn.wrong { background: var(--wrong); box-shadow: none; }
 .answer-btn.selected { outline: 3px solid var(--accent); outline-offset: 2px; }
+
+/* Result glyph: branded check (correct) / X (wrong) stamped on the button
+   (PHA-1059). Carries the result non-chromatically so it isn't color-only
+   (red/green accessibility). Stamps in with the PHA-1030/1031 motion language. */
+.answer-glyph {
+  position: absolute;
+  top: 50%;
+  right: var(--space-4);
+  width: 1.5em;
+  height: 1.5em;
+  transform: translateY(-50%);
+  transform-origin: center;
+  pointer-events: none;
+}
+.answer-glyph svg { display: block; width: 100%; height: 100%; }
+.answer-btn.correct .answer-glyph { color: var(--bg); }
+.answer-btn.wrong .answer-glyph { color: var(--white); }
+.answer-glyph.stamp { animation: glyphStamp var(--dur-slow) var(--ease-overshoot) both; }
+@keyframes glyphStamp {
+  0%   { transform: translateY(-50%) scale(1.9) rotate(-12deg); opacity: 0; }
+  55%  { transform: translateY(-50%) scale(0.9) rotate(4deg);   opacity: 1; }
+  100% { transform: translateY(-50%) scale(1)   rotate(0);      opacity: 1; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .answer-glyph.stamp { animation: none; }
+}
 
 /* Correct-answer button scale-pop (PHA-1030) */
 @keyframes correctPop {

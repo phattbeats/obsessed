@@ -438,13 +438,30 @@ function flashEdgeGlow() {
   glow.classList.add('flash');
 }
 
+// Stamp a branded check (correct) or X (wrong) glyph onto an answer button
+// (PHA-1059), reusing the stamp/pop motion language of PHA-1030/1031. Color
+// alone is a red/green accessibility gap, so the glyph carries the result
+// non-chromatically. SVG has no text, so it doesn't disturb the .textContent
+// answer matching done above the call.
+const ANSWER_GLYPH = {
+  correct: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"><path d="M4 13l5 5L20 6"/></svg>',
+  wrong:   '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"><path d="M6 6l12 12M18 6L6 18"/></svg>',
+};
+function stampResultGlyph(btn, kind) {
+  if (!btn || btn.querySelector('.answer-glyph')) return;
+  const g = document.createElement('span');
+  g.className = 'answer-glyph stamp';
+  g.innerHTML = ANSWER_GLYPH[kind];
+  btn.appendChild(g);
+}
+
 // ── WS-driven answer result ───────────────────────────────────────────────────
 function showAnswerResultWS(msg) {
   const opts = document.querySelectorAll('.answer-btn');
   opts.forEach(b => {
     b.classList.remove('stagger-in'); // drop entry anim so correctPop (PHA-1030) isn't overridden
-    if (b.textContent === msg.correct_answer) b.classList.add('correct');
-    else if (b.textContent === msg.answer_text && !msg.is_correct) b.classList.add('wrong');
+    if (b.textContent === msg.correct_answer) { b.classList.add('correct'); stampResultGlyph(b, 'correct'); }
+    else if (b.textContent === msg.answer_text && !msg.is_correct) { b.classList.add('wrong'); stampResultGlyph(b, 'wrong'); }
     b.disabled = true;
   });
   if (msg.is_correct) {
@@ -469,8 +486,8 @@ async function submitAnswer(btn, answer) {
     const opts = document.querySelectorAll('.answer-btn');
     opts.forEach(b => {
       b.classList.remove('stagger-in'); // drop entry anim so correctPop (PHA-1030) isn't overridden
-      if (b.textContent === result.correct_answer) b.classList.add('correct');
-      else if (b === btn && !result.is_correct) b.classList.add('wrong');
+      if (b.textContent === result.correct_answer) { b.classList.add('correct'); stampResultGlyph(b, 'correct'); }
+      else if (b === btn && !result.is_correct) { b.classList.add('wrong'); stampResultGlyph(b, 'wrong'); }
       b.disabled = true;
     });
     if (result.is_correct) {
