@@ -1,6 +1,6 @@
 import httpx, json, re
 from typing import Optional, Tuple
-from datetime import datetime
+from datetime import datetime, timezone
 import os
 
 from app.config import settings
@@ -296,7 +296,9 @@ async def scrape_instagram(handle: str, entity_type: str = "People") -> tuple[st
         raw = raw[:settings.content_max_chars]
     if raw and not raw.startswith("[Instagram scrape error"):
         save_instagram_cache(handle, entity_type, raw)
-    return raw, profile
+    if not raw or raw.startswith("[Instagram scrape error"):
+        return raw, profile
+    return raw, {"source": "instagram", "cached": False, **profile}
 
 
 async def generate_questions(profile_id: int, raw_content: str, name: str) -> list[dict]:

@@ -2,7 +2,7 @@
 PHA-682: Instagram scraper failover — test all three mirror branches.
 Covers: primary success, primary fail/secondary success, all-mirrors-fail sentinel.
 """
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -16,6 +16,19 @@ from app.services.scraper.instagram import (
     get_instagram_cache,
     save_instagram_cache,
 )
+
+
+def _mock_response(data: dict):
+    """
+    Build a mock httpx.Response. The response object itself is sync —
+    await client.post(...) returns it directly. Response.raise_for_status()
+    and Response.json() are sync on real httpx; model them as MagicMock so
+    calling them returns the value directly instead of an unawaited coroutine.
+    """
+    res = MagicMock()
+    res.raise_for_status = MagicMock()
+    res.json = MagicMock(return_value=data)
+    return res
 
 
 @pytest.fixture(autouse=True)
@@ -148,15 +161,9 @@ async def _patch_crawl4ai_for_instance(instance_base: str, mock_data: dict):
     """Patch httpx client.post to return mock_data for a specific instance_base."""
     async def fake_post(url, **kwargs):
         if instance_base in url or instance_base.replace("https://", "") in url:
-            res = AsyncMock()
-            res.raise_for_status = AsyncMock()
-            res.json = AsyncMock(return_value=mock_data)
-            return res
+            return _mock_response(mock_data)
         # Fallback: call through
-        res = AsyncMock()
-        res.raise_for_status = AsyncMock()
-        res.json = AsyncMock(return_value={"results": [{"success": False, "markdown": ""}]})
-        return res
+        return _mock_response({"results": [{"success": False, "markdown": ""}]})
     return fake_post
 
 
@@ -169,12 +176,9 @@ async def test_primary_success():
 
     with patch("httpx.AsyncClient") as MockClient:
         mock_instance = AsyncMock()
-        mock_instance.__aenter__ = AsyncMock(returnvalue=mock_instance)
-        mock_instance.__aexit__ = AsyncMock(returnvalue=None)
-        mock_instance.post = AsyncMock(return_value=AsyncMock(
-            raise_for_status=AsyncMock(),
-            json=AsyncMock(return_value=mock_resp),
-        ))
+        mock_instance.__aenter__.return_value = mock_instance
+        mock_instance.__aexit__.return_value = None
+        mock_instance.post = AsyncMock(return_value=_mock_response(mock_resp))
         MockClient.return_value = mock_instance
 
         text, meta = await scrape_instagram("testuser", "People")
@@ -207,26 +211,27 @@ async def test_primary_fails_secondary_succeeds():
 
     async def fake_post(url, **kwargs):
         call_count[0] += 1
+        # Production posts to CRAWL4AI_URL with the mirror URL inside the JSON body.
+        # Inspect the json kwarg to detect which mirror is being scraped.
+        body = kwargs.get("json") or {}
+        mirror_urls = body.get("urls") or []
         instance = None
-        for inst in IG_MIRROR_INSTANCES:
-            if inst.replace("https://", "") in url:
-                instance = inst
+        for mirror_url in mirror_urls:
+            for inst in IG_MIRROR_INSTANCES:
+                if inst.replace("https://", "") in mirror_url:
+                    instance = inst
+                    break
+            if instance:
                 break
         if instance:
-            resp = AsyncMock()
-            resp.raise_for_status = AsyncMock()
-            resp.json = AsyncMock(return_value=make_response(instance))
-            return resp
+            return _mock_response(make_response(instance))
         # URL doesn't match any known instance
-        resp = AsyncMock()
-        resp.raise_for_status = AsyncMock()
-        resp.json = AsyncMock(return_value={"results": [{"success": False, "markdown": ""}]})
-        return resp
+        return _mock_response({"results": [{"success": False, "markdown": ""}]})
 
     with patch("httpx.AsyncClient") as MockClient:
         mock_instance = AsyncMock()
-        mock_instance.__aenter__ = AsyncMock(returnvalue=mock_instance)
-        mock_instance.__aexit__ = AsyncMock(returnvalue=None)
+        mock_instance.__aenter__.return_value = mock_instance
+        mock_instance.__aexit__.return_value = None
         mock_instance.post = fake_post
         MockClient.return_value = mock_instance
 
@@ -239,15 +244,12 @@ async def test_primary_fails_secondary_succeeds():
 async def test_all_mirrors_fail_sentinel():
     """All three mirrors fail → graceful sentinel, no exception."""
     async def fake_post(url, **kwargs):
-        resp = AsyncMock()
-        resp.raise_for_status = AsyncMock()
-        resp.json = AsyncMock(return_value={"results": [{"success": False, "markdown": ""}]})
-        return resp
+        return _mock_response({"results": [{"success": False, "markdown": ""}]})
 
     with patch("httpx.AsyncClient") as MockClient:
         mock_instance = AsyncMock()
-        mock_instance.__aenter__ = AsyncMock(returnvalue=mock_instance)
-        mock_instance.__aexit__ = AsyncMock(returnvalue=None)
+        mock_instance.__aenter__.return_value = mock_instance
+        mock_instance.__aexit__.return_value = None
         mock_instance.post = fake_post
         MockClient.return_value = mock_instance
 
@@ -264,15 +266,12 @@ async def test_cache_hit_skips_scraping():
 
     async def fake_post(url, **kwargs):
         calls.append(url)
-        resp = AsyncMock()
-        resp.raise_for_status = AsyncMock()
-        resp.json = AsyncMock(return_value={"results": [{"success": False, "markdown": ""}]})
-        return resp
+        return _mock_response({"results": [{"success": False, "markdown": ""}]})
 
     with patch("httpx.AsyncClient") as MockClient:
         mock_instance = AsyncMock()
-        mock_instance.__aenter__ = AsyncMock(returnvalue=mock_instance)
-        mock_instance.__aexit__ = AsyncMock(returnvalue=None)
+        mock_instance.__aenter__.return_value = mock_instance
+        mock_instance.__aexit__.return_value = None
         mock_instance.post = fake_post
         MockClient.return_value = mock_instance
 

@@ -33,18 +33,13 @@ jobs:
         # tests/ui/ targets the live PHATT-RAID container at 10.0.0.100:10198
         # (unreachable from a GitHub runner) and runs in the dedicated ui-test job.
         #
-        # The four scraper test files below have drifted from their modules (renamed
-        # symbols, changed parse output) and fail collection/asserts. They were
-        # silently keeping this gate RED for many commits, which blocked the build
-        # job and froze the deployed image (PHA-1027 / PHA-1042). Quarantined here so
-        # the smoke + schema gate actually gates and images ship again; tracked for
-        # repair in PHA-1042. Do NOT add new ignores without a tracking issue.
+        # The four scraper test files (instagram/people_search/scraper_cache/tiktok)
+        # were previously quarantined here after drifting from their modules and
+        # keeping this gate RED, which froze the deployed image (PHA-1027 / PHA-1042).
+        # Repaired against the current scraper modules in PHA-1042 and returned to the
+        # gate. Do NOT add new ignores without a tracking issue.
         run: |
-          pytest -q --ignore=tests/ui \
-            --ignore=tests/test_instagram_scraper.py \
-            --ignore=tests/test_people_search_scraper.py \
-            --ignore=tests/test_scraper_cache.py \
-            --ignore=tests/test_tiktok_scraper.py
+          pytest -q --ignore=tests/ui
 
   # ui-test runs on demand (workflow_dispatch) or when 'ui-test' is in the commit message.
   # It tests against the live PHATT-RAID container at 10.0.0.100:10198, so it cannot
