@@ -63,16 +63,18 @@ def save_tiktok_cache(entity_name: str, entity_type: str, content: str):
 
 def _expand_suffix(s: str) -> str:
     """Expand K/M/B suffixes to integer strings (e.g. '1.2M' → '1200000')."""
-    s = s.strip().upper()
+    s = s.strip()
+    upper = s.upper()
     try:
-        if s.endswith("B"):
+        if upper.endswith("B"):
             return str(int(float(s[:-1]) * 1_000_000_000))
-        if s.endswith("M"):
+        if upper.endswith("M"):
             return str(int(float(s[:-1]) * 1_000_000))
-        if s.endswith("K"):
+        if upper.endswith("K"):
             return str(int(float(s[:-1]) * 1_000))
     except ValueError:
         pass
+    # Passthrough — preserve original casing (mirrors instagram._expand_suffix)
     return s.replace(",", "")
 
 
@@ -173,6 +175,9 @@ async def _scrape_tnktok_html(handle: str) -> tuple[str, dict]:
 
 def _parse_tnktok_markdown(markdown: str, clean_handle: str) -> tuple[str, dict]:
     """Parse TikTok profile from tnktok.com markdown shape."""
+    if not markdown or not markdown.strip():
+        return "", {}
+
     profile = {
         "username": clean_handle,
         "display_name": "",
@@ -205,19 +210,28 @@ def _parse_tnktok_markdown(markdown: str, clean_handle: str) -> tuple[str, dict]
         if m:
             profile[key] = _expand_suffix(m.group(1))
 
-    # Bio: text after handle line, before first stats block
-    # Pattern: "## handle\n## bio_text" or bio on its own line before "Followers"
-    bio_section = re.split(r"##\s+", markdown, maxsplit=1)
-    if len(bio_section) > 1:
-        bio_raw = bio_section[1][:500]
-        # Stop at the stats line
-        stop_match = re.search(r"\*\*[\d,.KMB]+\*\*", bio_raw)
-        if stop_match:
-            bio_raw = bio_raw[:stop_match.start()]
-        bio_text = re.sub(r"!\[.*?\]\(.*?\)", "", bio_raw).strip()
-        bio_text = re.sub(r"\*\*", "", bio_text).strip()
-        if bio_text and len(bio_text) > 1:
-            profile["bio"] = bio_text
+    # Bio: tnktok shape has bio as a second "## " heading AFTER the stats block
+    # (handle line → stats block → blank line → "## bio_text"). Split on ALL
+    # "## " headings; the bio is the last heading that is not a handle.
+    bio_headings = re.findall(r"^##\s+(.+)$", markdown, re.MULTILINE)
+    for heading_text in bio_headings:
+        h = heading_text.strip()
+        if not h or h == profile["username"]:
+            continue
+        # Skip the handle heading; everything else is bio
+        profile["bio"] = h
+        break
+
+    # Fallback: bio on its own line before "Followers" (older shape)
+    if not profile["bio"]:
+        # Pattern: "## handle\n## bio_text" — bio is the line after handle heading
+        bio_section = re.split(r"##\s+", markdown, maxsplit=2)
+        if len(bio_section) > 2:
+            candidate = bio_section[2].split("\n", 1)[0].strip()
+            # Stop at stats patterns
+            candidate = re.sub(r"\*\*[\d,.KMB]+\*\*\s*\w+", "", candidate).strip()
+            if candidate and not re.match(r"^https?://", candidate):
+                profile["bio"] = candidate
 
     # Private marker
     profile["verified"] = bool(re.search(r"✓|verified", markdown[:300], re.IGNORECASE))
@@ -265,7 +279,9 @@ async def scrape_tiktok(handle: str, entity_type: str = "People") -> tuple[str, 
         raw = raw[:settings.content_max_chars]
     if raw and not raw.startswith("[TikTok scrape error"):
         save_tiktok_cache(handle, entity_type, raw)
-    return raw, profile
+    if not raw or raw.startswith("[TikTok scrape error"):
+        return raw, profile
+    return raw, {"source": "tiktok", "cached": False, **profile}
 
 
 async def generate_questions(profile_id: int, raw_content: str, name: str) -> list[dict]:

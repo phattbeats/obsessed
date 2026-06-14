@@ -7,6 +7,7 @@ Auth via TWITTER_AUTH_TOKEN + TWITTER_CT0 env vars (set in .env).
 Cache-aware via entity_cache (checks/writes before/after scrape).
 """
 import asyncio, json, logging, os, subprocess
+from datetime import datetime, timezone
 from typing import Optional
 from app.config import settings
 from app.database import SessionLocal, EntityCache
@@ -49,7 +50,6 @@ def save_twitter_cache(entity_name: str, entity_type: str, content: str):
         ).first()
         if existing:
             existing.raw_content = content
-            from datetime import datetime
             existing.scraped_at = int(datetime.now(timezone.utc).timestamp())
         else:
             db.add(EntityCache(
