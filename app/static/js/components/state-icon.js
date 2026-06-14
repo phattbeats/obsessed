@@ -17,8 +17,15 @@
  * states (loading, timer). `scraping` and `loading` share the same spinner arc
  * and spin; `timer` is the crit stopwatch.
  *
+ * Accessibility: in every current surface the glyph sits beside visible text
+ * that already names the state (the badge label, 'Loading…', the timer). So
+ * glyphs are DECORATIVE by default (aria-hidden) — labelling them too would
+ * make a screen reader double-announce ("done done"). Pass {decorative:false}
+ * to get a standalone, self-labelled icon for a future text-less surface.
+ *
  * API:
- *   StateIcon.svg(name)            → inline <svg> string ('' for unknown name)
+ *   StateIcon.svg(name, opts?)     → inline <svg> string ('' for unknown name)
+ *                                    opts.decorative (default true)
  *   StateIcon.render(hostEl, name) → sets hostEl innerHTML to the glyph
  */
 const StateIcon = (() => {
@@ -60,14 +67,18 @@ const StateIcon = (() => {
     },
   };
 
-  function svg(name) {
+  function svg(name, opts) {
     const g = GLYPHS[name];
     if (!g) return '';
+    const decorative = !opts || opts.decorative !== false;
+    const a11y = decorative
+      ? 'aria-hidden="true" focusable="false"'
+      : 'role="img" aria-label="' + g.aria + '"';
     return (
       '<svg class="state-icon' + (g.spin ? ' state-icon--spin' : '') + '" ' +
       'viewBox="0 0 24 24" fill="none" stroke="currentColor" ' +
       'stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" ' +
-      'role="img" aria-label="' + g.aria + '">' + g.body + '</svg>'
+      a11y + '>' + g.body + '</svg>'
     );
   }
 
