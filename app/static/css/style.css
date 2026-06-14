@@ -330,7 +330,9 @@ body {
   font-family: var(--font-mono);
 }
 .profile-card .status-badge {
-  display: inline-block;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3em;
   padding: 0.2rem 0.6rem;
   border-radius: 20px;
   font-size: 12px;
@@ -611,6 +613,32 @@ body {
   100% { transform: translateY(0);    opacity: 1; }
 }
 
+.timer-wrap {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.6rem;
+  width: 100%;
+}
+/* Crit stopwatch glyph — hidden until ≤5s, then fades in and pulses with the
+   bar so the time pressure reads even without color (PHA-1062). */
+.timer-glyph {
+  flex: 0 0 auto;
+  width: 0;
+  font-size: 20px;
+  color: var(--timer-crit);
+  opacity: 0;
+  overflow: hidden;
+  transition: opacity 0.25s, width 0.25s;
+}
+.timer-glyph.is-crit {
+  width: 1em;
+  opacity: 1;
+  animation: timerCritPulse 0.8s ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .timer-glyph.is-crit { animation: none; }
+}
 .timer-bar {
   width: 100%;
   max-width: 700px;
@@ -734,6 +762,35 @@ body {
   margin: 2rem auto;
 }
 @keyframes spin { to { transform: rotate(360deg); } }
+
+/* ── State micro-icons (PHA-1062) ──────────────────
+   One stroked glyph family for scrape-status badges, loading rows and the
+   crit timer. 1em so each glyph tracks its host's font-size; currentColor so
+   it always matches the surrounding text. */
+.state-icon {
+  width: 1em;
+  height: 1em;
+  flex: 0 0 auto;
+  vertical-align: -0.15em;
+  overflow: visible;
+}
+.state-icon--spin {
+  transform-origin: 50% 50%;
+  animation: spin 0.8s linear infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .state-icon--spin { animation: none; }
+}
+
+/* Inline 'Loading…' row — spinner + label, replaces the old text-only tell */
+.loading-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  color: var(--text-secondary);
+  font-size: 14px;
+}
 
 /* ── Toast / Alert ─────────────────────────────── */
 #toast {

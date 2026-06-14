@@ -9,7 +9,7 @@ Cache-aware via entity_cache (checks/writes before/after scrape).
 """
 import httpx, json, re
 from typing import Optional
-from datetime import datetime
+from datetime import datetime, timezone
 
 from app.config import settings
 from app.services.scraper.rate_limiter import generic_limiter
@@ -302,7 +302,7 @@ async def scrape_facebook(handle: str, entity_type: str = "People") -> tuple[str
     if raw and not raw.startswith("[Facebook:"):
         save_facebook_cache(handle, entity_type, raw)
 
-    return raw, profile
+    return raw, {"source": "facebook", "cached": False, **profile}
 
 
 async def scrape_facebook_profile(handle: str) -> tuple[str, dict]:

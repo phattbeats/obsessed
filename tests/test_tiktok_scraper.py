@@ -1,7 +1,7 @@
 """
 PHA-694: TikTok scraper tests — primary success, failover, sentinel.
 """
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -16,6 +16,18 @@ from app.services.scraper.tiktok import (
     save_tiktok_cache,
     _parse_tnktok_markdown,
 )
+
+
+def _mock_response(data: dict):
+    """
+    Build a mock httpx.Response. Response.json() and Response.raise_for_status()
+    are sync on real httpx — use MagicMock so calling them returns the value
+    directly instead of an unawaited coroutine.
+    """
+    res = MagicMock()
+    res.raise_for_status = MagicMock()
+    res.json = MagicMock(return_value=data)
+    return res
 
 
 @pytest.fixture(autouse=True)
@@ -90,10 +102,8 @@ def test_cache_roundtrip():
 # ---------------------------------------------------------------------------
 
 async def _mock_httpx_get(url, **kwargs):
-    res = AsyncMock()
-    res.raise_for_status = AsyncMock()
     if "tikwm" in url:
-        res.json = AsyncMock(return_value={
+        return _mock_response({
             "code": 0,
             "data": {
                 "user": {
@@ -112,18 +122,13 @@ async def _mock_httpx_get(url, **kwargs):
                 },
             },
         })
-    else:
-        res.json = AsyncMock(return_value={})
-    return res
+    return _mock_response({})
 
 
 async def _mock_crawl4ai_post(url, **kwargs):
-    res = AsyncMock()
-    res.raise_for_status = AsyncMock()
-    res.json = AsyncMock(return_value={
+    return _mock_response({
         "results": [{"success": True, "markdown": ""}]
     })
-    return res
 
 
 @pytest.mark.asyncio
@@ -131,8 +136,8 @@ async def test_primary_tikwm_success():
     """Tikwm JSON returns profile — uses it, no crawl4ai call."""
     with patch("httpx.AsyncClient") as MockClient:
         mock_inst = AsyncMock()
-        mock_inst.__aenter__ = AsyncMock(returnvalue=mock_inst)
-        mock_inst.__aexit__ = AsyncMock(returnvalue=None)
+        mock_inst.__aenter__.return_value = mock_inst
+        mock_inst.__aexit__.return_value = None
         mock_inst.get = _mock_httpx_get
         mock_inst.post = _mock_crawl4ai_post
         MockClient.return_value = mock_inst
@@ -153,8 +158,8 @@ async def test_primary_fails_fallback_tnktok():
 
     with patch("httpx.AsyncClient") as MockClient:
         mock_inst = AsyncMock()
-        mock_inst.__aenter__ = AsyncMock(returnvalue=mock_inst)
-        mock_inst.__aexit__ = AsyncMock(returnvalue=None)
+        mock_inst.__aenter__.return_value = mock_inst
+        mock_inst.__aexit__.return_value = None
         mock_inst.get = tikwm_fail
         mock_inst.post = _mock_crawl4ai_post
         MockClient.return_value = mock_inst
@@ -171,8 +176,8 @@ async def test_all_sources_fail_sentinel():
 
     with patch("httpx.AsyncClient") as MockClient:
         mock_inst = AsyncMock()
-        mock_inst.__aenter__ = AsyncMock(returnvalue=mock_inst)
-        mock_inst.__aexit__ = AsyncMock(returnvalue=None)
+        mock_inst.__aenter__.return_value = mock_inst
+        mock_inst.__aexit__.return_value = None
         mock_inst.get = all_fail
         mock_inst.post = all_fail
         MockClient.return_value = mock_inst
@@ -198,8 +203,8 @@ async def test_cache_hit_skips_http():
 
     with patch("httpx.AsyncClient") as MockClient:
         mock_inst = AsyncMock()
-        mock_inst.__aenter__ = AsyncMock(returnvalue=mock_inst)
-        mock_inst.__aexit__ = AsyncMock(returnvalue=None)
+        mock_inst.__aenter__.return_value = mock_inst
+        mock_inst.__aexit__.return_value = None
         mock_inst.get = track_get
         mock_inst.post = track_post
         MockClient.return_value = mock_inst
