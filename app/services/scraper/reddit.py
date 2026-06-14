@@ -5,7 +5,7 @@ Rate-limit aware: uses REDDIT_LIMITER to prevent 429s.
 Cache-aware: checks/writes entity_cache before/after scrape.
 """
 import asyncio, httpx, json, os, re
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional, Tuple
 from app.config import settings
 from app.services.scraper.rate_limiter import REDDIT_LIMITER, retry_with_backoff

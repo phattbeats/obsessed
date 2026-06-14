@@ -281,7 +281,10 @@
   <div id="question-card" class="question-card">
     <div id="question-text"></div>
   </div>
-  <div id="timer-bar" class="timer-bar"><div id="timer-fill"></div></div>
+  <div class="timer-wrap">
+    <span id="timer-glyph" class="timer-glyph" aria-hidden="true"></span>
+    <div id="timer-bar" class="timer-bar"><div id="timer-fill"></div></div>
+  </div>
   <div id="answer-grid" class="answer-grid"></div>
   <div id="edge-glow" class="edge-glow" aria-hidden="true"></div>
 </div>
@@ -317,7 +320,10 @@
     <h2>Settings</h2>
   </div>
   <div id="settings-content" style="padding: 1rem; width: 100%; max-width: 720px; margin: 0 auto;">
-    <div style="color: var(--text-secondary); text-align: center;">Loading…</div>
+    <div class="loading-row">
+      <svg class="state-icon state-icon--spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" role="img" aria-label="Loading"><path d="M12 3.5a8.5 8.5 0 1 1-8.5 8.5"/></svg>
+      <span>Loading…</span>
+    </div>
   </div>
 </div>
 
@@ -326,6 +332,7 @@
 
 <script src="/static/js/components/bang.js"></script>
 <script src="/static/js/components/category-icon.js"></script>
+<script src="/static/js/components/state-icon.js"></script>
 <script src="/static/js/components/bang-rack.js"></script>
 <script src="/static/js/app.js"></script>
 <script>
@@ -377,7 +384,7 @@ window.showScreen = function(screen) {
 async function loadSettings() {
   const target = document.getElementById('settings-content');
   if (!target) return;
-  target.innerHTML = '<div style="color:var(--text-secondary);text-align:center">Loading…</div>';
+  target.innerHTML = '<div class="loading-row">' + StateIcon.svg('loading') + '<span>Loading…</span></div>';
   try {
     const res = await fetch('/api/settings');
     if (!res.ok) {
