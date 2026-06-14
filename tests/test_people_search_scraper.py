@@ -1,10 +1,13 @@
 """Tests for the FastPeopleSearch scraper (PHA-795).
 
-The listing parser is exercised against a real FPS HTML capture that PHA-787
-saved into `data/pha787_round3/`. The detail-page captcha path is exercised
-with mocks: the first `fs_get` returns a Turnstile challenge page, then
-`solve_turnstile` returns a token, then a follow-up `fs_post` returns the
-real detail HTML.
+The listing parser is exercised against the JSON-LD captured from a real FPS
+listing page (PHA-787, `data/pha787_round3/`). Only the `application/ld+json`
+blocks drive `parse_listing_people`, so the committed fixture under
+`tests/fixtures/people_search/` carries just those blocks (the full 415KB
+capture lives in the gitignored `data/` dir and never reached CI — PHA-1042).
+The detail-page captcha path is exercised with mocks: the first `fs_get`
+returns a Turnstile challenge page, then `solve_turnstile` returns a token,
+then a follow-up `fs_post` returns the real detail HTML.
 """
 
 from __future__ import annotations
@@ -18,9 +21,8 @@ import pytest
 from app.services.scraper import captcha_solver, people_search
 
 
-FIXTURE_DIR = Path(__file__).resolve().parents[1] / "data" / "pha787_round3"
+FIXTURE_DIR = Path(__file__).resolve().parent / "fixtures" / "people_search"
 LISTING_FIXTURE = FIXTURE_DIR / "fastpeoplesearch_aaron_tom_oh.html"
-DETAIL_FIXTURE = FIXTURE_DIR / "fps_aaron_tom_detail.html"
 
 
 # --- Listing parser -------------------------------------------------------
