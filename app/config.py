@@ -1,5 +1,5 @@
 from pydantic_settings import BaseSettings
-from pydantic import ConfigDict
+from pydantic import ConfigDict, AliasChoices, Field
 from pathlib import Path
 
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -14,7 +14,18 @@ class Settings(BaseSettings):
     steam_api_key: str = ""  # free key from https://steamcommunity.com/dev/apikey
     crawl4ai_token: str = ""  # bearer for the crawl4ai service; CRAWL4AI_TOKEN env override
     admin_token: str = ""  # if set, /api/admin/* requires Authorization: Bearer <token>; empty = open (LAN-only deploys)
-    twocaptcha_api_key: str = ""  # 2captcha.com solver API key; required only when a scraper opts into captcha solving
+    # 2captcha.com solver API key; required only when a scraper opts into captcha
+    # solving. Canonical env var is TWOCAPTCHA_API_KEY, but we also accept the
+    # 2CAPTCHA_API_KEY / TWO_CAPTCHA_API_KEY spellings because the company-secrets
+    # store named it `2CAPTCHA_API_KEY` (see PHA-787). Note: a var name starting
+    # with a digit isn't a valid POSIX identifier, so some shells/compose loaders
+    # silently drop `2CAPTCHA_API_KEY` — prefer TWOCAPTCHA_API_KEY in deploys.
+    twocaptcha_api_key: str = Field(
+        default="",
+        validation_alias=AliasChoices(
+            "TWOCAPTCHA_API_KEY", "2CAPTCHA_API_KEY", "TWO_CAPTCHA_API_KEY"
+        ),
+    )
     question_count: int = 50
     question_timeout: int = 30  # seconds per question
     ws_heartbeat: int = 30
