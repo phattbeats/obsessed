@@ -259,8 +259,10 @@ async def start_game(room_code: str):
                 raise HTTPException(status_code=403, detail="Guest consent not obtained. Generate a consent link first.")
 
         # Load questions from all things' profile_ids, merge pools
-        if g.things:
-            thing_list = json.loads(g.things)
+        # g.things defaults to "[]" (truthy string) — branch on the parsed
+        # list, not the raw column, or plain profile_id games can never start.
+        thing_list = json.loads(g.things) if g.things else []
+        if thing_list:
             all_qs = []
             for thing in thing_list:
                 pid = thing.get("profile_id")

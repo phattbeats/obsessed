@@ -21,6 +21,21 @@ uvicorn app.main:app --reload --port 8000
 docker-compose up -d
 ```
 
+## Play it now
+
+A fresh clone ships with an empty database (0 questions, no consented profile), so
+hosting a game fails until something is seeded. To get playable in one command —
+fully offline, no LLM required:
+
+```bash
+python3 scripts/seed_demo.py     # demo profile "Alex Delgado": consent granted + 25 questions
+uvicorn app.main:app --reload
+```
+
+Then open http://localhost:8000, click **New Game**, pick **Alex Delgado**, and host —
+share the 6-character room code with players. Re-running the script is safe (it
+replaces the demo profile's questions).
+
 ## Project Structure
 
 ```
