@@ -1,8 +1,20 @@
 const API = '';
+// localStorage throws on opaque origins (e.g. sandboxed iframes); fall back to memory.
+const safeStorage = (() => {
+  const mem = {};
+  return {
+    getItem(key) {
+      try { return localStorage.getItem(key); } catch (e) { return key in mem ? mem[key] : null; }
+    },
+    setItem(key, value) {
+      try { localStorage.setItem(key, value); } catch (e) { mem[key] = String(value); }
+    },
+  };
+})();
 let currentProfile = null;
 let currentGame = null;
-let myPlayerId = localStorage.getItem('obsessed_pid') || (localStorage.setItem('obsessed_pid', 'p_' + Math.random().toString(36).slice(2)), localStorage.getItem('obsessed_pid'));
-let myPlayerName = localStorage.getItem('obsessed_name') || '';
+let myPlayerId = safeStorage.getItem('obsessed_pid') || (safeStorage.setItem('obsessed_pid', 'p_' + Math.random().toString(36).slice(2)), safeStorage.getItem('obsessed_pid'));
+let myPlayerName = safeStorage.getItem('obsessed_name') || '';
 let myProfileName = '';
 let myProfileType = 'person';
 let myRoomCode = null;
@@ -266,7 +278,7 @@ async function joinGame() {
   const playerName = nameEl ? nameEl.value.trim() : '';
   if (!roomCode || !playerName) { toast('Enter room code and name'); return; }
   myPlayerName = playerName;
-  localStorage.setItem('obsessed_name', playerName);
+  safeStorage.setItem('obsessed_name', playerName);
   const res = await fetch(API + `/api/games/${roomCode}/join`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },

@@ -227,66 +227,6 @@ async def trigger_scrape(profile_id: int):
             except Exception as exc:
                 scraper_errors.append(f"{label}: {exc}")
 
-        # ── Cache check ──────────────────────────────────────────────────────
-        from app.services.entity_cache import get_cached, write_cached
-        cache_hit = get_cached(p.name, p.entity_type)
-        cached_raw = ""
-        if cache_hit:
-            cached_raw, _ = cache_hit
-
-        if cached_raw:
-            raw = cached_raw
-        else:
-            # ── Scrape ────────────────────────────────────────────────────────
-            if p.reddit_handle:
-                await _safe("Reddit", scrape_reddit(p.reddit_handle))
-            if p.pinterest_handle:
-                await _safe("Pinterest", scrape_pinterest(p.pinterest_handle))
-            if p.instagram_handle:
-                await _safe("Instagram", scrape_instagram(p.instagram_handle))
-            if p.facebook_handle:
-                await _safe("Facebook", scrape_facebook(p.facebook_handle))
-            if p.tiktok_handle:
-                await _safe("TikTok", scrape_tiktok(p.tiktok_handle))
-            if p.steam_id:
-                await _safe("Steam", scrape_steam(p.steam_id))
-            if p.twitter_handle:
-                await _safe("Twitter", scrape_twitter(p.twitter_handle))
-            if p.manual_facts:
-                raw_parts.append(p.manual_facts)
-            if p.manual_link:
-                try:
-                    text, _ = await crawl4ai_scrape(p.manual_link)
-                    if text and len(text) > 20 and not text.startswith("[crawl4ai"):
-                        raw_parts.append(text)
-                except Exception as exc:
-                    scraper_errors.append(f"crawl4ai: {exc}")
-            if p.google_places_handle:
-                await _safe("Places", scrape_places(google_places_query=p.google_places_handle))
-            if p.wikipedia_handle:
-                from app.services.scraper.wikipedia import scrape_wikipedia
-                await _safe("Wikipedia", scrape_wikipedia(p.wikipedia_handle))
-            if p.osm_query:
-                from app.services.scraper.osm import scrape_osm
-                await _safe("OpenStreetMap", scrape_osm(p.osm_query))
-            if p.travel_url:
-                from app.services.scraper.travel import scrape_travel_blog
-                await _safe("Travel", scrape_travel_blog(p.travel_url))
-            if p.wikidata_query:
-                await _safe("Things", scrape_things(wikidata_query=p.wikidata_query))
-            if p.openlibrary_query:
-                await _safe("Things", scrape_things(openlibrary_query=p.openlibrary_query))
-            if p.gdelt_query:
-                await _safe("Events", scrape_events(gdelt_query=p.gdelt_query))
-            if p.news_query:
-                await _safe("News", _scrape_news(p.news_query))
-            if p.court_query:
-                await _safe("Court", _scrape_court(p.court_query))
-            if p.sos_query:
-                await _safe("SOS", _scrape_sos(p.sos_query))
-            if p.auditor_query:
-                await _safe("Auditor", _scrape_auditor(p.auditor_query))
-
         # ── Public-records helpers ──────────────────────────────────────────
         async def _scrape_news(query: str):
             """Format Google News RSS results into readable text."""
@@ -399,6 +339,67 @@ async def trigger_scrape(profile_id: int):
                 value = r.get("market_value", "")
                 lines.append(f"- Owner: {owner} | Address: {address} | Parcel: {parcel_id} | Value: {value}")
             return "\n".join(lines), {"source": "auditor", "count": len(records)}
+
+        # ── Cache check ──────────────────────────────────────────────────────
+        from app.services.entity_cache import get_cached, write_cached
+        cache_hit = get_cached(p.name, p.entity_type)
+        cached_raw = ""
+        if cache_hit:
+            cached_raw, _ = cache_hit
+
+        if cached_raw:
+            raw = cached_raw
+        else:
+            # ── Scrape ────────────────────────────────────────────────────────
+            if p.reddit_handle:
+                await _safe("Reddit", scrape_reddit(p.reddit_handle))
+            if p.pinterest_handle:
+                await _safe("Pinterest", scrape_pinterest(p.pinterest_handle))
+            if p.instagram_handle:
+                await _safe("Instagram", scrape_instagram(p.instagram_handle))
+            if p.facebook_handle:
+                await _safe("Facebook", scrape_facebook(p.facebook_handle))
+            if p.tiktok_handle:
+                await _safe("TikTok", scrape_tiktok(p.tiktok_handle))
+            if p.steam_id:
+                await _safe("Steam", scrape_steam(p.steam_id))
+            if p.twitter_handle:
+                await _safe("Twitter", scrape_twitter(p.twitter_handle))
+            if p.manual_facts:
+                raw_parts.append(p.manual_facts)
+            if p.manual_link:
+                try:
+                    text, _ = await crawl4ai_scrape(p.manual_link)
+                    if text and len(text) > 20 and not text.startswith("[crawl4ai"):
+                        raw_parts.append(text)
+                except Exception as exc:
+                    scraper_errors.append(f"crawl4ai: {exc}")
+            if p.google_places_handle:
+                await _safe("Places", scrape_places(google_places_query=p.google_places_handle))
+            if p.wikipedia_handle:
+                from app.services.scraper.wikipedia import scrape_wikipedia
+                await _safe("Wikipedia", scrape_wikipedia(p.wikipedia_handle))
+            if p.osm_query:
+                from app.services.scraper.osm import scrape_osm
+                await _safe("OpenStreetMap", scrape_osm(p.osm_query))
+            if p.travel_url:
+                from app.services.scraper.travel import scrape_travel_blog
+                await _safe("Travel", scrape_travel_blog(p.travel_url))
+            if p.wikidata_query:
+                await _safe("Things", scrape_things(wikidata_query=p.wikidata_query))
+            if p.openlibrary_query:
+                await _safe("Things", scrape_things(openlibrary_query=p.openlibrary_query))
+            if p.gdelt_query:
+                await _safe("Events", scrape_events(gdelt_query=p.gdelt_query))
+            if p.news_query:
+                await _safe("News", _scrape_news(p.news_query))
+            if p.court_query:
+                await _safe("Court", _scrape_court(p.court_query))
+            if p.sos_query:
+                await _safe("SOS", _scrape_sos(p.sos_query))
+            if p.auditor_query:
+                await _safe("Auditor", _scrape_auditor(p.auditor_query))
+
 
         raw = "\n".join(raw_parts)
         if raw.strip():

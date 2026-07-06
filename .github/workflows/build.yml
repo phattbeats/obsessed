@@ -3,6 +3,7 @@ name: Build & Push to Docker Hub
 on:
   push:
     branches: [main]
+  pull_request:
   workflow_dispatch:
 
 env:
@@ -71,6 +72,8 @@ jobs:
 
   build:
     needs: test
+    # Never build/push the image from PRs — the test job is the only PR gate.
+    if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     permissions:
       contents: read
