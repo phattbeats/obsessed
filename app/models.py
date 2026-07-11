@@ -75,6 +75,8 @@ class ProfileResponse(BaseModel):
     twitter_handle: str
     steam_id: str
     lastfm_username: str
+    spotify_user_id: str = ""
+    spotify_display_name: str = ""
     discord_handle: str
     pinterest_handle: str
     instagram_handle: str

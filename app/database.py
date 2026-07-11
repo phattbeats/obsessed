@@ -32,6 +32,13 @@ class Profile(Base):
     twitter_handle = Column(String(200), default="")
     steam_id = Column(String(200), default="")
     lastfm_username = Column(String(200), default="")
+    spotify_user_id = Column(String(200), default="")  # set once the OAuth link flow completes
+    spotify_display_name = Column(String(200), default="")
+    spotify_access_token = Column(Text, default="")
+    spotify_refresh_token = Column(Text, default="")
+    spotify_token_expires_at = Column(Integer, default=0)  # unix timestamp
+    spotify_oauth_state = Column(String(128), default="")  # CSRF state for the in-flight PKCE handshake
+    spotify_code_verifier = Column(String(128), default="")  # PKCE verifier for the in-flight handshake
     discord_handle = Column(String(200), default="")
     pinterest_handle = Column(String(200), default="")
     threads_handle = Column(String(200), default="")

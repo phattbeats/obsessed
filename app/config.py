@@ -28,6 +28,10 @@ class Settings(BaseSettings):
             "TWOCAPTCHA_API_KEY", "2CAPTCHA_API_KEY", "TWO_CAPTCHA_API_KEY"
         ),
     )
+    spotify_client_id: str = ""  # from https://developer.spotify.com/dashboard — required for the link-your-account flow
+    spotify_redirect_uri: str = "http://localhost:8000/api/profiles/spotify/callback"  # must match the redirect URI registered on the Spotify app
+    # No client secret: Authorization Code with PKCE is a public-client flow by design —
+    # the code_verifier replaces the secret, so nothing else needs to be kept server-side.
     question_count: int = 50
     question_timeout: int = 30  # seconds per question
     ws_heartbeat: int = 30
