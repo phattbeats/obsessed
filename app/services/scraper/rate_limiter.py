@@ -110,5 +110,7 @@ STEAM_API_LIMITER = RateLimiter(max_concurrent=1, min_interval=1.0)
 STEAM_STORE_LIMITER = RateLimiter(max_concurrent=1, min_interval=1.5)
 # Steam Community (steamcommunity.com — XML profile/summaries)
 STEAM_COMMUNITY_LIMITER = RateLimiter(max_concurrent=1, min_interval=1.5)
+# last.fm (ws.audioscrobbler.com — generous free-tier limits, stay well under 5 req/s)
+LASTFM_LIMITER = RateLimiter(max_concurrent=2, min_interval=0.25)
 
 generic_limiter = RateLimiter(max_concurrent=3, min_interval=0.5)   # shared fallback

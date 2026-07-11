@@ -31,6 +31,7 @@ class Profile(Base):
     reddit_handle = Column(String(200), default="")
     twitter_handle = Column(String(200), default="")
     steam_id = Column(String(200), default="")
+    lastfm_username = Column(String(200), default="")
     discord_handle = Column(String(200), default="")
     pinterest_handle = Column(String(200), default="")
     threads_handle = Column(String(200), default="")

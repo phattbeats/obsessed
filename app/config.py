@@ -12,6 +12,7 @@ class Settings(BaseSettings):
     litellm_model: str = "claude-3-5-sonnet-20241022"  # override via LITELLM_MODEL env var
     litellm_api_key: str | None = None  # read from LITELLM_API_KEY env var or .env
     steam_api_key: str = ""  # free key from https://steamcommunity.com/dev/apikey
+    lastfm_api_key: str = ""  # free key from https://www.last.fm/api/account/create
     crawl4ai_token: str = ""  # bearer for the crawl4ai service; CRAWL4AI_TOKEN env override
     admin_token: str = ""  # if set, /api/admin/* requires Authorization: Bearer <token>; empty = open (LAN-only deploys)
     twocaptcha_api_key: str = ""  # 2captcha.com solver API key; required only when a scraper opts into captcha solving
