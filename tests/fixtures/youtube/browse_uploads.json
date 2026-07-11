@@ -1,0 +1,139 @@
+{
+  "contents": {
+    "twoColumnBrowseResultsRenderer": {
+      "tabs": [
+        {},
+        {
+          "tabRenderer": {
+            "content": {
+              "richGridRenderer": {
+                "contents": [
+                  {
+                    "richItemRenderer": {
+                      "content": {
+                        "lockupViewModel": {
+                          "contentId": "iYlODtkyw_I",
+                          "metadata": {
+                            "lockupMetadataViewModel": {
+                              "title": {
+                                "content": "Survive 30 Days Chained To A Stranger, Win $250,000"
+                              },
+                              "metadata": {
+                                "contentMetadataViewModel": {
+                                  "metadataRows": [
+                                    {
+                                      "metadataParts": [
+                                        {
+                                          "text": {
+                                            "content": "68M views"
+                                          }
+                                        },
+                                        {
+                                          "text": {
+                                            "content": "2 weeks ago"
+                                          },
+                                          "accessibilityLabel": "2 weeks ago"
+                                        }
+                                      ]
+                                    }
+                                  ],
+                                  "delimiter": " \u2022 "
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  },
+                  {
+                    "richItemRenderer": {
+                      "content": {
+                        "lockupViewModel": {
+                          "contentId": "__fmDj0ZJ1Q",
+                          "metadata": {
+                            "lockupMetadataViewModel": {
+                              "title": {
+                                "content": "50 YouTube Legends Fight For $1,000,000"
+                              },
+                              "metadata": {
+                                "contentMetadataViewModel": {
+                                  "metadataRows": [
+                                    {
+                                      "metadataParts": [
+                                        {
+                                          "text": {
+                                            "content": "71M views"
+                                          }
+                                        },
+                                        {
+                                          "text": {
+                                            "content": "4 weeks ago"
+                                          },
+                                          "accessibilityLabel": "4 weeks ago"
+                                        }
+                                      ]
+                                    }
+                                  ],
+                                  "delimiter": " \u2022 "
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  },
+                  {
+                    "richItemRenderer": {
+                      "content": {
+                        "lockupViewModel": {
+                          "contentId": "GpQSUjNsNm0",
+                          "metadata": {
+                            "lockupMetadataViewModel": {
+                              "title": {
+                                "content": "7 Days Stranded in The Arctic"
+                              },
+                              "metadata": {
+                                "contentMetadataViewModel": {
+                                  "metadataRows": [
+                                    {
+                                      "metadataParts": [
+                                        {
+                                          "text": {
+                                            "content": "96M views"
+                                          }
+                                        },
+                                        {
+                                          "text": {
+                                            "content": "1 month ago"
+                                          },
+                                          "accessibilityLabel": "1 month ago"
+                                        }
+                                      ]
+                                    }
+                                  ],
+                                  "delimiter": " \u2022 "
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        }
+      ]
+    }
+  },
+  "metadata": {
+    "channelMetadataRenderer": {
+      "title": "MrBeast",
+      "description": "SUBSCRIBE FOR A COOKIE!\nNew MrBeast or MrBeast Gaming video every single Saturday at noon eastern time!\nAccomplishments:\n- Raised $20,000,000 To Plant 20,000,000 Trees\n- Removed 30,000,000 pounds of t"
+    }
+  }
+}
