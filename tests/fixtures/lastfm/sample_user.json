@@ -1,0 +1,44 @@
+{
+  "user.getinfo": {
+    "user": {
+      "name": "rj",
+      "realname": "Richard Jones",
+      "playcount": "50234",
+      "country": "United Kingdom",
+      "registered": {"unixtime": "1104537600", "#text": 1104537600}
+    }
+  },
+  "user.gettopartists": {
+    "topartists": {
+      "artist": [
+        {"name": "Radiohead", "playcount": "512"},
+        {"name": "Boards of Canada", "playcount": "301"},
+        {"name": "Aphex Twin", "playcount": "289"}
+      ]
+    }
+  },
+  "user.gettoptracks": {
+    "toptracks": {
+      "track": [
+        {"name": "Everything In Its Right Place", "artist": {"name": "Radiohead"}, "playcount": "45"},
+        {"name": "Roygbiv", "artist": {"name": "Boards of Canada"}, "playcount": "38"}
+      ]
+    }
+  },
+  "user.gettopalbums": {
+    "topalbums": {
+      "album": [
+        {"name": "Kid A", "artist": {"name": "Radiohead"}, "playcount": "60"},
+        {"name": "Music Has the Right to Children", "artist": {"name": "Boards of Canada"}, "playcount": "55"}
+      ]
+    }
+  },
+  "user.getrecenttracks": {
+    "recenttracks": {
+      "track": [
+        {"name": "Idioteque", "artist": {"#text": "Radiohead"}, "@attr": {"nowplaying": "true"}},
+        {"name": "Pyramid Song", "artist": {"#text": "Radiohead"}}
+      ]
+    }
+  }
+}

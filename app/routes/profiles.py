@@ -8,6 +8,7 @@ from app.services.scraper.pinterest import scrape_pinterest
 from app.services.scraper.instagram import scrape_instagram
 from app.services.scraper.twitter_scraper import scrape_twitter
 from app.services.scraper.steam import scrape_steam
+from app.services.scraper.lastfm import scrape_lastfm
 from app.services.scraper.facebook import scrape_facebook
 from app.services.scraper.tiktok import scrape_tiktok
 from app.services.scraper.crawl4ai import crawl4ai_scrape
@@ -24,7 +25,8 @@ def _profile(p: Profile) -> ProfileResponse:
     return ProfileResponse(
         id=p.id, name=p.name, bio=p.bio,
         reddit_handle=p.reddit_handle, twitter_handle=p.twitter_handle,
-        steam_id=p.steam_id, discord_handle=p.discord_handle,
+        steam_id=p.steam_id, lastfm_username=p.lastfm_username or "",
+        discord_handle=p.discord_handle,
         pinterest_handle=p.pinterest_handle,
         instagram_handle=p.instagram_handle,
         tiktok_handle=p.tiktok_handle or "",
@@ -58,6 +60,7 @@ def create_profile(data: ProfileCreate):
     try:
         p = Profile(name=data.name, bio=data.bio, reddit_handle=data.reddit_handle,
                     twitter_handle=data.twitter_handle, steam_id=data.steam_id,
+                    lastfm_username=getattr(data, "lastfm_username", "") or "",
                     discord_handle=data.discord_handle, pinterest_handle=data.pinterest_handle,
                     wikipedia_handle=getattr(data, "wikipedia_handle", "") or "",
                     osm_query=getattr(data, "osm_query", "") or "",
@@ -250,6 +253,8 @@ async def trigger_scrape(profile_id: int):
                 await _safe("TikTok", scrape_tiktok(p.tiktok_handle))
             if p.steam_id:
                 await _safe("Steam", scrape_steam(p.steam_id))
+            if p.lastfm_username:
+                await _safe("LastFM", scrape_lastfm(p.lastfm_username))
             if p.twitter_handle:
                 await _safe("Twitter", scrape_twitter(p.twitter_handle))
             if p.manual_facts:
