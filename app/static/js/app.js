@@ -163,6 +163,11 @@ async function submitProfile(event) {
   }
 }
 
+function connectSpotify(profileId, event) {
+  if (event) event.stopPropagation();
+  location.href = API + '/api/profiles/' + profileId + '/spotify/connect';
+}
+
 async function triggerScrape(profileId, event) {
   if (event) event.stopPropagation();
   const btn = document.getElementById('scrape-btn-' + profileId);
@@ -195,6 +200,9 @@ async function loadProfiles() {
       <div class="meta">${p.entity_type ? p.entity_type.toUpperCase() : 'PERSON'} • @${esc(p.reddit_handle || p.twitter_handle || '—')}</div>
       <div class="meta">${p.question_count} questions</div>
       ${p.consent_obtained ? '<span class="badge badge--success">✓ Consent</span>' : '<span class="badge badge--danger">⚠ Guest consent required</span>'}
+      ${(p.entity_type || 'person') === 'person' ? (p.spotify_user_id
+        ? `<span class="badge badge--success">🎵 Spotify: ${esc(p.spotify_display_name || p.spotify_user_id)}</span>`
+        : `<button class="btn" style="margin-top:0.5rem;font-size:14px;padding:0.5rem;color:var(--accent)" onclick="connectSpotify(${p.id}, event)">Connect Spotify</button>`) : ''}
       ${(p.scrape_status === 'pending' || p.scrape_status === 'failed' || p.scrape_status === null) && p.consent_obtained ? `<button id="scrape-btn-${p.id}" class="btn" style="margin-top:0.5rem;font-size:14px;padding:0.5rem;color:var(--accent)" onclick="triggerScrape(${p.id}, event)">Scrape</button>` : ''}
       <span class="status-badge status-${p.scrape_status}">${StateIcon.svg(p.scrape_status)}${p.scrape_status}</span>
       ${p.content_quality ? `<span style="font-size:11px;font-weight:700;color:${p.content_quality==='insufficient'?'var(--wrong)':p.content_quality==='limited'?'var(--accent)':p.content_quality==='rich'?'var(--correct)':'var(--text-secondary)'}">${p.content_quality.toUpperCase()} (${p.content_chunks||0} facts)</span>` : ''}
@@ -682,6 +690,20 @@ async function loadLeaderboard() {
 // ── Boot ─────────────────────────────────────────────────────────────────────
 // Landing mark breathes (slow pulse) so the front door has a heartbeat — PHA-1033.
 renderBang(document.getElementById('home-logo'), { variant: 'primary', wordmark: true, breathe: true });
+
+// Spotify's OAuth redirect lands back on '/' with a query param — surface the
+// outcome, then clean the URL so a refresh doesn't re-trigger the toast.
+(function handleSpotifyRedirect() {
+  const params = new URLSearchParams(location.search);
+  const linkedId = params.get('spotify_linked');
+  const error = params.get('spotify_error');
+  if (!linkedId && !error) return;
+  if (linkedId) toast('Spotify connected');
+  if (error) toast('Spotify connect failed: ' + error);
+  history.replaceState({}, '', location.pathname);
+  showScreen('profile');
+  loadProfiles();
+})();
 
 // ── Utilities ────────────────────────────────────────────────────────────────
 function esc(s) {
