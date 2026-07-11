@@ -1,0 +1,179 @@
+{
+  "contents": {
+    "twoColumnSearchResultsRenderer": {
+      "primaryContents": {
+        "sectionListRenderer": {
+          "contents": [
+            {
+              "itemSectionRenderer": {
+                "contents": [
+                  {
+                    "channelRenderer": {
+                      "channelId": "UCX6OQ3DkcsbYNE6H8uQQuVA",
+                      "title": {
+                        "simpleText": "MrBeast"
+                      },
+                      "descriptionSnippet": {
+                        "runs": [
+                          {
+                            "text": "SUBSCRIBE FOR A COOKIE! New "
+                          },
+                          {
+                            "text": "MrBeast",
+                            "bold": true
+                          },
+                          {
+                            "text": " or "
+                          },
+                          {
+                            "text": "MrBeast",
+                            "bold": true
+                          },
+                          {
+                            "text": " Gaming video every single Saturday at noon eastern time!"
+                          }
+                        ]
+                      },
+                      "videoCountText": {
+                        "accessibility": {
+                          "accessibilityData": {
+                            "label": "507 million subscribers"
+                          }
+                        },
+                        "simpleText": "507M subscribers"
+                      },
+                      "subscriberCountText": {
+                        "simpleText": "@MrBeast"
+                      },
+                      "ownerBadges": [
+                        {
+                          "metadataBadgeRenderer": {
+                            "icon": {
+                              "iconType": "CHECK_CIRCLE_THICK"
+                            },
+                            "style": "BADGE_STYLE_TYPE_VERIFIED",
+                            "tooltip": "Verified",
+                            "trackingParams": "CPwDENowGAAiEwi5xab2kMuVAxV1hSsGHVlaFj0=",
+                            "accessibilityData": {
+                              "label": "Verified"
+                            }
+                          }
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "videoRenderer": {
+                      "videoId": "zajUgQLviwk",
+                      "title": {
+                        "runs": [
+                          {
+                            "text": "Last to Leave Their Circle Wins $500,000"
+                          }
+                        ],
+                        "accessibility": {
+                          "accessibilityData": {
+                            "label": "Last to Leave Their Circle Wins $500,000 38 minutes"
+                          }
+                        }
+                      },
+                      "longBylineText": {
+                        "runs": [
+                          {
+                            "text": "MrBeast",
+                            "navigationEndpoint": {
+                              "clickTrackingParams": "CO0BENwwGAQiEwi5xab2kMuVAxV1hSsGHVlaFj3KAQQxFt_I",
+                              "commandMetadata": {
+                                "webCommandMetadata": {
+                                  "url": "/@MrBeast",
+                                  "webPageType": "WEB_PAGE_TYPE_CHANNEL",
+                                  "rootVe": 3611,
+                                  "apiUrl": "/youtubei/v1/browse"
+                                }
+                              },
+                              "browseEndpoint": {
+                                "browseId": "UCX6OQ3DkcsbYNE6H8uQQuVA",
+                                "canonicalBaseUrl": "/@MrBeast"
+                              }
+                            }
+                          }
+                        ]
+                      },
+                      "publishedTimeText": {
+                        "simpleText": "1 year ago"
+                      },
+                      "lengthText": {
+                        "accessibility": {
+                          "accessibilityData": {
+                            "label": "38 minutes, 38 seconds"
+                          }
+                        },
+                        "simpleText": "38:38"
+                      },
+                      "viewCountText": {
+                        "simpleText": "212,621,516 views"
+                      }
+                    }
+                  },
+                  {
+                    "videoRenderer": {
+                      "videoId": "hTSaweR8qMI",
+                      "title": {
+                        "runs": [
+                          {
+                            "text": "$1 vs $500,000 Date"
+                          }
+                        ],
+                        "accessibility": {
+                          "accessibilityData": {
+                            "label": "$1 vs $500,000 Date 17 minutes"
+                          }
+                        }
+                      },
+                      "longBylineText": {
+                        "runs": [
+                          {
+                            "text": "MrBeast",
+                            "navigationEndpoint": {
+                              "clickTrackingParams": "CLsBENwwGAciEwi5xab2kMuVAxV1hSsGHVlaFj3KAQQxFt_I",
+                              "commandMetadata": {
+                                "webCommandMetadata": {
+                                  "url": "/@MrBeast",
+                                  "webPageType": "WEB_PAGE_TYPE_CHANNEL",
+                                  "rootVe": 3611,
+                                  "apiUrl": "/youtubei/v1/browse"
+                                }
+                              },
+                              "browseEndpoint": {
+                                "browseId": "UCX6OQ3DkcsbYNE6H8uQQuVA",
+                                "canonicalBaseUrl": "/@MrBeast"
+                              }
+                            }
+                          }
+                        ]
+                      },
+                      "publishedTimeText": {
+                        "simpleText": "1 year ago"
+                      },
+                      "lengthText": {
+                        "accessibility": {
+                          "accessibilityData": {
+                            "label": "17 minutes, 22 seconds"
+                          }
+                        },
+                        "simpleText": "17:22"
+                      },
+                      "viewCountText": {
+                        "simpleText": "189,869,169 views"
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      }
+    }
+  }
+}
