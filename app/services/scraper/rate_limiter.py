@@ -112,5 +112,7 @@ STEAM_STORE_LIMITER = RateLimiter(max_concurrent=1, min_interval=1.5)
 STEAM_COMMUNITY_LIMITER = RateLimiter(max_concurrent=1, min_interval=1.5)
 # last.fm (ws.audioscrobbler.com — generous free-tier limits, stay well under 5 req/s)
 LASTFM_LIMITER = RateLimiter(max_concurrent=2, min_interval=0.25)
+# Spotify Web API (api.spotify.com — per-app rolling window, stay well under it)
+SPOTIFY_LIMITER = RateLimiter(max_concurrent=2, min_interval=0.25)
 
 generic_limiter = RateLimiter(max_concurrent=3, min_interval=0.5)   # shared fallback
