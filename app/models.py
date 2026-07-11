@@ -9,6 +9,7 @@ class ProfileCreate(BaseModel):
     reddit_handle: str = ""
     twitter_handle: str = ""
     steam_id: str = ""
+    lastfm_username: str = ""
     discord_handle: str = ""
     pinterest_handle: str = ""
     instagram_handle: str = ""
@@ -38,6 +39,7 @@ class ProfileUpdate(BaseModel):
     reddit_handle: Optional[str] = None
     twitter_handle: Optional[str] = None
     steam_id: Optional[str] = None
+    lastfm_username: Optional[str] = None
     discord_handle: Optional[str] = None
     pinterest_handle: Optional[str] = None
     instagram_handle: Optional[str] = None
@@ -70,6 +72,7 @@ class ProfileResponse(BaseModel):
     reddit_handle: str
     twitter_handle: str
     steam_id: str
+    lastfm_username: str
     discord_handle: str
     pinterest_handle: str
     instagram_handle: str
