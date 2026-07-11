@@ -15,6 +15,7 @@ class Settings(BaseSettings):
     crawl4ai_token: str = ""  # bearer for the crawl4ai service; CRAWL4AI_TOKEN env override
     admin_token: str = ""  # if set, /api/admin/* requires Authorization: Bearer <token>; empty = open (LAN-only deploys)
     twocaptcha_api_key: str = ""  # 2captcha.com solver API key; required only when a scraper opts into captcha solving
+    youtube_api_key: str = ""  # free Data API v3 key (10k units/day) from https://console.cloud.google.com/apis/credentials — fallback only, Innertube is unauthenticated primary
     question_count: int = 50
     question_timeout: int = 30  # seconds per question
     ws_heartbeat: int = 30
