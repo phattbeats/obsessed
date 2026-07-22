@@ -189,6 +189,23 @@ body {
 }
 .btn.primary:hover { background: #c13650; }
 
+/* ── Keyboard focus ring (WCAG 2.4.7) ────────────────── */
+/* Visible only on keyboard nav; mouse/touch clicks stay clean. */
+.btn:focus-visible,
+.answer-btn:focus-visible,
+.back-btn:focus-visible,
+.entity-opt:focus-visible,
+.form-group input:focus-visible,
+.form-group textarea:focus-visible {
+  outline: var(--focus-ring);
+  outline-offset: 2px;
+}
+.btn:focus:not(:focus-visible),
+.answer-btn:focus:not(:focus-visible),
+.back-btn:focus:not(:focus-visible) {
+  outline: none;
+}
+
 .stats-bar {
   display: flex;
   gap: 2rem;
@@ -297,7 +314,6 @@ body {
   background: var(--accent);
   border-color: var(--accent);
 }
-.entity-opt:focus-visible { outline: var(--focus-ring); outline-offset: 2px; }
 @media (max-width: 380px) {
   .entity-picker { grid-template-columns: repeat(2, 1fr); }
 }
