@@ -14,6 +14,25 @@ let timerSeconds = 30;
 let ws = null;
 let wsReconnectTimer = null;
 
+// SPEC: 6 category wedges. First player to fill all 6 wins outright.
+const CATEGORIES = ['history', 'entertainment', 'geography', 'science', 'sports', 'art_literature'];
+const CATEGORY_COLORS = {
+  history: '#ff6d00',
+  entertainment: '#d500f9',
+  geography: '#2979ff',
+  science: '#00e676',
+  sports: '#ff1744',
+  art_literature: '#ffea00',
+};
+const CATEGORY_LABELS = {
+  history: 'HIST',
+  entertainment: 'ENT',
+  geography: 'GEO',
+  science: 'SCI',
+  sports: 'SPT',
+  art_literature: 'ART',
+};
+
 // ── WebSocket ────────────────────────────────────────────────────────────────
 function connectWS(room_code) {
   if (ws) {
@@ -60,6 +79,7 @@ function handleWSMessage(msg) {
       updateLobbyPlayers(msg.players || []);
       break;
     case 'game_started':
+      renderWedgeBoard([]);  // empty board at game start
       showScreen('game');
       break;
     case 'new_question':
@@ -72,7 +92,7 @@ function handleWSMessage(msg) {
       // Score update between questions — could update a live scoreboard
       break;
     case 'game_over':
-      showResultsWS();
+      showResultsWS(msg);
       break;
   }
 }
@@ -494,7 +514,35 @@ function showAnswerResultWS(msg) {
     flashEdgeGlow();
     if (msg.category && bangRack) bangRack.fill(msg.category, { burst: true });
   }
+  // PHA-1335: update wedge board from the broadcast player_scores.
+  if (msg.player_scores && msg.player_scores[myPlayerId]) {
+    renderWedgeBoard(msg.player_scores[myPlayerId].wedges || []);
+  }
   toast(msg.is_correct ? `+${msg.points_earned} pts!` : 'Wrong!');
+}
+
+// ── Wedge board renderer ──────────────────────────────────────────────────────
+// SPEC: 6 category wedges. Filled wedges show in category color. Empty wedges
+// show with category color outline and dark fill.
+//
+// Defaults to the live game-screen board (#wedge-board); pass a target to
+// render onto another container (e.g. the results screen).
+function renderWedgeBoard(playerWedges) {
+  renderWedgeBoardOnto(playerWedges, document.getElementById('wedge-board'));
+}
+
+function renderWedgeBoardOnto(playerWedges, target) {
+  if (!target) return;
+  const earned = new Set(playerWedges || []);
+  target.innerHTML = CATEGORIES.map(cat => {
+    const filled = earned.has(cat);
+    const color = CATEGORY_COLORS[cat] || '#ffffff';
+    const label = CATEGORY_LABELS[cat] || cat.slice(0, 3).toUpperCase();
+    return `<div class="wedge-slot ${filled ? 'filled' : ''}"
+                 data-category="${cat}"
+                 title="${cat.replace('_', ' ')}${filled ? ' — earned' : ''}"
+                 style="border-color: ${color}; ${filled ? `background: ${color};` : ''}">${filled ? '★' : label}</div>`;
+  }).join('');
 }
 
 async function submitAnswer(btn, answer) {
@@ -535,14 +583,14 @@ async function submitAnswer(btn, answer) {
 }
 
 // ── WS-driven results screen ──────────────────────────────────────────────────
-function showResultsWS() {
+function showResultsWS(msg) {
   clearInterval(pollInterval);
   if (ws) { ws.close(); ws = null; }
   showScreen('results');
   fetch(API + `/api/games/${myRoomCode}/scores`).then(async res => {
     if (!res.ok) return;
     const scores = await res.json();
-    renderResults(scores);
+    renderResults(scores, msg);
   });
 }
 
@@ -556,20 +604,37 @@ async function showResults() {
   renderResults(scores);
 }
 
-function renderResults(scores) {
+function renderResults(scores, wsMsg) {
   const winner = scores[0];
   const logoEl = document.getElementById('winner-bang-logo');
   // PR-8 wants a big celebratory lockup on the winner card — stacked (120px
   // circle above the wordmark) reads large and pulses, unlike compact.
   if (logoEl) renderBang(logoEl, { variant: 'stacked', wordmark: true });
-  document.getElementById('winner-display').textContent = winner
-    ? `${esc(winner.player_name)} wins!  ${winner.score.toLocaleString()} pts`
-    : 'No winner';
+  // PHA-1335: when game_over is broadcast with reason='wedges', the wedge-
+  // complete player wins outright even if their score is lower. Surface
+  // that in the winner line and credit wedges-earned in the scoreboard.
+  const reason = wsMsg && wsMsg.reason;
+  const winnerName = (wsMsg && wsMsg.winner_player_name) || (winner && winner.player_name);
+  let winnerLine;
+  if (reason === 'wedges' && winner) {
+    winnerLine = `🏆 ${esc(winnerName)} wins by wedge! (all 6 categories)  ${winner.score.toLocaleString()} pts`;
+  } else if (winner) {
+    winnerLine = `${esc(winnerName)} wins!  ${winner.score.toLocaleString()} pts`;
+  } else {
+    winnerLine = 'No winner';
+  }
+  document.getElementById('winner-display').textContent = winnerLine;
   document.getElementById('final-scores').innerHTML = scores.map((s, i) => `
     <div class="score-row ${i === 0 ? 'top' : ''}">
-      <span>${i+1}. ${esc(s.player_name)}</span>
+      <span>${i+1}. ${esc(s.player_name)}${s.wedges ? ' (' + s.wedges.length + '/6)' : ''}</span>
       <span class="score-val">${s.score.toLocaleString()}</span>
     </div>`).join('');
+  // PHA-1335: paint the winner's wedge board onto the results screen so the
+  // visual win state is preserved after the live game screen closes.
+  if (winner) {
+    const board = document.getElementById('results-wedge-board');
+    if (board) renderWedgeBoardOnto(winner.wedges || [], board);
+  }
   fireConfetti();
 }
 

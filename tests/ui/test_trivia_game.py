@@ -203,3 +203,67 @@ class TestWebSocketNoCrash:
 
         critical = [e for e in errors if "TypeError" in e or "ReferenceError" in e]
         assert not critical, f"JS errors on game screen: {critical}"
+
+
+class TestWedgeBoard:
+    """
+    PHA-1335: the wedge board is the visual identity per SPEC §"Wedge Board".
+    Verify it renders 6 category slots, both empty and filled.
+    """
+
+    def test_wedge_board_div_exists(self, page):
+        """The wedge-board container must exist on the game screen."""
+        page.goto(BASE_URL)
+        page.locator('button:has-text("New Game")').click()
+        page.locator('select[name="entity_type"]').select_option("person")
+        # Fill minimum required fields and submit (we just need the page state)
+        page.fill('input[name="name"]', 'Wedge UI Test')
+        # Don't actually submit — just check the wedge-board is in the DOM.
+        # It lives on the game screen which is hidden until a game starts.
+        assert page.locator("#wedge-board").count() == 1, \
+            "wedge-board div missing from DOM"
+
+    def test_wedge_board_renders_six_slots_when_populated(self, page):
+        """renderWedgeBoard() should produce 6 .wedge-slot children."""
+        page.goto(BASE_URL)
+        # Programmatically call renderWedgeBoard via the global scope.
+        # JS is loaded from /static/js/app.js into the page; the function
+        # is hoisted as a top-level function so window.renderWedgeBoard
+        # is accessible.
+        result = page.evaluate("""() => {
+            renderWedgeBoard(['history', 'science']);
+            const board = document.getElementById('wedge-board');
+            const slots = board.querySelectorAll('.wedge-slot');
+            const filled = board.querySelectorAll('.wedge-slot.filled');
+            return { total: slots.length, filled: filled.length };
+        }""")
+        assert result["total"] == 6, f"expected 6 wedge slots, got {result['total']}"
+        assert result["filled"] == 2, f"expected 2 filled slots, got {result['filled']}"
+
+    def test_wedge_board_with_no_wedges_renders_empty(self, page):
+        """Empty wedges list should produce 6 empty (unfilled) slots."""
+        page.goto(BASE_URL)
+        result = page.evaluate("""() => {
+            renderWedgeBoard([]);
+            const board = document.getElementById('wedge-board');
+            const slots = board.querySelectorAll('.wedge-slot');
+            const filled = board.querySelectorAll('.wedge-slot.filled');
+            return { total: slots.length, filled: filled.length };
+        }""")
+        assert result["total"] == 6, f"expected 6 wedge slots, got {result['total']}"
+        assert result["filled"] == 0, f"expected 0 filled slots, got {result['filled']}"
+
+    def test_wedge_board_categories_match_spec(self, page):
+        """All 6 SPEC categories must be present as slot titles."""
+        page.goto(BASE_URL)
+        result = page.evaluate("""() => {
+            renderWedgeBoard([]);
+            const board = document.getElementById('wedge-board');
+            const slots = Array.from(board.querySelectorAll('.wedge-slot'));
+            return slots.map(s => s.dataset.category).sort();
+        }""")
+        expected = sorted([
+            'history', 'entertainment', 'geography',
+            'science', 'sports', 'art_literature',
+        ])
+        assert result == expected, f"wedge categories mismatch: {result} != {expected}"

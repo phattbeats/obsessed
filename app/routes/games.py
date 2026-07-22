@@ -367,14 +367,21 @@ async def submit_answer(room_code: str, data: AnswerSubmit):
         raise HTTPException(status_code=404, detail="Game not found")
     if data.player_id not in gs.players:
         raise HTTPException(status_code=404, detail="Player not in game")
-    
+
     q = gs.current_question()
     if not q:
         raise HTTPException(status_code=400, detail="No active question")
-    
+
     is_correct, pts = gs.record_answer(data.player_id, data.answer_text, data.time_taken_ms)
+
+    # SPEC: first player to complete all 6 category wedges wins outright.
+    # If this answer just earned the winning wedge, end the game now.
+    game_ended_by_wedges = gs.all_wedges_earned()
+    if game_ended_by_wedges:
+        gs.status = "finished"
+
     _sync_game_to_db(room_code)
-    
+
     db = SessionLocal()
     try:
         g = db.query(GameSession).filter(GameSession.room_code == room_code).first()
@@ -397,6 +404,19 @@ async def submit_answer(room_code: str, data: AnswerSubmit):
                 for pid, ps in gs.players.items()
             },
         })
+        # If a wedge win just triggered, finalize stats and broadcast game_over
+        # with reason="wedges" so the UI can render the wedge-win state.
+        if game_ended_by_wedges:
+            await broadcast(room_code, {
+                "type": "game_over",
+                "room_code": room_code,
+                "reason": "wedges",
+                "winner_player_id": data.player_id,
+                "winner_player_name": gs.players[data.player_id].player_name,
+                "winner_wedges": sorted(gs.players[data.player_id].wedges),
+                "final_scores": gs.get_scores(),
+            })
+            _finalize_game_stats(room_code)
         return AnswerResponse(
             player_id=data.player_id,
             player_name=gs.players[data.player_id].player_name,
@@ -462,7 +482,11 @@ async def next_question(room_code: str):
             db.close()
     if not gs:
         raise HTTPException(status_code=404, detail="Game not found")
+    if gs.status == "finished":
+        # Game already ended (e.g., wedge win in /answer) — don't advance.
+        raise HTTPException(status_code=400, detail="Game already finished")
     gs.next_question()
+    # SPEC: question exhaustion ends the game with highest-score winner.
     if gs.current_q >= gs.total_q:
         gs.status = "finished"
     db = SessionLocal()
@@ -476,7 +500,16 @@ async def next_question(room_code: str):
         db.close()
     # Broadcast new question (or game_over) to all players
     if gs.status == "finished":
-        await broadcast(room_code, {"type": "game_over", "room_code": room_code})
+        winner = gs.winner()
+        await broadcast(room_code, {
+            "type": "game_over",
+            "room_code": room_code,
+            "reason": "exhaustion",
+            "winner_player_id": winner.player_id if winner else None,
+            "winner_player_name": winner.player_name if winner else None,
+            "winner_wedges": sorted(winner.wedges) if winner else [],
+            "final_scores": gs.get_scores(),
+        })
         _finalize_game_stats(room_code)
     else:
         q = gs.current_question()
