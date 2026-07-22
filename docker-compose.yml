@@ -1,7 +1,10 @@
 services:
   obsessed:
     build: .
-    image: therealphatt/obsessed:latest
+    # Align with CI: build.yml pushes to ${{ secrets.DOCKERHUB_USER }}/obsessed:latest.
+    # Compose now derives the image name from DOCKERHUB_USER (same env var) with a
+    # safe fallback so a stray .env still resolves to the canonical image.
+    image: ${DOCKERHUB_USER:-therealphatt}/obsessed:latest
     ports:
       - "8000:8000"
     env_file:
