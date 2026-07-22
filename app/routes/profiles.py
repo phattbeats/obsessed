@@ -21,6 +21,25 @@ import secrets
 
 router = APIRouter(prefix="/api/profiles", tags=["profiles"])
 
+_BUSINESS_CLASSES = {"amenity", "shop", "office", "tourism", "leisure", "healthcare"}
+_RESIDENTIAL_CLASSES = {"building", "residential"}
+_RESIDENTIAL_TYPES = {"house", "apartments", "residential"}
+
+def _classify_osm_class(osm_results: list[dict]) -> str:
+    """Map an OSM Nominatim result to 'business', 'residence', or 'unknown'."""
+    if not osm_results:
+        return "unknown"
+    first = osm_results[0]
+    cls = first.get("osm_class", "")
+    typ = first.get("osm_type", "")
+    if cls in _BUSINESS_CLASSES:
+        return "business"
+    if cls in _RESIDENTIAL_CLASSES or typ in _RESIDENTIAL_TYPES:
+        return "residence"
+    if cls == "place" and typ in {"house", "residential"}:
+        return "residence"
+    return "unknown"
+
 def _profile(p: Profile) -> ProfileResponse:
     return ProfileResponse(
         id=p.id, name=p.name, bio=p.bio,
@@ -51,6 +70,7 @@ def _profile(p: Profile) -> ProfileResponse:
         content_quality=p.content_quality or "",
         content_chunks=p.content_chunks or 0,
         entity_type=p.entity_type or "person",
+        address_type=p.address_type or "unknown",
         created_at=p.created_at, updated_at=p.updated_at,
     )
 
@@ -74,6 +94,7 @@ def create_profile(data: ProfileCreate):
                     manual_link=data.manual_link,
                     manual_facts=data.manual_facts,
                     entity_type=getattr(data, "entity_type", "person") or "person",
+                    address_type=getattr(data, "address_type", "unknown") or "unknown",
                     llm_calls=0, llm_spend_cents=0,
                     question_budget=getattr(data, "question_budget", 50) or 50,
                     consent_obtained=getattr(data, "consent_obtained", False) or False,
@@ -215,6 +236,14 @@ async def trigger_scrape(profile_id: int):
         p.scrape_error = ""
         db.commit()
 
+        # ── Address-type detection (runs once; skipped if already classified) ──
+        if (p.osm_query or p.entity_type == "place") and (not p.address_type or p.address_type == "unknown"):
+            from app.services.scraper.osm import search_osm
+            osm_pre = await search_osm(p.osm_query or p.name, max_results=1)
+            p.address_type = _classify_osm_class(osm_pre)
+            db.commit()
+        address_type = p.address_type or "unknown"
+
         raw_parts: list[str] = []
         scraper_errors: list[str] = []
 
@@ -285,9 +314,9 @@ async def trigger_scrape(profile_id: int):
                 await _safe("Events", scrape_events(gdelt_query=p.gdelt_query))
             if p.news_query:
                 await _safe("News", _scrape_news(p.news_query))
-            if p.court_query:
+            if p.court_query and address_type != "business":
                 await _safe("Court", _scrape_court(p.court_query))
-            if p.sos_query:
+            if p.sos_query and address_type != "business":
                 await _safe("SOS", _scrape_sos(p.sos_query))
             if p.auditor_query:
                 await _safe("Auditor", _scrape_auditor(p.auditor_query))
@@ -431,6 +460,8 @@ async def trigger_scrape(profile_id: int):
         db.commit()
 
         scrape_warning = None
+        if address_type == "unknown" and (p.osm_query or p.entity_type == "place"):
+            scrape_warning = "Could not classify address; ran full chain."
         if p.content_quality == "insufficient":
             scrape_warning = f"Not enough content. Need at least 15 facts, got {len(chunks)}. Add more handles or use manual entry."
         elif p.content_quality == "limited":
@@ -443,6 +474,7 @@ async def trigger_scrape(profile_id: int):
             "ok": True,
             "status": "done",
             "warning": scrape_warning,
+            "address_type": address_type,
             "content_quality": p.content_quality,
             "content_chunks": p.content_chunks,
             "cached": bool(cached_raw),
