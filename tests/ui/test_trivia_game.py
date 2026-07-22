@@ -116,6 +116,9 @@ class TestTriviaGameFlow:
         )
         assert resp.status_code == 200
         pid = resp.json()["id"]
+        # Game creation is consent-gated; grant via the direct test endpoint
+        consent = httpx.post(f"{BASE_URL}/api/profiles/{pid}/consent", timeout=10.0)
+        assert consent.status_code == 200, f"Consent grant failed: {consent.text}"
         yield pid
         try:
             httpx.delete(f"{BASE_URL}/api/profiles/{pid}", timeout=5.0)
