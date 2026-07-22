@@ -15,6 +15,7 @@ from app.services.scraper.crawl4ai import crawl4ai_scrape
 from app.services.scraper.places import scrape_places
 from app.services.scraper.things import scrape_things
 from app.services.scraper.events import scrape_events
+from app.services.scraper import ScraperError
 from app.services.generator import generate_from_manual
 import json
 import secrets
@@ -246,6 +247,11 @@ async def trigger_scrape(profile_id: int):
 
         raw_parts: list[str] = []
         scraper_errors: list[str] = []
+        # Per-source status: "ok" | "empty" | "error: <msg>". Surfaced in the
+        # response so callers can see exactly which scrapers succeeded vs
+        # failed instead of digging through the failure blob. Also kept in
+        # DB so the UI / scripts can render per-source drill-downs.
+        per_source: dict[str, str] = {}
 
         async def _safe(label: str, coro):
             try:
@@ -256,8 +262,12 @@ async def trigger_scrape(profile_id: int):
                 # NOT filter on the bare label prefix or we drop all real content.
                 if text and "scrape error" not in text[:60].lower() and not text.startswith("[All sources failed"):
                     raw_parts.append(text)
+                    per_source[label] = "ok"
+                else:
+                    per_source[label] = "empty"
             except Exception as exc:
                 scraper_errors.append(f"{label}: {exc}")
+                per_source[label] = f"error: {exc}"
 
         # ── Cache check ──────────────────────────────────────────────────────
         from app.services.entity_cache import get_cached, write_cached
@@ -293,8 +303,12 @@ async def trigger_scrape(profile_id: int):
                     text, _ = await crawl4ai_scrape(p.manual_link)
                     if text and len(text) > 20 and not text.startswith("[crawl4ai"):
                         raw_parts.append(text)
+                        per_source["crawl4ai"] = "ok"
+                    else:
+                        per_source["crawl4ai"] = "empty"
                 except Exception as exc:
                     scraper_errors.append(f"crawl4ai: {exc}")
+                    per_source["crawl4ai"] = f"error: {exc}"
             if p.google_places_handle:
                 await _safe("Places", scrape_places(google_places_query=p.google_places_handle))
             if p.wikipedia_handle:
@@ -479,15 +493,34 @@ async def trigger_scrape(profile_id: int):
             "content_chunks": p.content_chunks,
             "cached": bool(cached_raw),
             "scraper_errors": scraper_errors,
+            "per_source": per_source,
         }
     except HTTPException:
         raise
-    except Exception as e:
+    except ScraperError as e:
+        # Scraper-level failure (network, parse, timeout). Per-source detail
+        # already lives in `scraper_errors` / `per_source` above for the
+        # individual calls, so this branch fires when a non-wrapped scraper
+        # surfaces a ScraperError from outside the _safe() helper.
         if p is not None:
             p.scrape_status = "failed"
-            p.scrape_error = str(e)[:500]
+            p.scrape_error = f"ScraperError: {type(e).__name__}: {e}"[:500]
             db.commit()
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=502, detail=f"ScraperError: {type(e).__name__}: {e}")
+    except Exception as e:
+        # Programming / logic error (NameError, AttributeError, TypeError,
+        # KeyError, ImportError, etc.). Surface the type so it is not hidden
+        # under a generic "failed" — these used to mask logic bugs for
+        # months because callers could not tell a NameError from a real
+        # scraper outage. We still mark scrape_status="failed" (the DB schema
+        # only allows that bucket) but tag the error with a "LogicError/"
+        # prefix so monitoring can split "real scraper outages" from "real
+        # bugs we need to fix" without grep guessing.
+        if p is not None:
+            p.scrape_status = "failed"
+            p.scrape_error = f"LogicError/{type(e).__name__}: {e}"[:500]
+            db.commit()
+        raise HTTPException(status_code=500, detail=f"{type(e).__name__}: {e}")
     finally:
         db.close()
 
