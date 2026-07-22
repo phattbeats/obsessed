@@ -76,7 +76,22 @@ class GameState:
         active = [p for p in self.players.values() if p.is_active]
         if not active:
             return None
+        # SPEC: first to complete all 6 category wedges wins outright.
+        # If anyone has all 6 wedges, that player wins (regardless of score).
+        wedge_winners = [p for p in active if len(p.wedges) >= 6]
+        if wedge_winners:
+            return wedge_winners[0]
         return max(active, key=lambda p: p.score)
+
+    def wedge_winner(self) -> Optional[PlayerState]:
+        """Return the player who first completed all 6 wedges, or None."""
+        active = [p for p in self.players.values() if p.is_active]
+        if not active:
+            return None
+        for p in active:
+            if len(p.wedges) >= 6:
+                return p
+        return None
 
     def all_wedges_earned(self) -> bool:
         return any(len(p.wedges) >= 6 for p in self.players.values())
