@@ -2,6 +2,21 @@
 
 All notable changes to Obsessed are documented here.
 
+## [Unreleased]
+
+### Fixed
+- **Game-state concurrency: lock the in-memory GAMES dict** (`PHA-1338`). Per-room `asyncio.Lock` guards mutation of `GAMES[room_code]` and its `GameState` (scores, wedges, current question, status). Without the lock, concurrent `/answer` calls on the same game could each observe `all_wedges_earned() == True` and fire duplicate `game_over` broadcasts. Lock is process-local; multi-worker uvicorn is out of scope and documented in `app/services/game_engine.py`.
+- `submit_answer` now rejects answers when `gs.status == "finished"` — prevents late concurrent arrivals from re-triggering the wedge-win branch.
+- `get_or_create_game` is now async and acquires the room lock; `_get_or_create_game_locked` is the lock-free helper for callers that already hold the lock (avoids `asyncio.Lock` re-entrant deadlock). `cleanup_game` is async.
+
+### Changed
+- `create_game`, `get_game` promoted to `async def` to support the room-lock acquisition. Behavior unchanged.
+
+### Added
+- `tests/test_game_lock.py` — 10 tests covering lock acquisition, concurrent `record_answer`, wedge-win serialization, post-finish rejection, end-to-end concurrent answers via the FastAPI app.
+
+---
+
 ## [1.0.3] — 2026-05-03
 
 ### Fixed

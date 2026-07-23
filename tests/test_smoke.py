@@ -206,7 +206,12 @@ async def test_gamestate_resume_with_things():
         assert room not in GAMES, "GAMES should be empty after restart"
 
         # Resume path: call get_or_create_game with profile_id=None
-        gs_resumed = get_or_create_game(room, profile_id=None)
+        # (post-PHA-1338: get_or_create_game is async; use the lock-free
+        # helper to recreate the previous sync behavior under the room lock.)
+        from app.services.game_engine import _get_or_create_game_locked, get_room_lock
+        lock = await get_room_lock(room)
+        async with lock:
+            gs_resumed = _get_or_create_game_locked(room, profile_id=None)
 
         # Must succeed without TypeError or AttributeError
         assert gs_resumed is not None, "GameState resume returned None"
