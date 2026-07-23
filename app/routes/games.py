@@ -9,7 +9,7 @@ from app.models import (
 from app.routes.profiles import trigger_scrape
 from app.services.game_engine import (
     GAMES, GameState, TriviaQuestion, PlayerState,
-    get_or_create_game, generate_room_code, cleanup_game,
+    get_or_create_game, _get_or_create_game_locked, get_room_lock, generate_room_code, cleanup_game,
 )
 from app.websocket import broadcast, send_to
 from datetime import datetime, timezone
@@ -26,13 +26,23 @@ CATEGORY_COLORS = {
 }
 
 def _load_game_to_memory(room_code: str):
-    """Sync a game from SQLite into in-memory GameState."""
+    """Sync a game from SQLite into in-memory GameState.
+
+    MUST be called under the room lock (caller holds it). Mutates GameState
+    in place; the lock ensures no concurrent mutation interleaves.
+    """
     db = SessionLocal()
     try:
         g = db.query(GameSession).filter(GameSession.room_code == room_code).first()
         if not g:
             return
-        gs = get_or_create_game(room_code, g.profile_id)
+        gs = GAMES.get(room_code)
+        if gs is None:
+            # Construct a fresh GameState directly under the lock; we
+            # can't await get_or_create_game() here because this helper is
+            # sync. The lock guards the create-or-get decision.
+            gs = GameState(room_code=room_code, profile_id=g.profile_id)
+            GAMES[room_code] = gs
         gs.status = g.status
         gs.current_q = g.current_question
         gs.total_q = g.total_questions  # restore from DB, not constructor default
@@ -104,7 +114,7 @@ def _persist_answer(room_code: str, player_id: str, question_id: int,
         db.close()
 
 @router.post("", response_model=GameResponse)
-def create_game(data: GameCreate, background_tasks: BackgroundTasks):
+async def create_game(data: GameCreate, background_tasks: BackgroundTasks):
     room_code = generate_room_code()
     db = SessionLocal()
     try:
@@ -139,7 +149,13 @@ def create_game(data: GameCreate, background_tasks: BackgroundTasks):
         db.add(g)
         db.commit()
         db.refresh(g)
-        get_or_create_game(room_code, data.profile_id)
+        # Seed the in-memory GameState under the room lock so a concurrent
+        # /join or /start for the same room_code (extremely unlikely but
+        # possible under room-code collision — should never happen because
+        # generate_room_code checks the dict) doesn't race.
+        lock = await get_room_lock(room_code)
+        async with lock:
+            _get_or_create_game_locked(room_code, data.profile_id)
 
         # Fire parallel scrapes for any thing profile that is still pending/scraping
         if data.things:
@@ -158,14 +174,19 @@ def create_game(data: GameCreate, background_tasks: BackgroundTasks):
         db.close()
 
 @router.get("/{room_code}", response_model=GameResponse)
-def get_game(room_code: str):
+async def get_game(room_code: str):
     db = SessionLocal()
     try:
         g = db.query(GameSession).filter(GameSession.room_code == room_code).first()
         if not g:
             raise HTTPException(status_code=404, detail="Room not found")
-        _load_game_to_memory(room_code)
-        gs = GAMES.get(room_code)
+        # _load_game_to_memory mutates the in-memory GameState; guard it
+        # with the room lock so we don't race against concurrent join or
+        # start_game handlers.
+        lock = await get_room_lock(room_code)
+        async with lock:
+            _load_game_to_memory(room_code)
+            gs = GAMES.get(room_code)
         players = []
         for p in g.players:
             wedges = []
@@ -195,50 +216,69 @@ async def join_game(room_code: str, data: PlayerJoin):
             raise HTTPException(status_code=404, detail="Room not found")
         if g.status != "lobby":
             raise HTTPException(status_code=400, detail="Game already started")
-        
+
         existing = db.query(Player).filter(
             Player.game_id == g.id, Player.player_name == data.player_name
         ).first()
+
+        # Acquire the room lock before mutating GAMES / GameState. We do it
+        # after the DB reads above so the lock window is tight, and before
+        # any mutation. For the existing-player branch we hold the lock only
+        # across the in-memory state mutation (no broadcast after). For the
+        # new-player branch we snapshot the player list inside the lock and
+        # release before await broadcast() so slow WS sends don't block
+        # other room operations.
+        lock = await get_room_lock(room_code)
+
         if existing:
             # Use the DB record player_id as authoritative identity
             player_id = existing.player_id
             existing.is_active = True
             db.commit()
-            gs = get_or_create_game(room_code, g.profile_id)
-            gs.players[player_id] = PlayerState(
-                player_id=player_id, player_name=data.player_name,
-                score=existing.score, wedges=set(json.loads(existing.wedges or "[]")),
-                is_host=existing.is_host,
-            )
+            async with lock:
+                gs = _get_or_create_game_locked(room_code, g.profile_id)
+                gs.players[player_id] = PlayerState(
+                    player_id=player_id, player_name=data.player_name,
+                    score=existing.score, wedges=set(json.loads(existing.wedges or "[]")),
+                    is_host=existing.is_host,
+                )
             return PlayerResponse(
                 id=existing.id, player_id=existing.player_id,
                 player_name=existing.player_name, score=existing.score,
                 wedges=json.loads(existing.wedges or "[]"),
                 is_host=existing.is_host, is_active=True,
             )
-        
+
         player_id = data.player_id or f"p_{random.randint(100000,999999)}"
         p = Player(game_id=g.id, player_id=player_id, player_name=data.player_name)
         db.add(p)
         db.commit()
         db.refresh(p)
-        
-        gs = get_or_create_game(room_code, g.profile_id)
-        gs.players[player_id] = PlayerState(player_id=player_id, player_name=data.player_name)
+
+        async with lock:
+            gs = _get_or_create_game_locked(room_code, g.profile_id)
+            gs.players[player_id] = PlayerState(
+                player_id=player_id, player_name=data.player_name,
+            )
+            # Snapshot player list inside the lock so the broadcast payload
+            # matches the state at the moment of the join.
+            players_snapshot = [
+                {"player_id": pid, "player_name": ps.player_name,
+                 "score": ps.score, "wedges": list(ps.wedges), "is_host": ps.is_host}
+                for pid, ps in gs.players.items()
+            ]
+            player_count = len(gs.players)
+
         await broadcast(room_code, {
             "type": "player_joined",
             "player_id": player_id,
             "player_name": data.player_name,
-            "player_count": len(gs.players),
-            "players": [
-                {"player_id": pid, "player_name": ps.player_name,
-                 "score": ps.score, "wedges": list(ps.wedges), "is_host": ps.is_host}
-                for pid, ps in gs.players.items()
-            ],
+            "player_count": player_count,
+            "players": players_snapshot,
         })
-        
+
         return PlayerResponse(
-            id=p.id, player_id=p.player_id, player_name=p.player_name,
+            id=p.id, player_id=p.player_id, player_name=data.player_name,
             score=0, wedges=[], is_host=False, is_active=True,
         )
     finally:
@@ -284,54 +324,70 @@ async def start_game(room_code: str):
             random.shuffle(qs)
             selected = qs[:g.total_questions]
 
-        gs = get_or_create_game(room_code, g.profile_id)
-        gs.questions = [TriviaQuestion(
-            category=q.category, question_text=q.question_text,
-            correct_answer=q.correct_answer,
-            wrong_answers=json.loads(q.wrong_answers) if q.wrong_answers else [],
-            difficulty=q.difficulty,
-        ) for q in selected]
-        # Sync the real question count to both DB and in-memory state so
-        # total_questions reflects the actual pool (multi-thing = sum of
-        # per-thing allotments) and next_question() can reach completion.
-        g.total_questions = len(gs.questions)
-        gs.total_q = len(gs.questions)
-        gs.status = "active"
-        gs.question_started_at = datetime.now(timezone.utc).timestamp()
-        
-        # First player who joined is host (or designated host)
-        if g.players:
-            host = sorted(g.players, key=lambda x: x.id)[0]
-            host.is_host = True
-            db.query(Player).filter(Player.id == host.id).update({"is_host": True})
-            if host.player_id in gs.players:
-                gs.players[host.player_id].is_host = True
-        
-        g.status = "active"
-        db.commit()
+        # Acquire the room lock before mutating GAMES / GameState so a
+        # concurrent join_game() can't slip a player into gs.players after
+        # we've snapshotted it for the game_started broadcast.
+        lock = await get_room_lock(room_code)
 
-        # Broadcast game start + first question to all players
+        async with lock:
+            gs = _get_or_create_game_locked(room_code, g.profile_id)
+            gs.questions = [TriviaQuestion(
+                category=q.category, question_text=q.question_text,
+                correct_answer=q.correct_answer,
+                wrong_answers=json.loads(q.wrong_answers) if q.wrong_answers else [],
+                difficulty=q.difficulty,
+            ) for q in selected]
+            # Sync the real question count to both DB and in-memory state so
+            # total_questions reflects the actual pool (multi-thing = sum of
+            # per-thing allotments) and next_question() can reach completion.
+            g.total_questions = len(gs.questions)
+            gs.total_q = len(gs.questions)
+            gs.status = "active"
+            gs.question_started_at = datetime.now(timezone.utc).timestamp()
+
+            # First player who joined is host (or designated host)
+            if g.players:
+                host = sorted(g.players, key=lambda x: x.id)[0]
+                host.is_host = True
+                db.query(Player).filter(Player.id == host.id).update({"is_host": True})
+                if host.player_id in gs.players:
+                    gs.players[host.player_id].is_host = True
+
+            g.status = "active"
+            db.commit()
+
+            # Snapshot the data needed for broadcasts inside the lock so
+            # the events match the state at the moment we transitioned to
+            # active.
+            player_count = len(gs.players)
+            total_questions = len(gs.questions)
+            first_question_payload = None
+            q = gs.current_question()
+            if q:
+                elapsed = _time_module.time() - gs.question_started_at
+                remaining = max(0, int(gs.question_time_limit - elapsed))
+                first_question_payload = {
+                    "type": "new_question",
+                    "question_num": gs.current_q + 1,
+                    "total_questions": len(gs.questions),
+                    "category": q.category,
+                    "category_color": CATEGORY_COLORS.get(q.category, "#ffffff"),
+                    "question_text": q.question_text,
+                    "options": [q.correct_answer] + list(q.wrong_answers),
+                    "timer_seconds": remaining,
+                }
+
+        # Broadcasts released from the lock so a slow WS send doesn't block
+        # other room operations.
         await broadcast(room_code, {
             "type": "game_started",
             "room_code": room_code,
-            "player_count": len(gs.players),
-            "total_questions": len(gs.questions),
+            "player_count": player_count,
+            "total_questions": total_questions,
         })
-        q = gs.current_question()
-        if q:
-            elapsed = _time_module.time() - gs.question_started_at
-            remaining = max(0, int(gs.question_time_limit - elapsed))
-            await broadcast(room_code, {
-                "type": "new_question",
-                "question_num": gs.current_q + 1,
-                "total_questions": len(gs.questions),
-                "category": q.category,
-                "category_color": CATEGORY_COLORS.get(q.category, "#ffffff"),
-                "question_text": q.question_text,
-                "options": [q.correct_answer] + list(q.wrong_answers),
-                "timer_seconds": remaining,
-            })
-        return {"ok": True, "total_questions": len(gs.questions)}
+        if first_question_payload is not None:
+            await broadcast(room_code, first_question_payload)
+        return {"ok": True, "total_questions": total_questions}
     finally:
         db.close()
 
@@ -364,37 +420,50 @@ def get_question(room_code: str):
 
 @router.post("/{room_code}/answer", response_model=AnswerResponse)
 async def submit_answer(room_code: str, data: AnswerSubmit):
-    gs = GAMES.get(room_code)
-    if not gs:
-        raise HTTPException(status_code=404, detail="Game not found")
-    if data.player_id not in gs.players:
-        raise HTTPException(status_code=404, detail="Player not in game")
+    # Acquire the room lock for the entire critical section: state mutation,
+    # wedge-win detection, DB write, and broadcast payload assembly. The
+    # broadcast itself is awaited inside the lock so listeners receive the
+    # answer_result and any game_over event atomically with the state change.
+    lock = await get_room_lock(room_code)
+    async with lock:
+        gs = GAMES.get(room_code)
+        if not gs:
+            raise HTTPException(status_code=404, detail="Game not found")
+        if data.player_id not in gs.players:
+            raise HTTPException(status_code=404, detail="Player not in game")
 
-    q = gs.current_question()
-    if not q:
-        raise HTTPException(status_code=400, detail="No active question")
+        # If the game is already finished (e.g., a concurrent /answer
+        # already triggered the wedge-win), reject late answers without
+        # mutating state or broadcasting. Without this check both
+        # concurrent arrivals would see all_wedges_earned() == True and
+        # each fire its own game_over broadcast.
+        if gs.status == "finished":
+            raise HTTPException(status_code=400, detail="Game already finished")
 
-    is_correct, pts = gs.record_answer(data.player_id, data.answer_text, data.time_taken_ms)
+        q = gs.current_question()
+        if not q:
+            raise HTTPException(status_code=400, detail="No active question")
 
-    # SPEC: first player to complete all 6 category wedges wins outright.
-    # If this answer just earned the winning wedge, end the game now.
-    game_ended_by_wedges = gs.all_wedges_earned()
-    if game_ended_by_wedges:
-        gs.status = "finished"
+        is_correct, pts = gs.record_answer(
+            data.player_id, data.answer_text, data.time_taken_ms,
+        )
 
-    _sync_game_to_db(room_code)
+        # SPEC: first player to complete all 6 category wedges wins outright.
+        # If this answer just earned the winning wedge, end the game now.
+        # We check `status` after record_answer too: another concurrent
+        # request that won the race could have flipped it to "finished".
+        # (Under the per-room lock that other request serialized before us,
+        # so this would only be true if the state was finished before this
+        # call entered the critical section.)
+        game_ended_by_wedges = gs.all_wedges_earned() and gs.status != "finished"
+        if game_ended_by_wedges:
+            gs.status = "finished"
 
-    db = SessionLocal()
-    try:
-        g = db.query(GameSession).filter(GameSession.room_code == room_code).first()
-        p_row = db.query(Player).filter(
-            Player.game_id == g.id, Player.player_id == data.player_id
-        ).first()
-        if g and p_row:
-            _persist_answer(room_code, data.player_id, None, gs.current_q + 1,
-                           data.answer_text, is_correct, data.time_taken_ms, pts)
-        # Broadcast answer result to all players (live score update)
-        await broadcast(room_code, {
+        _sync_game_to_db(room_code)
+
+        # Snapshot broadcast payloads inside the lock so concurrent mutators
+        # can't change the dict between snapshot and send.
+        answer_payload = {
             "type": "answer_result",
             "player_id": data.player_id,
             "player_name": gs.players[data.player_id].player_name,
@@ -405,11 +474,10 @@ async def submit_answer(room_code: str, data: AnswerSubmit):
                 pid: {"player_name": ps.player_name, "score": ps.score, "wedges": list(ps.wedges)}
                 for pid, ps in gs.players.items()
             },
-        })
-        # If a wedge win just triggered, finalize stats and broadcast game_over
-        # with reason="wedges" so the UI can render the wedge-win state.
+        }
+        game_over_payload = None
         if game_ended_by_wedges:
-            await broadcast(room_code, {
+            game_over_payload = {
                 "type": "game_over",
                 "room_code": room_code,
                 "reason": "wedges",
@@ -417,8 +485,37 @@ async def submit_answer(room_code: str, data: AnswerSubmit):
                 "winner_player_name": gs.players[data.player_id].player_name,
                 "winner_wedges": sorted(gs.players[data.player_id].wedges),
                 "final_scores": gs.get_scores(),
-            })
-            _finalize_game_stats(room_code)
+            }
+
+        # _persist_answer opens its own DB session. Run it under the room
+        # lock too: it's a state write (Answer row + PlayerStats bump) and
+        # we don't want another answer for the same room to interleave
+        # its DB write with this one.
+        db = SessionLocal()
+        try:
+            g = db.query(GameSession).filter(GameSession.room_code == room_code).first()
+            p_row = db.query(Player).filter(
+                Player.game_id == g.id, Player.player_id == data.player_id
+            ).first()
+            if g and p_row:
+                _persist_answer(
+                    room_code, data.player_id, None, gs.current_q + 1,
+                    data.answer_text, is_correct, data.time_taken_ms, pts,
+                )
+        finally:
+            db.close()
+
+        # Broadcast inside the lock so the WS events match the state at
+        # the moment of release. broadcast() awaits send_json() per player;
+        # holding the lock during that means concurrent /answer calls for
+        # the same room serialize cleanly.
+        await broadcast(room_code, answer_payload)
+        if game_over_payload is not None:
+            await broadcast(room_code, game_over_payload)
+            # Cleanup happens after the game_over broadcast reaches all
+            # listeners so the final state is visible.
+            await _finalize_game_stats(room_code)
+
         return AnswerResponse(
             player_id=data.player_id,
             player_name=gs.players[data.player_id].player_name,
@@ -427,12 +524,15 @@ async def submit_answer(room_code: str, data: AnswerSubmit):
             correct_answer=q.correct_answer,
             time_taken_ms=data.time_taken_ms,
         )
-    finally:
-        db.close()
 
 
-def _finalize_game_stats(room_code: str):
-    """Increment games_played for all active players; mark winner; clean up in-memory game."""
+async def _finalize_game_stats(room_code: str):
+    """Increment games_played for all active players; mark winner; clean up in-memory game.
+
+    MUST be called under the room lock (caller holds it). The DB read+write
+    here is not awaited — SQLite is synchronous — so the critical section
+    covers everything.
+    """
     gs = GAMES.get(room_code)
     if not gs:
         return
@@ -461,72 +561,86 @@ def _finalize_game_stats(room_code: str):
         db.commit()
     finally:
         db.close()
-    # Remove from in-memory GAMES dict to prevent unbounded growth
-    cleanup_game(room_code)
+    # Remove from in-memory GAMES dict to prevent unbounded growth. Holding
+    # _REGISTRY_LOCK inside cleanup_game is fine: it's not the per-room lock.
+    await cleanup_game(room_code)
 
 @router.post("/{room_code}/next")
 async def next_question(room_code: str):
-    gs = GAMES.get(room_code)
-    if not gs:
-        # Resume from DB (container restart recovery)
+    # Same lock + critical-section pattern as submit_answer: hold the room
+    # lock across state mutation, DB write, and broadcast.
+    lock = await get_room_lock(room_code)
+    async with lock:
+        gs = GAMES.get(room_code)
+        if not gs:
+            # Resume from DB (container restart recovery)
+            db = SessionLocal()
+            try:
+                g = db.query(GameSession).filter(GameSession.room_code == room_code).first()
+                if not g or g.status == "finished":
+                    raise HTTPException(status_code=404, detail="Game not found")
+                # Reconstruct minimal game state from DB for resume
+                from app.services.game_engine import GameState
+                gs = GameState(room_code=room_code, profile_id=g.profile_id, total_q=g.total_questions)
+                gs.status = g.status
+                gs.current_q = g.current_question
+                GAMES[room_code] = gs
+            finally:
+                db.close()
+        if not gs:
+            raise HTTPException(status_code=404, detail="Game not found")
+        if gs.status == "finished":
+            # Game already ended (e.g., wedge win in /answer) — don't advance.
+            raise HTTPException(status_code=400, detail="Game already finished")
+        gs.next_question()
+        # SPEC: question exhaustion ends the game with highest-score winner.
+        if gs.current_q >= gs.total_q:
+            gs.status = "finished"
         db = SessionLocal()
         try:
             g = db.query(GameSession).filter(GameSession.room_code == room_code).first()
-            if not g or g.status == "finished":
-                raise HTTPException(status_code=404, detail="Game not found")
-            # Reconstruct minimal game state from DB for resume
-            from app.services.game_engine import GameState
-            gs = GameState(room_code=room_code, profile_id=g.profile_id, total_q=g.total_questions)
-            gs.status = g.status
-            gs.current_q = g.current_question
-            GAMES[room_code] = gs
+            if g:
+                g.current_question = gs.current_q
+                g.status = gs.status
+                db.commit()
         finally:
             db.close()
-    if not gs:
-        raise HTTPException(status_code=404, detail="Game not found")
-    if gs.status == "finished":
-        # Game already ended (e.g., wedge win in /answer) — don't advance.
-        raise HTTPException(status_code=400, detail="Game already finished")
-    gs.next_question()
-    # SPEC: question exhaustion ends the game with highest-score winner.
-    if gs.current_q >= gs.total_q:
-        gs.status = "finished"
-    db = SessionLocal()
-    try:
-        g = db.query(GameSession).filter(GameSession.room_code == room_code).first()
-        if g:
-            g.current_question = gs.current_q
-            g.status = gs.status
-            db.commit()
-    finally:
-        db.close()
-    # Broadcast new question (or game_over) to all players
-    if gs.status == "finished":
-        winner = gs.winner()
-        await broadcast(room_code, {
-            "type": "game_over",
-            "room_code": room_code,
-            "reason": "exhaustion",
-            "winner_player_id": winner.player_id if winner else None,
-            "winner_player_name": winner.player_name if winner else None,
-            "winner_wedges": sorted(winner.wedges) if winner else [],
-            "final_scores": gs.get_scores(),
-        })
-        _finalize_game_stats(room_code)
-    else:
-        q = gs.current_question()
-        if q:
-            await broadcast(room_code, {
-                "type": "new_question",
-                "question_num": gs.current_q + 1,
-                "total_questions": len(gs.questions),
-                "category": q.category,
-                "category_color": CATEGORY_COLORS.get(q.category, "#ffffff"),
-                "question_text": q.question_text,
-                "options": [q.correct_answer] + list(q.wrong_answers),
-                "timer_seconds": gs.question_time_limit,
-            })
-    return {"ok": True, "current_question": gs.current_q + 1, "status": gs.status}
+
+        # Snapshot broadcast payloads inside the lock.
+        if gs.status == "finished":
+            winner = gs.winner()
+            broadcast_payload = {
+                "type": "game_over",
+                "room_code": room_code,
+                "reason": "exhaustion",
+                "winner_player_id": winner.player_id if winner else None,
+                "winner_player_name": winner.player_name if winner else None,
+                "winner_wedges": sorted(winner.wedges) if winner else [],
+                "final_scores": gs.get_scores(),
+            }
+        else:
+            q = gs.current_question()
+            broadcast_payload = None
+            if q:
+                broadcast_payload = {
+                    "type": "new_question",
+                    "question_num": gs.current_q + 1,
+                    "total_questions": len(gs.questions),
+                    "category": q.category,
+                    "category_color": CATEGORY_COLORS.get(q.category, "#ffffff"),
+                    "question_text": q.question_text,
+                    "options": [q.correct_answer] + list(q.wrong_answers),
+                    "timer_seconds": gs.question_time_limit,
+                }
+
+        # Broadcast + cleanup inside the lock so listeners and state are
+        # consistent with each other.
+        if broadcast_payload is not None:
+            await broadcast(room_code, broadcast_payload)
+        if gs.status == "finished":
+            await _finalize_game_stats(room_code)
+
+        return {"ok": True, "current_question": gs.current_q + 1, "status": gs.status}
 
 @router.get("/{room_code}/scores")
 def get_scores(room_code: str):

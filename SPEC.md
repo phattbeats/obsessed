@@ -614,6 +614,13 @@ trivia-app/
 - If question generation fails mid-profile, partial questions are kept
 - All scraped raw text stored for re-generation if needed
 
+### Concurrency model (`PHA-1338`)
+- `GAMES: dict[str, GameState]` is process-local in-memory state.
+- Per-room `asyncio.Lock` guards mutation of `GAMES[room_code]` and its `GameState`. Acquired around the entire critical section in `submit_answer`, `next_question`, `join_game`, `start_game`, `get_game`, `create_game`. Without the lock, two concurrent `/answer` calls each observing `all_wedges_earned() == True` would fire duplicate `game_over` events.
+- Lock acquisition is not re-entrant. `get_or_create_game` is async and acquires the lock; `_get_or_create_game_locked` is the sync helper used inside `async with lock:` blocks.
+- Single-worker uvicorn is sufficient. Multi-worker uvicorn would split `GAMES` across processes; requests for the same room could land on different workers and corrupt each other's state. **Out of scope for v1** — fix is to move state to Redis (or similar) and acquire a Redis lock. Documented in `app/services/game_engine.py`.
+- `submit_answer` rejects with 400 when `gs.status == "finished"` — prevents late concurrent arrivals from re-triggering the wedge-win branch.
+
 ---
 
 ## 9. MVP Scope
