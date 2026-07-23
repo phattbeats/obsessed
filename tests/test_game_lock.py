@@ -265,16 +265,20 @@ async def test_concurrent_answers_via_app():
         assert p.status_code == 200, p.text
         profile_id = p.json()["id"]
 
-        # Scrape → generate questions
-        s = await ac.post(f"/api/profiles/{profile_id}/scrape")
-        assert s.status_code == 200, s.text
-
-        # Grant consent + seed deterministic questions (bypass LLM dependency)
+        # Grant consent + seed deterministic questions (bypass scrape/LLM entirely).
+        # The test is about the per-room lock under concurrent /answer calls —
+        # we don't need the scrape pipeline, and a flaky scrape pollutes the
+        # question pool with non-deterministic correct_answer values that
+        # break the "alice correct, bob wrong" assertion at the bottom.
         from app.database import SessionLocal as _SL
         db = _SL()
         try:
             row = db.query(Profile).filter(Profile.id == profile_id).first()
             row.consent_obtained = True
+            row.scrape_status = "completed"
+            db.commit()
+            # Wipe any questions left over from prior tests in this DB.
+            db.query(Question).filter(Question.profile_id == profile_id).delete()
             db.commit()
             # Add 6 deterministic questions covering all categories
             cats = ["history", "entertainment", "geography", "science", "sports", "art_literature"]
