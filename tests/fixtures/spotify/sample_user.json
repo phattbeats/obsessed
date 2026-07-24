@@ -1,0 +1,24 @@
+{
+  "/me": {
+    "id": "rj_spotify",
+    "display_name": "Richard Jones"
+  },
+  "/me/top/artists": {
+    "items": [
+      {"name": "Radiohead", "genres": ["art rock", "alternative rock"]},
+      {"name": "Boards of Canada", "genres": ["idm", "electronic"]}
+    ]
+  },
+  "/me/top/tracks": {
+    "items": [
+      {"name": "Everything In Its Right Place", "artists": [{"name": "Radiohead"}], "album": {"name": "Kid A"}},
+      {"name": "Roygbiv", "artists": [{"name": "Boards of Canada"}], "album": {"name": "Music Has the Right to Children"}}
+    ]
+  },
+  "/me/playlists": {
+    "items": [
+      {"name": "Rainy Day", "tracks": {"total": 42}, "owner": {"display_name": "Richard Jones"}},
+      {"name": "Shared Mix", "tracks": {"total": 15}, "owner": {"display_name": "Someone Else"}}
+    ]
+  }
+}
