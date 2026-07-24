@@ -28,6 +28,9 @@ class Settings(BaseSettings):
             "TWOCAPTCHA_API_KEY", "2CAPTCHA_API_KEY", "TWO_CAPTCHA_API_KEY"
         ),
     )
+    datadome_solve_proxy: str = ""  # HTTP forward proxy for DataDome solves: USER:PASS@HOST:PORT (must egress same residential IP as the scraper)
+    datadome_max_solves_per_run: int = 5  # hard cap on 2Captcha DataDome solve calls per process restart
+    familysearch_client_id: str = ""  # free developer key from https://www.familysearch.org/developers/ — required for the Family Tree unauthenticated-session API
     question_count: int = 50
     question_timeout: int = 30  # seconds per question
     ws_heartbeat: int = 30
