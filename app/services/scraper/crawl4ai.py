@@ -13,6 +13,32 @@ def _crawl4ai_headers() -> dict:
     return {}
 
 
+async def crawl4ai_fetch_html(url: str) -> tuple[str, int]:
+    """Fetch a URL's rendered raw HTML via crawl4ai's headless browser.
+
+    crawl4ai egresses the shared browser service (residential-ish IP, real JS
+    render), which clears Cloudflare/DataDome interstitials that a bare httpx GET
+    from this container hits. Returns (html, status); html is "" on failure so
+    callers can fall through to another strategy.
+    """
+    try:
+        async with httpx.AsyncClient(timeout=70.0) as client:
+            resp = await client.post(
+                CRAWL4AI_URL + "/crawl",
+                json={"urls": [url]},
+                headers=_crawl4ai_headers(),
+            )
+            resp.raise_for_status()
+            results = resp.json().get("results", [])
+            if not results:
+                return "", 0
+            r = results[0]
+            html = r.get("html") or r.get("cleaned_html") or r.get("raw_html") or ""
+            return html, int(r.get("status_code") or 0)
+    except Exception:
+        return "", 0
+
+
 async def crawl4ai_scrape(url: str) -> tuple[str, Optional[dict]]:
     """
     Scrape any URL using crawl4ai.
