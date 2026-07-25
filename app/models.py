@@ -161,6 +161,17 @@ class AnswerSubmit(BaseModel):
     answer_text: str
     time_taken_ms: int = 0
 
+
+class NextQuestionRequest(BaseModel):
+    """PHA-1336: /next requires the caller's player_id for host verification.
+
+    The host (first player to join) is the only player who can manually
+    advance the question. Non-hosts may also advance once every active
+    player has answered the current question — see GameState.can_advance
+    for the full rule and the rationale.
+    """
+    player_id: str
+
 class AnswerResponse(BaseModel):
     player_id: str
     player_name: str

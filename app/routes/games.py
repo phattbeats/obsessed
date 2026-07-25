@@ -4,7 +4,7 @@ import time as _time_module
 from app.database import SessionLocal, Profile, Question, GameSession, Player, Answer, PlayerStats
 from app.models import (
     GameCreate, GameResponse, PlayerJoin, PlayerResponse,
-    AnswerSubmit, AnswerResponse, QuestionDisplay,
+    AnswerSubmit, AnswerResponse, QuestionDisplay, NextQuestionRequest,
 )
 from app.routes.profiles import trigger_scrape
 from app.services.game_engine import (
@@ -406,6 +406,26 @@ async def submit_answer(room_code: str, data: AnswerSubmit):
                 for pid, ps in gs.players.items()
             },
         })
+        # PHA-1336: when the last active player answers the current question,
+        # broadcast round_complete so the host's UI can present a manual
+        # "next" tap (and non-host clients show a "waiting for host…"
+        # indicator). This is the signal that replaces the old 2s setTimeout
+        # auto-advance — which raced when multiple devices all timed out
+        # and double-advanced or skipped questions.
+        if gs.all_answered() and not game_ended_by_wedges:
+            host = gs.host_player()
+            await broadcast(room_code, {
+                "type": "round_complete",
+                "room_code": room_code,
+                "question_num": gs.current_q + 1,
+                "total_questions": len(gs.questions),
+                "host_player_id": host.player_id if host else None,
+                "host_player_name": host.player_name if host else None,
+                "answered_player_ids": [
+                    pid for pid, ps in gs.players.items()
+                    if ps.is_active and ps.answered_current
+                ],
+            })
         # If a wedge win just triggered, finalize stats and broadcast game_over
         # with reason="wedges" so the UI can render the wedge-win state.
         if game_ended_by_wedges:
@@ -465,7 +485,21 @@ def _finalize_game_stats(room_code: str):
     cleanup_game(room_code)
 
 @router.post("/{room_code}/next")
-async def next_question(room_code: str):
+async def next_question(room_code: str, data: NextQuestionRequest):
+    """Advance to the next question.
+
+    PHA-1336 — host-controlled advance:
+      - The host (first player to join) can advance at any time.
+      - Non-hosts can advance once every active player has answered
+        the current question (fallback path if host's phone dies).
+      - Anyone else gets 403 with a hint about who the host is.
+
+    Before this change, /next accepted no identity and any client could
+    call it — in multi-device games, every device's 2s setTimeout would
+    fire and double-advance or skip questions. The contract is now
+    explicit; the client UI shows the host a "next" button and non-hosts
+    a "waiting" indicator.
+    """
     gs = GAMES.get(room_code)
     if not gs:
         # Resume from DB (container restart recovery)
@@ -487,6 +521,19 @@ async def next_question(room_code: str):
     if gs.status == "finished":
         # Game already ended (e.g., wedge win in /answer) — don't advance.
         raise HTTPException(status_code=400, detail="Game already finished")
+    # PHA-1336: caller identity required. Unknown player_id, or a known
+    # non-host who hasn't waited for the rest of the round, gets 403.
+    if data.player_id not in gs.players:
+        raise HTTPException(status_code=404, detail="Player not in game")
+    if not gs.can_advance(data.player_id):
+        host = gs.host_player()
+        raise HTTPException(
+            status_code=403,
+            detail=(
+                "Only the host can advance until everyone has answered."
+                + (f" Waiting on host: {host.player_name}." if host else "")
+            ),
+        )
     gs.next_question()
     # SPEC: question exhaustion ends the game with highest-score winner.
     if gs.current_q >= gs.total_q:

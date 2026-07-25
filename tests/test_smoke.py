@@ -336,3 +336,267 @@ async def test_things_beyond_max_fails():
         things = [{"profile_id": i, "num_questions": 10} for i in range(1, 15)]
         r = await ac.post("/api/games", json={"things": things})
     assert r.status_code == 400, f"expected 400 for >10 things, got {r.status_code}"
+
+# ── PHA-1336 host-controlled question advance ────────────────────────────────
+# The /next route used to accept any caller — in a multi-device game every
+# device's 2s setTimeout fired and double-advanced (Q1→Q2→Q3), skipping
+# questions. The new contract:
+#   - /next requires player_id in the body
+#   - The host (first player to join) can advance at any time
+#   - Non-hosts can advance once every active player has answered
+#     (fallback if the host's phone dies)
+#   - Anyone else gets 403 with a hint about who the host is
+# These tests pin that contract on top of the existing game state.
+
+import json as _json
+from app.database import SessionLocal, Profile, Question, GameSession
+from app.services.game_engine import GAMES
+
+
+def _seed_minimal_game(profile_id, n_questions=4):
+    """Seed `n_questions` real questions and return the room code."""
+    db = SessionLocal()
+    try:
+        for i in range(n_questions):
+            db.add(Question(
+                profile_id=profile_id, category="history",
+                question_text=f"PHA-1336 seed Q{i + 1}",
+                correct_answer=f"correct-{i + 1}",
+                wrong_answers=_json.dumps([f"wrong-{i + 1}.1", f"wrong-{i + 1}.2", f"wrong-{i + 1}.3"]),
+                difficulty=1,
+            ))
+        db.commit()
+    finally:
+        db.close()
+
+
+def _ensure_profile_id():
+    """Make sure at least one profile exists with consent granted.
+    Each pytest run gets a fresh temp DB, so each PHA-1336 test creates
+    its own anchor profile. start_game requires consent_obtained."""
+    from fastapi.testclient import TestClient
+    from app.main import app
+    with TestClient(app) as tc:
+        r = tc.post("/api/profiles", json={"name": "PHA-1336 subject", "entity_type": "person"})
+        assert r.status_code == 200, r.text
+        pid = r.json()["id"]
+        # start_game rejects without consent; grant it before returning.
+        rc = tc.put(f"/api/profiles/{pid}", json={"consent_obtained": True})
+        assert rc.status_code == 200, rc.text
+        return pid
+
+
+def _make_game(profile_id, n_questions=4):
+    """Create a profile, seed questions, create a GameSession row, and
+    return (room_code, profile_id). Skips if scrape produced no questions."""
+    from fastapi.testclient import TestClient
+    from app.main import app
+    # Use TestClient (sync) for setup; smoke tests use AsyncClient.
+    with TestClient(app) as tc:
+        # Reuse the profile-by-name lookup helper.
+        db = SessionLocal()
+        try:
+            p = db.query(Profile).filter(Profile.id == profile_id).first()
+            if not p:
+                # Profile not seeded yet — call /scrape to create one
+                r = tc.post("/api/profiles", json={"name": "PHA-1336 subject", "entity_type": "person"})
+                assert r.status_code == 200, r.text
+                profile_id = r.json()["id"]
+                tc.post(f"/api/profiles/{profile_id}/scrape")
+        finally:
+            db.close()
+    _seed_minimal_game(profile_id, n_questions)
+    db = SessionLocal()
+    try:
+        g = GameSession(room_code=f"9999{profile_id:03d}", profile_id=profile_id, total_questions=n_questions)
+        db.add(g); db.commit(); db.refresh(g)
+        return g.room_code, profile_id
+    finally:
+        db.close()
+
+
+def _purge_game(room_code):
+    if room_code in GAMES:
+        del GAMES[room_code]
+    db = SessionLocal()
+    try:
+        db.query(GameSession).filter(GameSession.room_code == room_code).delete()
+        db.commit()
+    finally:
+        db.close()
+
+
+@pytest.mark.asyncio
+async def test_next_requires_player_id_403():
+    """PHA-1336: /next without player_id is rejected — no silent anonymous advance."""
+    pid = _ensure_profile_id()
+    room, _ = _make_game(pid, n_questions=3)
+
+    # Stage: host + non-host both join, host is set on first join via start_game.
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as ac:
+        await ac.post(f"/api/games/{room}/join", json={"player_id": "host_p", "player_name": "Host"})
+        await ac.post(f"/api/games/{room}/join", json={"player_id": "other_p", "player_name": "Other"})
+        st = await ac.post(f"/api/games/{room}/start")
+        if st.status_code != 200:
+            _purge_game(room)
+            pytest.skip("start failed (likely no questions)")
+        # 1. No player_id at all — 422 (missing field) or 403 — either way no advance.
+        r = await ac.post(f"/api/games/{room}/next", json={})
+        assert r.status_code in (403, 422), f"anonymous next should be rejected, got {r.status_code}: {r.text}"
+        # current_q should still be 0
+        gs = GAMES.get(room)
+        assert gs is not None and gs.current_q == 0, "no-op rejection must not advance"
+    _purge_game(room)
+
+
+@pytest.mark.asyncio
+async def test_next_non_host_blocked_until_all_answered():
+    """PHA-1336: non-host cannot advance while another player hasn't answered.
+
+    Setup: host + other join, start, host answers, other does NOT answer.
+    Non-host /next → 403. After other answers, /next → 200 (auto-allow).
+    """
+    pid = _ensure_profile_id()
+    room, _ = _make_game(pid, n_questions=3)
+
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as ac:
+        await ac.post(f"/api/games/{room}/join", json={"player_id": "host_p", "player_name": "Host"})
+        await ac.post(f"/api/games/{room}/join", json={"player_id": "other_p", "player_name": "Other"})
+        st = await ac.post(f"/api/games/{room}/start")
+        if st.status_code != 200:
+            _purge_game(room)
+            pytest.skip("start failed")
+        # host answers first
+        a = await ac.post(f"/api/games/{room}/answer",
+                          json={"player_id": "host_p", "answer_text": "correct-1", "time_taken_ms": 1000})
+        assert a.status_code == 200, a.text
+        # other has NOT answered yet
+        # non-host /next → 403
+        r = await ac.post(f"/api/games/{room}/next", json={"player_id": "other_p"})
+        assert r.status_code == 403, f"non-host should be blocked while other hasn't answered, got {r.status_code}: {r.text}"
+        gs = GAMES.get(room)
+        assert gs.current_q == 0, "must not have advanced"
+        # other now answers
+        a2 = await ac.post(f"/api/games/{room}/answer",
+                           json={"player_id": "other_p", "answer_text": "correct-1", "time_taken_ms": 1000})
+        assert a2.status_code == 200, a2.text
+        # now both have answered — non-host may advance
+        r2 = await ac.post(f"/api/games/{room}/next", json={"player_id": "other_p"})
+        assert r2.status_code == 200, f"non-host should be allowed once all answered, got {r2.status_code}: {r2.text}"
+        assert GAMES[room].current_q == 1, "should have advanced to Q2"
+    _purge_game(room)
+
+
+@pytest.mark.asyncio
+async def test_next_host_can_advance_anytime():
+    """PHA-1336: host can advance even before others answer (manual pace control)."""
+    pid = _ensure_profile_id()
+    room, _ = _make_game(pid, n_questions=3)
+
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as ac:
+        await ac.post(f"/api/games/{room}/join", json={"player_id": "host_p", "player_name": "Host"})
+        await ac.post(f"/api/games/{room}/join", json={"player_id": "other_p", "player_name": "Other"})
+        st = await ac.post(f"/api/games/{room}/start")
+        if st.status_code != 200:
+            _purge_game(room)
+            pytest.skip("start failed")
+        # Nobody has answered yet. Host can still advance.
+        r = await ac.post(f"/api/games/{room}/next", json={"player_id": "host_p"})
+        assert r.status_code == 200, f"host should be able to advance anytime, got {r.status_code}: {r.text}"
+        assert GAMES[room].current_q == 1, "host advance must move current_q"
+    _purge_game(room)
+
+
+@pytest.mark.asyncio
+async def test_next_double_advance_blocked():
+    """PHA-1336: the race we're fixing — two devices call /next back-to-back.
+
+    Before the fix: /next accepted any caller. With N devices in a game,
+    each one's 2s setTimeout would fire and call /next — advancing
+    current_q N times per round, skipping questions.
+
+    After the fix: the first /next that wins (host tap, or any tap after
+    all_answered) resets every player's answered_current to False. Any
+    concurrent /next calls that race in after that get 403 because:
+      - The non-host caller no longer has all_answered=True (the reset
+        cleared the round-complete flag for everyone).
+      - The host caller has already advanced, but they CAN advance again
+        (manual pace control). The race only blows up between multiple
+        hosts, and there's only one host.
+
+    What we assert: two back-to-back /next calls advance current_q by
+    exactly 1 per call (the loser sees 403, not a duplicate advance),
+    and the count is preserved through subsequent rounds.
+    """
+    pid = _ensure_profile_id()
+    room, _ = _make_game(pid, n_questions=3)
+
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as ac:
+        await ac.post(f"/api/games/{room}/join", json={"player_id": "host_p", "player_name": "Host"})
+        await ac.post(f"/api/games/{room}/join", json={"player_id": "other_p", "player_name": "Other"})
+        st = await ac.post(f"/api/games/{room}/start")
+        if st.status_code != 200:
+            _purge_game(room)
+            pytest.skip("start failed")
+        # Round 1: both answer Q1, then both call /next in the race window.
+        await ac.post(f"/api/games/{room}/answer", json={"player_id": "host_p", "answer_text": "correct-1", "time_taken_ms": 1000})
+        await ac.post(f"/api/games/{room}/answer", json={"player_id": "other_p", "answer_text": "correct-1", "time_taken_ms": 1000})
+        r1a = await ac.post(f"/api/games/{room}/next", json={"player_id": "host_p"})
+        # The second tap arrives "5ms later" — the old bug would advance
+        # current_q again (Q1 → Q2 → Q3). The new contract rejects this
+        # because next_question() reset everyone's answered_current.
+        r1b = await ac.post(f"/api/games/{room}/next", json={"player_id": "other_p"})
+        # Host tap succeeds; non-host duplicate gets 403 (reset state).
+        assert r1a.status_code == 200, f"host advance should succeed: {r1a.text}"
+        assert r1b.status_code == 403, (
+            f"concurrent duplicate /next should be rejected (the race we're fixing), "
+            f"got {r1b.status_code}: {r1b.text}"
+        )
+        # Round 1 net advance: exactly +1. (Old bug would have been +2.)
+        assert GAMES[room].current_q == 1, (
+            f"race should advance by exactly 1 per round, got current_q={GAMES[room].current_q}"
+        )
+        # Round 2: both answer Q2, host advances cleanly to Q3.
+        await ac.post(f"/api/games/{room}/answer", json={"player_id": "host_p", "answer_text": "correct-2", "time_taken_ms": 1000})
+        await ac.post(f"/api/games/{room}/answer", json={"player_id": "other_p", "answer_text": "correct-2", "time_taken_ms": 1000})
+        r2 = await ac.post(f"/api/games/{room}/next", json={"player_id": "host_p"})
+        assert r2.status_code == 200
+        assert GAMES[room].current_q == 2
+        # Round 3 advances from Q2 → Q3; Q3 is the last seeded, so the
+        # response marks status="finished" and _finalize_game_stats
+        # removes the room from in-memory GAMES (intentional cleanup).
+        await ac.post(f"/api/games/{room}/answer", json={"player_id": "host_p", "answer_text": "correct-3", "time_taken_ms": 1000})
+        await ac.post(f"/api/games/{room}/answer", json={"player_id": "other_p", "answer_text": "correct-3", "time_taken_ms": 1000})
+        r3 = await ac.post(f"/api/games/{room}/next", json={"player_id": "host_p"})
+        assert r3.status_code == 200
+        body3 = r3.json()
+        assert body3["status"] == "finished", (
+            f"after Q3 advance the game should be exhausted → finished, got {body3}"
+        )
+        assert body3["current_question"] == 4  # 1-indexed display: gs.current_q=3 → "Q4" past the end
+        # GAMES[room] is gone now (cleanup_game ran) — that's fine.
+    # _purge_game handles the already-removed case.
+
+
+@pytest.mark.asyncio
+async def test_next_unknown_player_404():
+    """PHA-1336: bogus player_id never resolves; never advances, never 500."""
+    pid = _ensure_profile_id()
+    room, _ = _make_game(pid, n_questions=3)
+
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as ac:
+        await ac.post(f"/api/games/{room}/join", json={"player_id": "host_p", "player_name": "Host"})
+        await ac.post(f"/api/games/{room}/join", json={"player_id": "other_p", "player_name": "Other"})
+        st = await ac.post(f"/api/games/{room}/start")
+        if st.status_code != 200:
+            _purge_game(room)
+            pytest.skip("start failed")
+        r = await ac.post(f"/api/games/{room}/next", json={"player_id": "ghost_player"})
+        assert r.status_code == 404, f"unknown player should be 404, got {r.status_code}: {r.text}"
+        assert GAMES[room].current_q == 0
+    _purge_game(room)
