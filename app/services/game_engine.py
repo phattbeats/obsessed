@@ -96,6 +96,44 @@ class GameState:
     def all_wedges_earned(self) -> bool:
         return any(len(p.wedges) >= 6 for p in self.players.values())
 
+    def host_player(self) -> Optional["PlayerState"]:
+        """Return the host's PlayerState, or None if no host has been assigned.
+
+        PHA-1336: the host is the only player who can manually advance the
+        question. The first player to join is set as host in start_game();
+        this is the single source of truth on the server side.
+        """
+        for p in self.players.values():
+            if p.is_host:
+                return p
+        return None
+
+    def host_player_id(self) -> Optional[str]:
+        h = self.host_player()
+        return h.player_id if h else None
+
+    def can_advance(self, player_id: str) -> bool:
+        """PHA-1336: permission check for the /next route.
+
+        A player may advance the question iff one of:
+          - They are the host (manual pace control), OR
+          - Every active player has answered the current question
+            (auto-allow once the round is complete; this is the fallback
+            path if the host's phone dies or for non-host clients that
+            want to drive the WS round_complete event without waiting on
+            a host tap).
+
+        Returns False for unknown players and during the finished state.
+        """
+        if self.status == "finished":
+            return False
+        p = self.players.get(player_id)
+        if not p:
+            return False
+        if p.is_host:
+            return True
+        return self.all_answered()
+
 # In-memory game state, persisted to SQLite on game end
 GAMES: dict[str, GameState] = {}
 

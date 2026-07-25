@@ -84,14 +84,22 @@ function handleWSMessage(msg) {
       break;
     case 'new_question':
       renderQuestionWS(msg);
+      hideAdvanceOverlay();  // PHA-1336: clear any stale host overlay
       break;
     case 'answer_result':
       showAnswerResultWS(msg);
+      break;
+    case 'round_complete':
+      // PHA-1336: server tells us the round is over and who the host is.
+      // Host sees a "Next →" button; non-host sees a "Waiting for <host>…"
+      // indicator. No client-side timer races anymore.
+      showAdvanceOverlay(msg);
       break;
     case 'question_advance':
       // Score update between questions — could update a live scoreboard
       break;
     case 'game_over':
+      hideAdvanceOverlay();  // don't leave a host button floating into results
       showResultsWS(msg);
       break;
   }
@@ -104,6 +112,11 @@ function showScreen(name) {
   const el = document.getElementById(map[name]);
   if (el) el.classList.add('active');
   if (name !== 'game') { clearInterval(pollInterval); clearInterval(timerInterval); }
+  // PHA-1336: clear any stale host overlay when leaving the game screen
+  // (avoids a leftover "Next →" button floating over the lobby or results).
+  if (name !== 'game' && typeof hideAdvanceOverlay === 'function') {
+    hideAdvanceOverlay();
+  }
   if (name === 'lobby') {
     const bangEl = document.getElementById('lobby-bang');
     if (bangEl) renderBang(bangEl, { variant: 'icon', wordmark: false });
@@ -436,6 +449,10 @@ function startTimerWS(seconds) {
 }
 
 function renderQuestion(q) {
+  // PHA-1336: same overlay hide as the WS path — if the poll fallback
+  // delivered a new question while the host overlay was up, the server
+  // has already advanced, so the overlay is stale and must disappear.
+  hideAdvanceOverlay();
   document.getElementById('question-progress').textContent = `Question ${q.question_num} / ${q.total_questions}`;
   document.getElementById('question-text').textContent = q.question_text;
   const badge = document.getElementById('category-badge');
@@ -549,12 +566,12 @@ async function submitAnswer(btn, answer) {
   clearInterval(timerInterval);
   const startMs = (30 - timerSeconds) * 1000;
   if (btn) btn.classList.add('selected');
-  
+
   const res = await fetch(API + `/api/games/${myRoomCode}/answer`, {
     method: 'POST', headers: {'Content-Type': 'application/json'},
     body: JSON.stringify({ player_id: myPlayerId, answer_text: answer, time_taken_ms: startMs }),
   });
-  
+
   if (res.ok) {
     const result = await res.json();
     const opts = document.querySelectorAll('.answer-btn');
@@ -571,15 +588,99 @@ async function submitAnswer(btn, answer) {
     toast(result.is_correct ? `+${result.points_earned} pts!` : 'Wrong!');
   }
 
-  setTimeout(async () => {
-    await fetch(API + `/api/games/${myRoomCode}/next`, { method: 'POST' });
-    const nextRes = await fetch(API + `/api/games/${myRoomCode}/question`);
-    if (nextRes.ok) {
-      loadQuestion();
-    } else {
-      showResults();
+  // PHA-1336: removed the 2s setTimeout that auto-called /next. That timer
+  // raced in multi-device games — every phone's setTimeout fired and the
+  // server advanced the question N times per round, skipping questions.
+  // The host now drives advancement explicitly: the server broadcasts
+  // round_complete when all active players have answered, and the host's
+  // UI surfaces a "Next →" button. Non-hosts see a "Waiting for host…"
+  // indicator and never call /next on their own.
+}
+
+// ── PHA-1336: host-controlled question advance ──────────────────────────────
+// After everyone answers the current question, the server broadcasts
+// round_complete with the host's player_id + name. The host's device
+// shows a "Next →" button; everyone else sees a "Waiting for <host>…"
+// indicator. The host's tap calls /next with their player_id. No more
+// client-side timers racing each other to advance the question.
+
+function ensureAdvanceOverlay() {
+  let ov = document.getElementById('advance-overlay');
+  if (ov) return ov;
+  ov = document.createElement('div');
+  ov.id = 'advance-overlay';
+  ov.className = 'advance-overlay hidden';
+  ov.innerHTML = `
+    <div class="advance-card">
+      <div class="advance-state" id="advance-state"></div>
+      <button class="advance-btn" id="advance-btn" type="button">Next →</button>
+    </div>`;
+  document.body.appendChild(ov);
+  const btn = ov.querySelector('#advance-btn');
+  btn.addEventListener('click', () => requestNext());
+  return ov;
+}
+
+function showAdvanceOverlay(msg) {
+  const ov = ensureAdvanceOverlay();
+  const state = ov.querySelector('#advance-state');
+  const btn = ov.querySelector('#advance-btn');
+  const isHost = msg && msg.host_player_id === myPlayerId;
+  state.classList.toggle('is-host', !!isHost);
+  state.classList.toggle('is-guest', !isHost);
+  if (isHost) {
+    state.textContent = 'Round complete — your move';
+    btn.style.display = '';
+    btn.disabled = false;
+    btn.textContent = `Next → Q${(msg.question_num || 0) + 1}`;
+  } else {
+    const name = (msg && msg.host_player_name) || 'host';
+    state.textContent = `Waiting for ${name}…`;
+    btn.style.display = 'none';
+  }
+  ov.classList.remove('hidden');
+}
+
+function hideAdvanceOverlay() {
+  const ov = document.getElementById('advance-overlay');
+  if (ov) ov.classList.add('hidden');
+}
+
+async function requestNext() {
+  const ov = document.getElementById('advance-overlay');
+  const btn = ov && ov.querySelector('#advance-btn');
+  if (btn) btn.disabled = true;  // prevent double-tap during the request
+  try {
+    const res = await fetch(API + `/api/games/${myRoomCode}/next`, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ player_id: myPlayerId }),
+    });
+    if (res.status === 403) {
+      // Server rejected — e.g. another player just answered and the
+      // round-complete flag cleared. Stay in overlay state; the server
+      // will broadcast a new round_complete once everyone has re-answered.
+      toast('Wait for everyone to answer…');
+      if (btn) btn.disabled = false;
+      return;
     }
-  }, 2000);
+    if (res.status === 400) {
+      // Game already finished (wedge win or exhaustion) — overlay should
+      // disappear once game_over lands via WS. Nothing else to do here.
+      return;
+    }
+    if (!res.ok) {
+      toast('Could not advance — retrying…');
+      if (btn) btn.disabled = false;
+    }
+    // Success: the server will broadcast new_question or game_over via
+    // WS, which will hide the overlay. No client-side fetch /question
+    // needed (and no race with the WS).
+  } catch (err) {
+    console.warn('[next] network error', err);
+    if (btn) btn.disabled = false;
+    toast('Network error');
+  }
 }
 
 // ── WS-driven results screen ──────────────────────────────────────────────────

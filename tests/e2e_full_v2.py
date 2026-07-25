@@ -185,7 +185,13 @@ async def play_full_game(c, room_code, p1, p2, expected_total):
         if st == 200:
             final_scores = scores
         # advance
-        st, nx = await c.call("POST", f"/api/games/{room_code}/next", None, f"next after Q{seen}")
+        # PHA-1336: /next now requires player_id. p1 is the host (first
+        # player to join — set in start_game), so it always has the
+        # right to advance; we pass it explicitly here to make the
+        # contract clear and to fail loudly if the route ever drops
+        # the player_id check.
+        st, nx = await c.call("POST", f"/api/games/{room_code}/next",
+                              {"player_id": p1}, f"next after Q{seen}")
         check(st == 200, f"next → {st}: {nx}")
 
     check(seen == total, f"played {seen} questions, expected {total}")
