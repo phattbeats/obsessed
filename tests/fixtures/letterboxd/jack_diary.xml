@@ -1,0 +1,79 @@
+<?xml version='1.0' encoding='utf-8'?>
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:letterboxd="https://letterboxd.com" xmlns:tmdb="https://themoviedb.org">
+	<channel>
+		<title>Letterboxd - Jack Moulton</title>
+		<link>https://letterboxd.com/jack/</link>
+		<description>Letterboxd - Jack Moulton</description>
+		<atom:link rel="self" href="https://letterboxd.com/jack/rss/" type="application/rss+xml"/>
+		<item>
+			<title>Trainspotting, 1996 - ★★★★½</title>
+			<link>https://letterboxd.com/jack/film/trainspotting/</link>
+			<guid isPermaLink="false">letterboxd-review-1412786022</guid>
+			<pubDate>Sat, 25 Jul 2026 13:03:01 +1200</pubDate>
+			<letterboxd:watchedDate>2026-07-24</letterboxd:watchedDate>
+			<letterboxd:rewatch>Yes</letterboxd:rewatch>
+			<letterboxd:filmTitle>Trainspotting</letterboxd:filmTitle>
+			<letterboxd:filmYear>1996</letterboxd:filmYear>
+			<letterboxd:memberRating>4.5</letterboxd:memberRating>
+			<letterboxd:memberLike>Yes</letterboxd:memberLike>
+			<tmdb:movieId>627</tmdb:movieId>
+			<description><![CDATA[ <p><img src="https://a.ltrbxd.com/resized/poster.jpg" /></p><p>Renton is one of cinema's great unreliable narrators. The film still hits hard on rewatch.</p>]]></description>
+		</item>
+		<item>
+			<title>Mulholland Drive, 2001 - ★★★★★</title>
+			<link>https://letterboxd.com/jack/film/mulholland-drive/</link>
+			<guid isPermaLink="false">letterboxd-review-1412786023</guid>
+			<pubDate>Fri, 24 Jul 2026 18:42:11 +1200</pubDate>
+			<letterboxd:watchedDate>2026-07-23</letterboxd:watchedDate>
+			<letterboxd:rewatch>No</letterboxd:rewatch>
+			<letterboxd:filmTitle>Mulholland Drive</letterboxd:filmTitle>
+			<letterboxd:filmYear>2001</letterboxd:filmYear>
+			<letterboxd:memberRating>5.0</letterboxd:memberRating>
+			<letterboxd:memberLike>Yes</letterboxd:memberLike>
+			<tmdb:movieId>10193</tmdb:movieId>
+			<description><![CDATA[ <p><img src="https://a.ltrbxd.com/resized/poster.jpg" /></p><p>Lynch at the height of his powers. Every frame rewards another look.</p>]]></description>
+		</item>
+		<item>
+			<title>The Room, 2003 - ★</title>
+			<link>https://letterboxd.com/jack/film/the-room/</link>
+			<guid isPermaLink="false">letterboxd-review-1412786024</guid>
+			<pubDate>Thu, 23 Jul 2026 21:10:00 +1200</pubDate>
+			<letterboxd:watchedDate>2026-07-22</letterboxd:watchedDate>
+			<letterboxd:rewatch>No</letterboxd:rewatch>
+			<letterboxd:filmTitle>The Room</letterboxd:filmTitle>
+			<letterboxd:filmYear>2003</letterboxd:filmYear>
+			<letterboxd:memberRating>1.0</letterboxd:memberRating>
+			<letterboxd:memberLike>No</letterboxd:memberLike>
+			<tmdb:movieId>17473</tmdb:movieId>
+			<description><![CDATA[ <p><img src="https://a.ltrbxd.com/resized/poster.jpg" /></p>]]></description>
+		</item>
+		<item>
+			<title>Pulp Fiction, 1994 - ★★★★</title>
+			<link>https://letterboxd.com/jack/film/pulp-fiction/</link>
+			<guid isPermaLink="false">letterboxd-review-1412786025</guid>
+			<pubDate>Wed, 22 Jul 2026 19:30:00 +1200</pubDate>
+			<letterboxd:watchedDate>2026-07-21</letterboxd:watchedDate>
+			<letterboxd:rewatch>No</letterboxd:rewatch>
+			<letterboxd:filmTitle>Pulp Fiction</letterboxd:filmTitle>
+			<letterboxd:filmYear>1994</letterboxd:filmYear>
+			<letterboxd:memberRating>4.0</letterboxd:memberRating>
+			<letterboxd:memberLike>No</letterboxd:memberLike>
+			<tmdb:movieId>680</tmdb:movieId>
+			<description><![CDATA[ <p><img src="https://a.ltrbxd.com/resized/poster.jpg" /></p><p>Tarantino's structural confidence makes this feel effortless. The Royale with Cheese scene alone is a thesis.</p>]]></description>
+		</item>
+		<item>
+			<title>The Big Lebowski, 1998 - ★★★★★</title>
+			<link>https://letterboxd.com/jack/film/the-big-lebowski/</link>
+			<guid isPermaLink="false">letterboxd-review-1412786026</guid>
+			<pubDate>Tue, 21 Jul 2026 20:15:00 +1200</pubDate>
+			<letterboxd:watchedDate>2026-07-20</letterboxd:watchedDate>
+			<letterboxd:rewatch>Yes</letterboxd:rewatch>
+			<letterboxd:filmTitle>The Big Lebowski</letterboxd:filmTitle>
+			<letterboxd:filmYear>1998</letterboxd:filmYear>
+			<letterboxd:memberRating>5.0</letterboxd:memberRating>
+			<letterboxd:memberLike>Yes</letterboxd:memberLike>
+			<tmdb:movieId>107</tmdb:movieId>
+			<description><![CDATA[ <p><img src="https://a.ltrbxd.com/resized/poster.jpg" /></p><p>This guy.</p>]]></description>
+		</item>
+	</channel>
+</rss>
