@@ -319,13 +319,38 @@ async def test_single_profile_id_game_still_works():
 
 @pytest.mark.asyncio
 async def test_things_empty_array_fails():
-    """things=[] returns 200 (no validation error) — server accepts it, questions will fail."""
+    """things=[] is a contentless payload — must be rejected with 400 (PHA-1341)."""
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as ac:
         r = await ac.post("/api/games", json={"things": []})
-    # Server currently returns 200 (empty things causes downstream failure only at start)
-    # TODO: add validation in create_game to return 400 for empty things
-    assert r.status_code in (200, 400), f"expected 200 or 400, got {r.status_code}"
+    assert r.status_code == 400, f"expected 400 for empty things, got {r.status_code}: {r.text}"
+    assert "things" in r.json().get("detail", "").lower()
+
+
+@pytest.mark.asyncio
+async def test_create_game_rejects_empty_payload():
+    """POST /api/games with neither profile_id nor things must return 400 (PHA-1341).
+
+    Previously this returned 200 and created a contentless GameSession row,
+    which then crashed at /start time with a less obvious error. Up-front
+    validation surfaces the problem at the API boundary.
+    """
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as ac:
+        r = await ac.post("/api/games", json={})
+    assert r.status_code == 400, f"expected 400 for empty payload, got {r.status_code}: {r.text}"
+    detail = r.json().get("detail", "").lower()
+    assert "profile_id" in detail and "things" in detail, \
+        f"detail should mention both fields, got: {detail!r}"
+
+
+@pytest.mark.asyncio
+async def test_create_game_rejects_explicit_nulls():
+    """POST /api/games with both fields explicitly null must return 400 (PHA-1341)."""
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as ac:
+        r = await ac.post("/api/games", json={"profile_id": None, "things": None})
+    assert r.status_code == 400, f"expected 400 for null/null payload, got {r.status_code}"
 
 
 @pytest.mark.asyncio

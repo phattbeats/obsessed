@@ -2,6 +2,24 @@ import uuid, random, json, time
 from dataclasses import dataclass, field
 from typing import Optional
 
+
+def _normalize_answer(text: Optional[str]) -> str:
+    """Exact-match contract (PHA-1341): normalize an answer string for comparison.
+
+    Rules:
+    - None / non-strings are treated as empty (always wrong, never crash).
+    - Leading and trailing whitespace is stripped.
+    - Comparison is case-insensitive (lowercased).
+    - Inner whitespace is preserved (so "New York" != "NewYork").
+
+    The match itself is then a plain `==` — once both sides are normalized
+    by this function, equality is *exact* (byte-for-byte) on the canonical form.
+    """
+    if not isinstance(text, str):
+        return ""
+    return text.strip().lower()
+
+
 @dataclass
 class TriviaQuestion:
     category: str
@@ -45,10 +63,33 @@ class GameState:
             p.answered_current = False
 
     def record_answer(self, player_id: str, answer: str, time_ms: int) -> tuple[bool, int]:
+        """Grade a player's answer against the current question.
+
+        Contract (PHA-1341):
+        - Returns (is_correct, points_earned).
+        - "Exact match" means byte-for-byte equality on the *normalized*
+          forms of the submitted answer and `correct_answer` (see
+          `_normalize_answer`). Normalization is trim + lowercase; inner
+          whitespace is preserved.
+        - If there is no current question, the call is a no-op and
+          returns (False, 0).
+        - If `player_id` is unknown, returns (False, 0) without raising —
+          the route layer is responsible for auth/authorization checks.
+        - On a correct answer the player earns 1000 + a time-bonus
+          (max 1000, scaled by `time_ms` against `question_time_limit`)
+          and gains the question's category as a wedge if they don't
+          already have it.
+        - The player's `answered_current` flag is set unconditionally,
+          and `last_answer_correct` reflects the graded outcome.
+        - Scoring is *not* retroactive: re-answering the same question
+          after it has advanced will not grade against the new question.
+        """
         q = self.current_question()
         if not q:
             return False, 0
-        correct = answer.strip().lower() == q.correct_answer.strip().lower()
+        if player_id not in self.players:
+            return False, 0
+        correct = _normalize_answer(answer) == _normalize_answer(q.correct_answer)
         pts = 0
         if correct:
             time_s = max(0, time_ms / 1000)

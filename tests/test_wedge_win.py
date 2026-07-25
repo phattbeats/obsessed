@@ -221,3 +221,100 @@ def test_wrong_answers_do_not_award_wedges():
 
     assert gs.players["a"].wedges == set()
     assert gs.all_wedges_earned() is False
+
+# ── record_answer() exact-match contract (PHA-1341) ───────────────────────────
+#
+# The contract: byte-for-byte equality on the *normalized* forms (trim +
+# lowercase). Inner whitespace is preserved. None / non-strings are
+# treated as empty (always wrong). These tests pin the contract so a
+# future "let's also strip punctuation" PR has to update the test.
+
+def _gs_with_question(correct: str) -> GameState:
+    """Build a GameState with a single question whose correct_answer is `correct`."""
+    gs = GameState(room_code="T", profile_id=1, total_q=1)
+    gs.questions = [
+        TriviaQuestion(
+            category="history",
+            question_text="q",
+            correct_answer=correct,
+            wrong_answers=["b", "c", "d"],
+        )
+    ]
+    return gs
+
+
+def test_record_answer_exact_match_case_insensitive():
+    """Submitting 'PARIS' matches 'paris' — normalization lowercases both sides."""
+    gs = _gs_with_question("paris")
+    gs.players["a"] = _player("a", "Alice")
+    correct, pts = gs.record_answer("a", "PARIS", 1000)
+    assert correct is True
+    assert pts > 0
+
+
+def test_record_answer_exact_match_trims_whitespace():
+    """Leading/trailing whitespace is stripped before comparison."""
+    gs = _gs_with_question("paris")
+    gs.players["a"] = _player("a", "Alice")
+    correct, pts = gs.record_answer("a", "   paris  \n", 1000)
+    assert correct is True
+    assert pts > 0
+
+
+def test_record_answer_inner_whitespace_preserved():
+    """Inner whitespace is NOT collapsed — 'New York' != 'NewYork'."""
+    gs = _gs_with_question("New York")
+    gs.players["a"] = _player("a", "Alice")
+    # Wrong: missing space.
+    correct, _ = gs.record_answer("a", "NewYork", 1000)
+    assert correct is False
+    # Right: exact on normalized form (lowercase + trim only).
+    correct, _ = gs.record_answer("a", "new york", 1000)
+    assert correct is True
+
+
+def test_record_answer_none_is_always_wrong():
+    """None answer is graded as wrong (no crash)."""
+    gs = _gs_with_question("paris")
+    gs.players["a"] = _player("a", "Alice")
+    correct, pts = gs.record_answer("a", None, 1000)  # type: ignore[arg-type]
+    assert correct is False
+    assert pts == 0
+    # Player bookkeeping still records the attempt.
+    assert gs.players["a"].answered_current is True
+    assert gs.players["a"].last_answer_correct is False
+
+
+def test_record_answer_empty_string_is_wrong():
+    """Empty / whitespace-only answers are wrong (after normalization)."""
+    gs = _gs_with_question("paris")
+    gs.players["a"] = _player("a", "Alice")
+    correct, pts = gs.record_answer("a", "", 1000)
+    assert correct is False
+    assert pts == 0
+    correct, pts = gs.record_answer("a", "   ", 1000)
+    assert correct is False
+    assert pts == 0
+
+
+def test_record_answer_unknown_player_is_noop():
+    """Unknown player_id returns (False, 0) without mutating state (PHA-1341)."""
+    gs = _gs_with_question("paris")
+    gs.players["a"] = _player("a", "Alice")
+    correct, pts = gs.record_answer("ghost", "paris", 1000)
+    assert correct is False
+    assert pts == 0
+    # Alice's state untouched.
+    assert "ghost" not in gs.players
+    assert gs.players["a"].answered_current is False
+
+
+def test_record_answer_no_active_question_returns_false():
+    """No current question → (False, 0) without touching player state."""
+    gs = GameState(room_code="T", profile_id=1, total_q=0)
+    gs.questions = []
+    gs.players["a"] = _player("a", "Alice")
+    correct, pts = gs.record_answer("a", "anything", 1000)
+    assert correct is False
+    assert pts == 0
+    assert gs.players["a"].answered_current is False
