@@ -11,13 +11,18 @@ Fixture-driven — mocks the LiteLLM /chat/completions endpoint with httpx
 so no live API key is needed in CI. The captured system_prompt is asserted
 on for the last.fm hint marker, and the user_prompt is asserted on for the
 last.fm raw_content so we know the actual blob reaches the model.
+
+PHA-1506 nit: the parser-level slice must preserve category diversity from
+the LLM response. If the LLM ever drifts into "all entertainment" (because
+the prompt's "Mix categories evenly" rule is loosened), the parser must
+not paper over it — the regression has to be visible in tests.
 """
 import json
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from app.services.scraper.reddit import generate_questions
+from app.services.scraper.reddit import CATEGORIES, generate_questions
 
 
 # ─────────────────────────────────────────────────────────────────
@@ -229,3 +234,163 @@ class TestMusicQuestionGeneratorNegativeCases:
             profile_id=1, raw_content="", name="nobody"
         )
         assert result == []
+
+
+class TestMusicQuestionGeneratorCategoryBalance:
+    """PHA-1506: parser-level pass-through preserves category diversity.
+
+    The system prompt asks the LLM to "Mix categories evenly across the 6
+    categories," but the parser does not enforce category balance — it just
+    JSON-parses whatever the LLM emitted. If the LLM ever drifts into a
+    monoculture response (e.g. all entertainment), the parser must surface
+    that as-is, not silently rebalance. These tests guard both halves of
+    that contract: diversity in → diversity out, monoculture in → monoculture out.
+    """
+
+    # Threshold from the issue: ≥3 distinct categories across a 50-question
+    # response. The actual model is asked for 6, but we don't want the test
+    # to demand perfect coverage — partial diversity is acceptable.
+    MIN_DISTINCT_CATEGORIES = 3
+
+    @staticmethod
+    def _build_question(index: int, category: str) -> dict:
+        """Build a single question dict at the given index with the given category."""
+        return {
+            "category": category,
+            "question_text": f"Question {index} about {category}?",
+            "correct_answer": f"answer_{index}",
+            "wrong_answers": [f"wrong_a_{index}", f"wrong_b_{index}", f"wrong_c_{index}"],
+            "difficulty": 1,
+            "source_snippet": f"snippet about {category} #{index}",
+        }
+
+    @classmethod
+    def _fixture_json(cls, categories: list[str], total: int = 50) -> str:
+        """Build a 50-question JSON fixture spanning the requested categories.
+
+        Distributes questions as evenly as possible across `categories`,
+        with the remainder added to the first entries. Result is a single
+        JSON-encoded list — exactly the shape the LLM is expected to return.
+        """
+        if not categories:
+            raise ValueError("categories must be non-empty")
+        questions = []
+        per_cat = total // len(categories)
+        remainder = total % len(categories)
+        for i, cat in enumerate(categories):
+            count = per_cat + (1 if i < remainder else 0)
+            for j in range(count):
+                questions.append(cls._build_question(len(questions) + 1, cat))
+        # Sanity check the count — if categories list is wrong, the test
+        # should fail loudly, not silently produce a wrong-size fixture.
+        assert len(questions) == total, (
+            f"Fixture build bug: expected {total} questions, got {len(questions)} "
+            f"for categories={categories}"
+        )
+        return json.dumps(questions)
+
+    @pytest.mark.asyncio
+    async def test_balanced_response_preserves_category_diversity(self):
+        """A balanced 50-question response (all 6 categories) → parser returns all 6."""
+        assert len(CATEGORIES) == 6, (
+            f"Expected 6 categories in app.services.scraper.reddit.CATEGORIES, "
+            f"got {len(CATEGORIES)}: {CATEGORIES}. Update this test if the schema changed."
+        )
+        fixture = self._fixture_json(CATEGORIES)
+        captured: dict = {}
+        with patch(
+            "app.services.scraper.reddit.httpx.AsyncClient",
+            return_value=_make_mock_client(captured, response_text=fixture),
+        ):
+            result = await generate_questions(
+                profile_id=1, raw_content=LASTFM_RAW, name="Richard Jones"
+            )
+
+        assert len(result) == 50
+        distinct = {q["category"] for q in result}
+        assert len(distinct) >= self.MIN_DISTINCT_CATEGORIES, (
+            f"Expected parser-level pass-through to preserve at least "
+            f"{self.MIN_DISTINCT_CATEGORIES} distinct categories from the LLM response, "
+            f"got {sorted(distinct)} ({len(distinct)} distinct)."
+        )
+        assert distinct == set(CATEGORIES), (
+            f"All categories from the balanced fixture should appear in the parsed "
+            f"result. Expected {sorted(CATEGORIES)}, got {sorted(distinct)}."
+        )
+
+    @pytest.mark.asyncio
+    async def test_minimum_diversity_response_passes_threshold(self):
+        """A 50-question response across exactly 3 categories → meets the ≥3 threshold."""
+        three_categories = ["entertainment", "art_literature", "sports"]
+        fixture = self._fixture_json(three_categories)
+        captured: dict = {}
+        with patch(
+            "app.services.scraper.reddit.httpx.AsyncClient",
+            return_value=_make_mock_client(captured, response_text=fixture),
+        ):
+            result = await generate_questions(
+                profile_id=1, raw_content=LASTFM_RAW, name="Richard Jones"
+            )
+
+        assert len(result) == 50
+        distinct = {q["category"] for q in result}
+        assert len(distinct) == self.MIN_DISTINCT_CATEGORIES
+        assert distinct == set(three_categories)
+
+    @pytest.mark.asyncio
+    async def test_monoculture_response_passes_through_unchanged(self):
+        """All-entertainment response → parser returns all entertainment (no silent rebalancing).
+
+        This is the inverse of the diversity test. If the parser ever grew a
+        "rebalance toward diversity" feature, this test would fail — and that
+        failure is the point. The prompt is the right place to enforce
+        diversity; the parser should faithfully reflect what the LLM emitted.
+        """
+        fixture = self._fixture_json(["entertainment"])
+        captured: dict = {}
+        with patch(
+            "app.services.scraper.reddit.httpx.AsyncClient",
+            return_value=_make_mock_client(captured, response_text=fixture),
+        ):
+            result = await generate_questions(
+                profile_id=1, raw_content=LASTFM_RAW, name="Richard Jones"
+            )
+
+        assert len(result) == 50
+        distinct = {q["category"] for q in result}
+        assert distinct == {"entertainment"}, (
+            f"Parser must pass through categories as-is — no invisible dedup or "
+            f"rebalancing. Got {sorted(distinct)}."
+        )
+        # All 50 questions should be entertainment — explicitly assert the
+        # count to catch any partial filtering logic.
+        assert sum(1 for q in result if q["category"] == "entertainment") == 50
+
+    @pytest.mark.asyncio
+    async def test_existing_good_questions_fixture_fails_diversity_threshold(self):
+        """The current GOOD_QUESTIONS_JSON (entertainment + art_literature × 25) is itself
+        a 2-category fixture. This test pins that as a known limitation so a future
+        promotion of GOOD_QUESTIONS_JSON to a more diverse shape is visible.
+
+        If this test ever fails, GOOD_QUESTIONS_JSON has been updated to span ≥3
+        categories — which is a good thing, but the change should be conscious.
+        """
+        captured: dict = {}
+        with patch(
+            "app.services.scraper.reddit.httpx.AsyncClient",
+            return_value=_make_mock_client(captured),  # uses module-level GOOD_QUESTIONS_JSON
+        ):
+            result = await generate_questions(
+                profile_id=1, raw_content=LASTFM_RAW, name="Richard Jones"
+            )
+
+        assert len(result) == 50
+        distinct = {q["category"] for q in result}
+        # Pin the current 2-category shape as a known limitation.
+        assert len(distinct) == 2, (
+            f"GOOD_QUESTIONS_JSON used to span exactly 2 categories (entertainment + "
+            f"art_literature). If this assertion now fails, the fixture has been "
+            f"improved — update this test to assert >= {self.MIN_DISTINCT_CATEGORIES} "
+            f"distinct categories instead. Current distinct categories: {sorted(distinct)}."
+        )
+        assert distinct == {"entertainment", "art_literature"}
