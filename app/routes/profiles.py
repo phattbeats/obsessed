@@ -50,6 +50,8 @@ def _profile(p: Profile) -> ProfileResponse:
         instagram_handle=p.instagram_handle,
         tiktok_handle=p.tiktok_handle or "",
         facebook_handle=p.facebook_handle or "",
+        letterboxd_username=p.letterboxd_username or "",
+        goodreads_user_id=p.goodreads_user_id or "",
         news_query=p.news_query or "",
         court_query=p.court_query or "",
         sos_query=p.sos_query or "",
@@ -91,6 +93,8 @@ def create_profile(data: ProfileCreate):
                     instagram_handle=getattr(data, "instagram_handle", "") or "",
                     tiktok_handle=getattr(data, "tiktok_handle", "") or "",
                     facebook_handle=getattr(data, "facebook_handle", "") or "",
+                    letterboxd_username=getattr(data, "letterboxd_username", "") or "",
+                    goodreads_user_id=getattr(data, "goodreads_user_id", "") or "",
                     manual_link=data.manual_link,
                     manual_facts=data.manual_facts,
                     entity_type=getattr(data, "entity_type", "person") or "person",
@@ -284,6 +288,10 @@ async def trigger_scrape(profile_id: int):
                 await _safe("Steam", scrape_steam(p.steam_id))
             if p.lastfm_username:
                 await _safe("LastFM", scrape_lastfm(p.lastfm_username))
+            if p.letterboxd_username:
+                await _safe("Letterboxd", scrape_letterboxd(p.letterboxd_username))
+            if p.goodreads_user_id:
+                await _safe("Goodreads", scrape_goodreads(p.goodreads_user_id))
             if p.twitter_handle:
                 await _safe("Twitter", scrape_twitter(p.twitter_handle))
             if p.manual_facts:

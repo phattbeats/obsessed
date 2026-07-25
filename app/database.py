@@ -38,6 +38,8 @@ class Profile(Base):
     instagram_handle = Column(String(200), default="")
     tiktok_handle = Column(String(200), default="")  # TikTok handle (person)
     facebook_handle = Column(String(200), default="")  # Facebook page handle (person/business)
+    letterboxd_username = Column(String(200), default="")  # Letterboxd username (no auth — public diary RSS)
+    goodreads_user_id = Column(String(200), default="")  # Goodreads numeric user ID from profile URL — RSS requires the numeric form
     google_places_handle = Column(String(500), default="")  # comma-separated business names
     news_query = Column(String(500), default="")  # local news search query (person)
     court_query = Column(String(500), default="")  # municipal court search query (person)

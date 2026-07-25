@@ -15,6 +15,8 @@ class ProfileCreate(BaseModel):
     instagram_handle: str = ""
     tiktok_handle: str = ""
     facebook_handle: str = ""
+    letterboxd_username: str = ""
+    goodreads_user_id: str = ""
     news_query: str = ""
     court_query: str = ""
     sos_query: str = ""
@@ -46,6 +48,8 @@ class ProfileUpdate(BaseModel):
     instagram_handle: Optional[str] = None
     tiktok_handle: Optional[str] = None
     facebook_handle: Optional[str] = None
+    letterboxd_username: Optional[str] = None
+    goodreads_user_id: Optional[str] = None
     news_query: Optional[str] = None
     court_query: Optional[str] = None
     sos_query: Optional[str] = None
@@ -80,6 +84,8 @@ class ProfileResponse(BaseModel):
     instagram_handle: str
     tiktok_handle: str
     facebook_handle: str
+    letterboxd_username: str
+    goodreads_user_id: str
     news_query: str
     court_query: str
     sos_query: str
