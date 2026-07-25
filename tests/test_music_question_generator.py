@@ -1,5 +1,5 @@
 """
-PHA-1344: music-taste question-generator tests.
+PHA-1344: music-taste question-generator tests (last.fm).
 
 Validates the "guess their obsession" path: when last.fm-shaped raw_content
 is in the input blob, the shared reddit.generate_questions must (a) inject
@@ -7,10 +7,17 @@ the last.fm domain hint into the system prompt, (b) request a full 50-
 question budget (not the 25 fallback for thin content), and (c) parse the
 LLM response into the standard question shape.
 
+PHA-1488: Spotify mirror of the above. Spotify raw_content (from
+app/services/scraper/spotify.py on the pha-1350/spotify-oauth-link branch)
+also reaches reddit.generate_questions via the shared pipeline, and the
+system prompt must carry a Spotify-specific hint so LiteLLM steers
+favorite-artist / favorite-track / playlist questions instead of generic
+geography ones. Mirrors the last.fm contract exactly.
+
 Fixture-driven — mocks the LiteLLM /chat/completions endpoint with httpx
 so no live API key is needed in CI. The captured system_prompt is asserted
-on for the last.fm hint marker, and the user_prompt is asserted on for the
-last.fm raw_content so we know the actual blob reaches the model.
+on for each marker, and the user_prompt is asserted on for the raw_content
+so we know the actual blob reaches the model.
 """
 import json
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -48,6 +55,42 @@ LASTFM_RAW = """[last.fm profile] rj
 [Recent scrobbles]
   Idioteque by Radiohead (now playing)
   Pyramid Song by Radiohead
+"""
+
+# ─────────────────────────────────────────────────────────────────
+# Sample Spotify raw_content — same shape app/services/scraper/spotify.py
+# produces on the pha-1350/spotify-oauth-link branch. Mirrors the fixture
+# in tests/fixtures/spotify/sample_user.json, rendered through the
+# _build_raw_content helper. PHA-1488: ensure the shared generator picks
+# up the [Spotify profile] marker and injects the music-specific hint.
+# ─────────────────────────────────────────────────────────────────
+SPOTIFY_RAW = """[Spotify profile] Richard Jones
+
+[Top artists — last 6 months]
+  Radiohead — genres: art rock, alternative rock
+  Boards of Canada — genres: idm, electronic
+  Aphex Twin — genres: idm, electronic, ambient
+  Burial — genres: uk garage, ambient, electronic
+  Four Tet — genres: electronic, folktronica, microhouse
+
+[Top tracks — last 6 months]
+  Everything In Its Right Place by Radiohead (from Kid A)
+  Roygbiv by Boards of Canada (from Music Has the Right to Children)
+  Avondale by Burial (from Untrue)
+  Pyramid Song by Radiohead (from Amnesiac)
+  She Moves She by Burial (from Untrue)
+
+[Top artists — all-time]
+  Radiohead — genres: art rock, alternative rock
+  Boards of Canada — genres: idm, electronic
+  Burial — genres: uk garage, ambient, electronic
+  Aphex Twin — genres: idm, electronic, ambient
+  Four Tet — genres: electronic, folktronica, microhouse
+
+[Playlists]
+  Rainy Day — 42 tracks
+  Late Night Coding — 88 tracks
+  Shared Mix — 15 tracks (by Someone Else)
 """
 
 # A plausible 50-question response. Structure mirrors what the shared
@@ -198,6 +241,149 @@ class TestMusicQuestionGeneratorMixedContent:
         assert "news" in system_prompt.lower()
 
 
+class TestMusicQuestionGeneratorSpotifyPath:
+    """PHA-1488: Spotify raw_content → obsession questions (mirror of last.fm contract).
+
+    Spotify ships raw_content with a [Spotify profile] prefix and
+    [Top artists]/[Top tracks]/[Playlists] sections. The shared generator
+    must inject the Spotify domain hint so LiteLLM steers favorite-artist /
+    favorite-track / playlist questions instead of generic geography ones.
+    """
+
+    @pytest.mark.asyncio
+    async def test_spotify_content_triggers_spotify_domain_hint(self):
+        captured: dict = {}
+        with patch(
+            "app.services.scraper.reddit.httpx.AsyncClient",
+            return_value=_make_mock_client(captured),
+        ):
+            result = await generate_questions(
+                profile_id=1, raw_content=SPOTIFY_RAW, name="Richard Jones"
+            )
+
+        system_prompt = captured["json"]["messages"][0]["content"]
+        assert "spotify" in system_prompt.lower(), (
+            "Spotify domain hint must be injected into the system prompt "
+            "when [Spotify profile] marker is present in raw_content."
+        )
+        # The Spotify hint steers the model toward genre-tagged artist,
+        # album-context tracks, and themed playlists.
+        assert "favorite artists" in system_prompt.lower() or "top artists" in system_prompt.lower(), (
+            "Spotify hint must steer the model toward favorite-artist questions."
+        )
+        assert "playlist" in system_prompt.lower(), (
+            "Spotify hint must call out playlist-specific questions."
+        )
+        assert "genre" in system_prompt.lower(), (
+            "Spotify hint must mention genres — Spotify exposes genre tags "
+            "that last.fm does not."
+        )
+
+    @pytest.mark.asyncio
+    async def test_spotify_content_uses_full_50_question_budget(self):
+        captured: dict = {}
+        with patch(
+            "app.services.scraper.reddit.httpx.AsyncClient",
+            return_value=_make_mock_client(captured),
+        ):
+            await generate_questions(
+                profile_id=1, raw_content=SPOTIFY_RAW, name="Richard Jones"
+            )
+
+        system_prompt = captured["json"]["messages"][0]["content"]
+        assert "exactly 50" in system_prompt, (
+            "Spotify content is rich (>500 chars) and must trigger the "
+            "50-question budget, not the 25-question thin-content fallback."
+        )
+
+    @pytest.mark.asyncio
+    async def test_spotify_raw_content_reaches_model_in_user_prompt(self):
+        captured: dict = {}
+        with patch(
+            "app.services.scraper.reddit.httpx.AsyncClient",
+            return_value=_make_mock_client(captured),
+        ):
+            await generate_questions(
+                profile_id=1, raw_content=SPOTIFY_RAW, name="Richard Jones"
+            )
+
+        user_prompt = captured["json"]["messages"][1]["content"]
+        # Spotify raw_content distinctive facts — must reach the model verbatim.
+        assert "Radiohead" in user_prompt
+        assert "Boards of Canada" in user_prompt
+        assert "Kid A" in user_prompt
+        assert "Rainy Day" in user_prompt  # playlist name
+        assert "Richard Jones" in user_prompt
+
+    @pytest.mark.asyncio
+    async def test_spotify_response_parses_into_questions(self):
+        captured: dict = {}
+        with patch(
+            "app.services.scraper.reddit.httpx.AsyncClient",
+            return_value=_make_mock_client(captured),
+        ):
+            result = await generate_questions(
+                profile_id=1, raw_content=SPOTIFY_RAW, name="Richard Jones"
+            )
+
+        assert isinstance(result, list)
+        assert len(result) == 50
+        for q in result[:3]:
+            assert {"category", "question_text", "correct_answer", "wrong_answers"} <= set(q)
+
+    @pytest.mark.asyncio
+    async def test_spotify_marker_does_not_trigger_lastfm_hint(self):
+        """A Spotify-only profile must not receive a last.fm hint — they're distinct sources.
+
+        Without this guard, a future copy-paste that adds `[last.fm profile]` to
+        Spotify raw_content (or vice versa) would silently inject the wrong
+        domain hint and steer questions toward playcounts / scrobbles that
+        don't exist in Spotify's payload.
+        """
+        captured: dict = {}
+        with patch(
+            "app.services.scraper.reddit.httpx.AsyncClient",
+            return_value=_make_mock_client(captured),
+        ):
+            await generate_questions(
+                profile_id=1, raw_content=SPOTIFY_RAW, name="Richard Jones"
+            )
+
+        system_prompt = captured["json"]["messages"][0]["content"]
+        assert "last.fm" not in system_prompt.lower(), (
+            "Spotify-only raw_content must not pull in the last.fm hint."
+        )
+        assert "scrobble" not in system_prompt.lower(), (
+            "Spotify raw_content has no scrobble data; the last.fm hint "
+            "must not leak into a Spotify prompt."
+        )
+
+
+class TestMusicQuestionGeneratorLastfmAndSpotifyCombined:
+    """PHA-1488 follow-up: a profile with both sources must inject both hints.
+
+    Music-taste pipeline (PHA-1344) lets a profile link both a last.fm
+    username AND a Spotify account. When both raw_content blobs reach the
+    shared generator, both hints must be present in the system prompt.
+    """
+
+    @pytest.mark.asyncio
+    async def test_both_sources_inject_both_hints(self):
+        combined = LASTFM_RAW + "\n\n" + SPOTIFY_RAW
+        captured: dict = {}
+        with patch(
+            "app.services.scraper.reddit.httpx.AsyncClient",
+            return_value=_make_mock_client(captured),
+        ):
+            await generate_questions(
+                profile_id=1, raw_content=combined, name="Richard Jones"
+            )
+
+        system_prompt = captured["json"]["messages"][0]["content"]
+        assert "last.fm" in system_prompt.lower()
+        assert "spotify" in system_prompt.lower()
+
+
 class TestMusicQuestionGeneratorNegativeCases:
     """No music data → no music hint. Thin content → 25-question budget."""
 
@@ -218,6 +404,7 @@ class TestMusicQuestionGeneratorNegativeCases:
 
         system_prompt = captured["json"]["messages"][0]["content"]
         assert "last.fm" not in system_prompt.lower()
+        assert "spotify" not in system_prompt.lower()
         assert "listening history" not in system_prompt.lower()
         # Thin content triggers the 25-question budget.
         assert "exactly 25" in system_prompt
