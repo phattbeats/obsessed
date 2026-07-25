@@ -105,6 +105,25 @@ def _persist_answer(room_code: str, player_id: str, question_id: int,
 
 @router.post("", response_model=GameResponse)
 def create_game(data: GameCreate, background_tasks: BackgroundTasks):
+    # PHA-1341: reject contentless payloads up front. A game with neither
+    # profile_id nor things can never start (no questions to load, nothing
+    # to score on) — the old code accepted it with 200 and a contentless
+    # row, which is misleading at best and crashes at start time at worst.
+    # Empty `things=[]` is the same shape: zero content sources.
+    has_profile = bool(data.profile_id)
+    has_things = bool(data.things)  # [] is falsy
+    if not has_profile and not has_things:
+        raise HTTPException(
+            status_code=400,
+            detail="Provide at least one of profile_id or things to create a game.",
+        )
+    if data.things is not None and len(data.things) == 0:
+        # Explicit empty list — same outcome, more specific error.
+        raise HTTPException(
+            status_code=400,
+            detail="things must not be empty; provide at least one ThingInput.",
+        )
+
     room_code = generate_room_code()
     db = SessionLocal()
     try:
