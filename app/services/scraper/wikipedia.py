@@ -14,6 +14,45 @@ from app.services.entity_cache import get_cached, write_cached
 WIKIPEDIA_API = "https://en.wikipedia.org/api/rest_v1"
 
 
+# Wikipedia page-chrome lines that crawl4ai's markdown extraction picks up
+# alongside the article body. They are navigation, not facts, and break
+# question generation (PHA-1558). Each pattern is intentionally narrow.
+_NAV_LINE_PATTERNS = [
+    re.compile(r"^\s*\*\s*\[.+?\]\([^)]+\)", re.IGNORECASE),  # markdown link list (sidebar nav)
+    re.compile(r"move to sidebar hide", re.IGNORECASE),
+    re.compile(
+        r"\b(Visit the main page|Guides to browsing Wikipedia|Articles related to current events|"
+        r"Visit a randomly selected article|Learn about Wikipedia and how it is edited|"
+        r"Contact Wikipedia|How to contact Wikipedia|Support Wikipedia)\b",
+        re.IGNORECASE,
+    ),
+    re.compile(r"^\s*\[(?:Main page|Contents|Current events|Random article|About Wikipedia|Contact Wikipedia|Donate)\]\([^)]+\)", re.IGNORECASE),
+]
+
+
+def _is_wikipedia_nav_line(line: str) -> bool:
+    """Return True if the line is Wikipedia page chrome (sidebar/footer nav)."""
+    text = line.strip()
+    if not text:
+        return True
+    return any(p.search(text) for p in _NAV_LINE_PATTERNS)
+
+
+def _clean_wikipedia_output(text: str) -> str:
+    """Strip Wikipedia sidebar/nav boilerplate from scraped markdown.
+
+    crawl4ai returns the full page markdown including the left-hand sidebar
+    navigation list (`* [Main page](...)`, `* [Contents](...)`, etc.) and the
+    hidden "move to sidebar hide" element. Article body text is preserved;
+    only chrome lines are removed.
+    """
+    if not text:
+        return ""
+    lines = text.split("\n")
+    kept = [line for line in lines if not _is_wikipedia_nav_line(line)]
+    return "\n".join(kept)
+
+
 async def _scrape_via_rest(slug: str, place_name: str) -> tuple[str, dict]:
     """Primary: Wikipedia REST API (summary + mobile-sections)."""
     raw_parts = []
@@ -67,6 +106,7 @@ async def _scrape_via_html(place_name: str) -> tuple[str, dict]:
     from app.services.scraper.crawl4ai import crawl4ai_scrape
     url = f"https://en.wikipedia.org/wiki/{place_name.replace(' ', '_')}"
     text, meta = await crawl4ai_scrape(url)
+    text = _clean_wikipedia_output(text or "")
     title = (meta or {}).get("title", place_name) if isinstance(meta, dict) else place_name
     return text, {"title": title}
 
@@ -90,6 +130,7 @@ async def scrape_wikipedia(place_name: str, entity_type: str = "place") -> tuple
         raw_parts, meta = await _scrape_via_rest(slug, place_name)
         if raw_parts:
             result = "\n\n".join(raw_parts[:40])
+            result = _clean_wikipedia_output(result)
             write_cached(place_name, entity_type, result, meta.get("url", ""))
             return result, meta
     except Exception:
@@ -99,6 +140,7 @@ async def scrape_wikipedia(place_name: str, entity_type: str = "place") -> tuple
     try:
         text, meta = await _scrape_via_html(place_name)
         if text and len(text) > 50:
+            text = _clean_wikipedia_output(text)
             write_cached(place_name, entity_type, text, meta.get("title", ""))
             return text, meta
     except Exception:
