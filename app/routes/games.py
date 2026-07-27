@@ -103,6 +103,27 @@ def _persist_answer(room_code: str, player_id: str, question_id: int,
     finally:
         db.close()
 
+def _planned_question_count(db, things, profile_id, default: int = 50) -> int:
+    """How many questions this game will actually ask.
+
+    Mirrors the selection /start performs — per-thing `num_questions` allotments capped
+    by what each profile actually has, or the flat default capped by the single
+    profile's pool. Profiles still scraping have no questions yet, so we fall back to
+    their requested allotment rather than reporting zero.
+    """
+    if things:
+        total = 0
+        for t in things:
+            available = db.query(Question).filter(Question.profile_id == t.profile_id).count()
+            requested = getattr(t, "num_questions", None) or default
+            total += min(requested, available) if available else requested
+        return total
+    if profile_id:
+        available = db.query(Question).filter(Question.profile_id == profile_id).count()
+        return min(default, available) if available else default
+    return default
+
+
 @router.post("", response_model=GameResponse)
 def create_game(data: GameCreate, background_tasks: BackgroundTasks):
     # PHA-1341: reject contentless payloads up front. A game with neither
@@ -155,6 +176,10 @@ def create_game(data: GameCreate, background_tasks: BackgroundTasks):
         
         things_json = json.dumps([t.model_dump() for t in data.things]) if data.things else None
         g = GameSession(room_code=room_code, profile_id=data.profile_id, things=things_json)
+        # Size the game at create time using the same rule /start applies, so the lobby
+        # advertises the real length. The column default of 50 meant a 6-question game
+        # showed "50" until the host pressed start (PHA-1562).
+        g.total_questions = _planned_question_count(db, data.things, data.profile_id)
         db.add(g)
         db.commit()
         db.refresh(g)

@@ -15,6 +15,11 @@ CATEGORIES = ["history", "entertainment", "geography", "science", "sports", "art
 
 REDDIT_SOURCE_PREFIX = "https://old.reddit.com/"
 
+# Why the last generate_questions() call produced nothing. The caller writes this onto
+# the profile: a fallback to rule-based questions has to be visible, because a silent
+# one is exactly how the unanswerable-question bug shipped (PHA-1562).
+LAST_LLM_ERROR: dict[str, str] = {"reason": ""}
+
 # Use old.reddit.com for API endpoints — www.reddit.com redirects API requests to HTML
 _REDDIT_BASE = "https://old.reddit.com"
 
@@ -196,9 +201,14 @@ Rules:
 
     user_prompt = f"Facts about {name}:\n{raw_content[: settings.content_max_chars]}"
 
+    from app.services.generator import parse_llm_json_output
+
+    LAST_LLM_ERROR["reason"] = ""
     try:
         api_key = os.environ.get("LITELLM_API_KEY", "") or settings.litellm_api_key
-        async with httpx.AsyncClient(timeout=60.0) as client:
+        # A full 50-question batch runs ~8.8k completion tokens and takes well over a
+        # minute; the old 60s timeout was another silent route to the fallback.
+        async with httpx.AsyncClient(timeout=300.0) as client:
             resp = await client.post(
                 f"{settings.litellm_base}/chat/completions",
                 json={
@@ -208,16 +218,22 @@ Rules:
                         {"role": "user", "content": user_prompt},
                     ],
                     "temperature": 0.8,
-                    "max_tokens": 4000,
+                    "max_tokens": settings.litellm_max_tokens,
                 },
                 headers={"Authorization": f"Bearer {api_key}"},
             )
             resp.raise_for_status()
-            content = resp.json()["choices"][0]["message"]["content"]
-            content = re.sub(r"^```json\s*", "", content.strip())
-            content = re.sub(r"\s*```$", "", content.strip())
-            questions = json.loads(content)
+            choice = resp.json()["choices"][0]
+            # LiteLLM returns content=null when the response is cut off by max_tokens.
+            content = choice.get("message", {}).get("content") or ""
+            questions = parse_llm_json_output(content)
+            if not questions:
+                LAST_LLM_ERROR["reason"] = (
+                    f"no usable questions parsed (finish_reason={choice.get('finish_reason')}, "
+                    f"{len(content)} chars returned)"
+                )
             return questions
     except Exception as e:
-        print(f"Error generating Reddit questions: {e}")
+        LAST_LLM_ERROR["reason"] = f"{type(e).__name__}: {e}"
+        print(f"Error generating questions via LiteLLM: {e}")
         return []
