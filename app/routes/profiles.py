@@ -212,9 +212,15 @@ def generate_consent_link(profile_id: int):
     finally:
         db.close()
 
-@router.get("/profiles/consent/verify")
+@router.get("/consent/verify")
 def verify_consent(token: str):
-    """Guest visits this URL to grant consent."""
+    """Guest visits this URL to grant consent.
+
+    Resolves to ``GET /api/profiles/consent/verify`` (router prefix is
+    ``/api/profiles``). The previous decorator was ``/profiles/consent/verify``
+    which produced the malformed ``/api/profiles/profiles/consent/verify``
+    path and 404'd FastAPI-style on the documented URL. PHA-1539.
+    """
     db = SessionLocal()
     try:
         p = db.query(Profile).filter(Profile.consent_token == token).first()
