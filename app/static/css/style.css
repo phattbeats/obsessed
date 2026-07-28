@@ -248,7 +248,42 @@ body {
   flex-direction: column;
   gap: 1rem;
   max-width: 600px;
+  /* Pad the form bottom so the sticky footer doesn't overlap the last
+     field when it pins to the viewport edge. */
+  padding-bottom: 5rem;
 }
+
+/* PHA-1541 — sticky Save Profile footer.
+   The Profile form is long enough (Person has 14+ handle/records fields)
+   that the Save button sits below the fold on mobile (375x667) and even
+   on 1280x800. Sticky footer keeps the action visible while the user
+   scrolls to fill Manual Link / Public Records / Manual Facts. */
+.profile-form-footer {
+  position: sticky;
+  bottom: 0;
+  z-index: 5;
+  display: flex;
+  justify-content: flex-end;
+  padding: 0.75rem 0 0.25rem;
+  margin-top: -3rem;  /* offset the form's padding-bottom so the button
+                         stays at the visual end of the form */
+  background: linear-gradient(to bottom,
+    rgba(26, 26, 46, 0) 0%,
+    rgba(26, 26, 46, 0.92) 35%,
+    var(--bg) 100%);
+  border-top: 1px solid var(--surface-elevated);
+}
+.profile-form-footer .btn {
+  width: 100%;
+  max-width: 240px;
+}
+@media (max-width: 480px) {
+  .profile-form-footer .btn { max-width: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .profile-form-footer { transition: none; }
+}
+
 .form-group {
   display: flex;
   flex-direction: column;
