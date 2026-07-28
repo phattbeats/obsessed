@@ -35,6 +35,141 @@ _SENTENCE_STOPWORDS = {
     "Most", "Some", "Both", "Each", "As", "An", "And", "But", "Now", "Later", "Today",
 }
 
+# ──────────────────────────────────────────────────────────────────────────────
+# PHA-1562 fabricated-distractor strategies
+#
+# The corpus-pool fallback that PR #58 introduced gave us "real-but-different"
+# facts from the same article (e.g., "The Loire" for a Paris question). Brandon
+# Kelly's pivot was: that's still misleading. Every option read as a true fact.
+#
+# The fix: mutate the answer token itself so decoys are the same *kind* of thing
+# (year → year, number → number, proper noun → proper noun) but never appear in
+# the source material. A player who knows the subject can score a point with
+# certainty; a player who doesn't cannot game the wrong answers.
+# ──────────────────────────────────────────────────────────────────────────────
+
+# Year decoys: decade-round-trip deltas. Never 0 (we want a real shift), always
+# plausible (1000-2099 keeps the 4-digit shape), and the source's own decade is
+# excluded by the source-tokens filter below.
+_YEAR_DELTAS = (-50, -40, -30, -20, -10, 10, 20, 30, 40, 50)
+
+# Number decoys: ±1% to ±10% shifts. Sign and magnitude picked from these
+# buckets so we never produce the input value and always stay close enough to
+# look like a plausible alternative (a 100,000 should not be the lie "12").
+_NUMBER_PCT_BUCKETS = (1, 2, 3, 5, 7, 10)
+
+# Curated proper-noun decoys. Real cities / places that are NEVER in the source
+# by construction. They read as plausible answers ("Vienna", "Berlin") but
+# answer nothing the player could verify from the quoted sentence. The list is
+# long enough that any 3-subset is unlikely to be a real source fact.
+_FABRICATED_PROPER_NOUNS = (
+    "Vienna", "London", "Rome", "Berlin", "Cairo", "Madrid", "Athens",
+    "Lisbon", "Prague", "Stockholm", "Dublin", "Helsinki", "Brussels",
+    "Budapest", "Bucharest", "Oslo", "Copenhagen", "Geneva", "Zurich",
+    "Lyon", "Marseille", "Naples", "Milan", "Munich", "Hamburg",
+    "Edinburgh", "Manchester", "Liverpool", "Glasgow", "Cardiff", "Belfast",
+    "Rotterdam", "Amsterdam", "Barcelona", "Seville", "Florence", "Venice",
+    "Turin", "Porto", "Krakow", "Vilnius", "Riga", "Tallinn", "Reykjavik",
+    "Sofia", "Belgrade", "Sarajevo", "Zagreb", "Ljubljana", "Skopje",
+    "Tirana", "Thessaloniki", "Aleppo", "Yerevan", "Tbilisi", "Baku",
+    "Tashkent", "Samarkand", "Bishkek", "Dushanbe", "Astana", "Minsk",
+    "Kyiv", "Odesa", "Lviv", "Tallinn", "Riga",
+)
+
+# Edge-case placeholder decoys when no mutation strategy can produce 3 distinct,
+# non-source, non-answer values. Real-shaped but obviously fabricated relative
+# to any plausible trivia source — legendary places, famous-anchored years,
+# distinctive numbers.
+_FABRICATED_PLACEHOLDERS = {
+    "year": ("1492", "1776", "1969"),
+    "number": ("37", "2,468", "9,876"),
+    "proper": ("Atlantis", "El Dorado", "Shangri-La"),
+}
+
+
+def _mutate_year(year: str) -> list[str]:
+    """Return candidate year decoys by decade-round-trip deltas."""
+    try:
+        y = int(year)
+    except ValueError:
+        return []
+    return [str(y + d) for d in _YEAR_DELTAS if 1000 <= y + d <= 2099 and y + d != y]
+
+
+def _mutate_number(value: str) -> list[str]:
+    """Return candidate number decoys by ±1-10% shift, preserving format.
+
+    '100,000' → '99,000' / '105,000' / etc. '3.14' → '3.11' / '3.30' / etc.
+    Keeps magnitude sensible: a 5-digit number never mutates to a 2-digit one.
+    """
+    raw = value.replace(",", "")
+    try:
+        n = float(raw)
+    except ValueError:
+        return []
+    if n == 0:
+        return []
+
+    magnitude = max(1, len(raw.replace(".", "").lstrip("0") or "1"))
+    candidates: list[str] = []
+    for pct in _NUMBER_PCT_BUCKETS:
+        for sign in (1, -1):
+            shifted = n * (1 + sign * pct / 100)
+            if shifted == n:
+                continue
+            s = _format_number(shifted)
+            # Stay in the same order of magnitude as the input — a 100,000 must
+            # not become 12. (For values < 1, the magnitude guard above keeps
+            # them readable.)
+            if len(s.replace(",", "").replace(".", "").lstrip("0") or "1") > magnitude + 1:
+                continue
+            candidates.append(s)
+    return candidates
+
+
+def _format_number(n: float) -> str:
+    """Render a float the way it would have been typed: integers with thousands
+    separators, decimals trimmed of trailing zeros."""
+    if abs(n - round(n)) < 1e-9 and abs(n) < 1e15:
+        return f"{int(round(n)):,}"
+    return f"{n:,.2f}".rstrip("0").rstrip(".")
+
+
+def _decoys_for(kind: str, answer: str, source_tokens: set[str], n: int = 3) -> list[str]:
+    """Return n fabricated decoys for an answer token of the given kind.
+
+    Filters out the answer itself and anything in the source so decoys cannot
+    accidentally collide with a fact from the corpus (which would re-introduce
+    PHA-1562). Falls back to clearly-fabricated placeholders if mutation cannot
+    produce enough distinct candidates.
+    """
+    if kind == "year":
+        candidates = _mutate_year(answer)
+    elif kind == "number":
+        candidates = _mutate_number(answer)
+    elif kind == "proper":
+        candidates = list(_FABRICATED_PROPER_NOUNS)
+    else:
+        candidates = []
+
+    out: list[str] = []
+    for cand in candidates:
+        if cand == answer or cand in source_tokens:
+            continue
+        if cand not in out:
+            out.append(cand)
+        if len(out) >= n:
+            break
+
+    if len(out) < n:
+        for ph in _FABRICATED_PLACEHOLDERS.get(kind, ()):
+            if ph == answer or ph in source_tokens or ph in out:
+                continue
+            out.append(ph)
+            if len(out) >= n:
+                break
+    return out[:n]
+
 
 def _sentences(raw_text: str) -> list[str]:
     """Split scraped text into candidate sentences, dropping fragments and headers."""
@@ -99,9 +234,12 @@ def generate_from_manual(raw_text: str, name: str, count: int = 25) -> list[dict
     """Rule-based question fallback when the LLM is unavailable.
 
     Produces fill-in-the-blank questions: one distinctive token is removed from a real
-    sentence and the player picks it from three same-typed decoys pulled from elsewhere
-    in the same source. Someone who knows the subject can win; someone who doesn't
-    cannot. Returns fewer questions — or none — rather than emitting a coin flip.
+    sentence and the player picks it from three *fabricated* same-typed decoys.
+    Decoys are mutated from the answer (year shifts, number shifts, curated proper-
+    noun swaps) and filtered against the entire source corpus so no decoy can
+    accidentally be a real fact from the article. Someone who knows the subject can
+    win; someone who doesn't cannot. Returns fewer questions — or none — rather
+    than emitting a coin flip. (PHA-1562: "we need lies".)
     """
     raw_text = raw_text[: settings.content_max_chars]
     sentences = _sentences(raw_text)
@@ -109,10 +247,23 @@ def generate_from_manual(raw_text: str, name: str, count: int = 25) -> list[dict
         return []
 
     pools = _build_pools(sentences)
+    # Every token in the corpus, regardless of kind, so a decoy that happens to
+    # match a source fact in any category is filtered out before it reaches the
+    # player. Without this, a year shift could land on a year from another
+    # sentence and re-introduce the "real-but-different" PHA-1562 problem.
+    source_tokens: set[str] = {tok for toks in pools.values() for tok in toks}
     rng = random.Random(f"{name}:{len(raw_text)}")  # deterministic per profile
-    priority = {"year": 0, "proper": 1, "number": 2}
     # The subject is named in the prompt, so blanking it out asks nothing.
     subject_words = {name} | set(name.split())
+
+    # Round-robin the preferred kind so the decoy strategy varies across the
+    # batch instead of always being year-shifts. cycle[0] is tried first, then
+    # cycle[1], then cycle[2], then we fall back to anything that matches.
+    priority_cycles = (
+        ("year", "proper", "number"),
+        ("proper", "number", "year"),
+        ("number", "year", "proper"),
+    )
 
     questions: list[dict] = []
     used_answers: set[str] = set()
@@ -125,16 +276,21 @@ def generate_from_manual(raw_text: str, name: str, count: int = 25) -> list[dict
         tokens = [t for t in _candidate_tokens(sent) if t[1] in pools[t[0]]]
         if not tokens:
             continue
-        tokens.sort(key=lambda t: priority[t[0]])
+        cycle = priority_cycles[len(questions) % len(priority_cycles)]
+        tokens.sort(key=lambda t: cycle.index(t[0]) if t[0] in cycle else 99)
 
         for kind, answer, _initial in tokens:
             if answer in used_answers or answer in subject_words:
                 continue
-            # A decoy that is visible in the quoted sentence reads as a typo, not a choice.
-            pool = [t for t in pools[kind] if t != answer and t not in sent]
-            if len(pool) < 3:
+            decoys = _decoys_for(kind, answer, source_tokens, n=3)
+            if len(decoys) < 3:
+                # Mutation could not produce enough distinct, non-source candidates
+                # for this answer. Try the next available token in the sentence
+                # rather than padding with placeholder decoys.
                 continue
-            decoys = rng.sample(pool, 3)
+            # Deterministic shuffle so the same input produces the same output.
+            decoys = list(decoys)
+            rng.shuffle(decoys)
 
             blanked = sent.replace(answer, "______", 1)
             questions.append({

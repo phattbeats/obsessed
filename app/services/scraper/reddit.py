@@ -192,12 +192,48 @@ Each question must be in this JSON format (no markdown, no extra text):
 
 Rules:
 - correct_answer and wrong_answers must be full sentences or specific facts
-- wrong_answers must be plausible but clearly wrong
+- wrong_answers MUST BE FABRICATED — invented values NOT in the source material.
+  Do NOT pull alternatives from the source. The player must be able to win if they
+  know the subject; the wrong answers must read as plausible lies, not real-but-
+  different facts they could also verify. If you cannot invent a plausible lie for
+  a given question, OMIT that question rather than emit one whose wrong answers
+  are all real facts. (PHA-1562 pivot: "we need lies", not alternatives.)
+- question_text must target a trivia-shaped fact — a year, a name, a number, a
+  place, or a specific work — so a player who knows the subject can score a
+  point with certainty. Avoid yes/no questions.
 - difficulty 1=easy, 2=medium, 3=hard
 - Mix categories evenly across the 6 categories
 - source_snippet: the exact phrase from the input that inspired this question (max 20 words)
 - Return ONLY the JSON array, no commentary
-- If you cannot generate a question for a category, skip it{suffix}"""
+- If you cannot generate a question for a category, skip it
+
+# Fabricated-distractor examples
+
+GOOD (real question, lie distractors — wrong answers read as plausible inventions):
+  Q: "In what year did Marie Curie share the Nobel Prize in Physics?"
+  A: "1903"
+  Lies: ["1879", "1898", "1921"]
+  None of the lie years is a fact from the source — a player who knows the
+  subject wins; a player who doesn't cannot game the wrong answers.
+
+GOOD (proper-noun mutation — same kind of token, never from source):
+  Q: "What river runs through the center of Paris?"
+  A: "The Seine"
+  Lies: ["The Danube", "The Thames", "The Tiber"]
+  Real rivers, none of which appears in the source material.
+
+BAD (real question, real-but-different distractors — PHA-1562 pivot bug):
+  Q: "In what city was Marie Curie born?"
+  A: "Warsaw"
+  Lies: ["Paris", "Sorbonne", "Pierre Curie"]
+  Every wrong answer is itself a fact from the source — the player can't win.
+
+BAD (corpus pull — "real but different" still misleading):
+  Q: "What river runs through the center of Paris?"
+  A: "The Seine"
+  Lies: ["The Loire", "The Rhône", "The Marne"]
+  All real French rivers — Brandon Kelly's "we need lies" complaint in review.
+{suffix}"""
 
     user_prompt = f"Facts about {name}:\n{raw_content[: settings.content_max_chars]}"
 
