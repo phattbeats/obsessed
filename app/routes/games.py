@@ -574,7 +574,39 @@ async def next_question(room_code: str):
 
 @router.get("/{room_code}/scores")
 def get_scores(room_code: str):
+    # Fast path: in-memory GameState (live WS session).
     gs = GAMES.get(room_code)
-    if not gs:
-        raise HTTPException(status_code=404, detail="Game not found")
-    return gs.get_scores()
+    if gs:
+        return gs.get_scores()
+    # PHA-1564: GAMES is only populated along the WS path. cleanup_game() drops
+    # the entry on /answer wedge-wins and /next exhaustion, and any container
+    # restart empties the dict — but the GameSession row + Player rows persist
+    # in SQLite. Fall back to the DB so /scores is reachable for any room
+    # whose GameSession still exists, not just ones currently being played.
+    db = SessionLocal()
+    try:
+        g = db.query(GameSession).filter(GameSession.room_code == room_code).first()
+        if not g:
+            raise HTTPException(status_code=404, detail="Game not found")
+        # Match the in-memory get_scores() contract:
+        # - sort by score desc
+        # - filter to active players only
+        # - emit wedges as a list (column stores JSON-encoded string)
+        active_players = [p for p in g.players if p.is_active]
+        scores = sorted(
+            [
+                {
+                    "player_id": p.player_id,
+                    "player_name": p.player_name,
+                    "score": p.score,
+                    "wedges": json.loads(p.wedges) if p.wedges else [],
+                    "is_active": p.is_active,
+                }
+                for p in active_players
+            ],
+            key=lambda x: x["score"],
+            reverse=True,
+        )
+        return scores
+    finally:
+        db.close()
