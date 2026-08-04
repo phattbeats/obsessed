@@ -9,7 +9,13 @@ class Settings(BaseSettings):
     database_url: str = f"sqlite+aiosqlite:///{BASE_DIR}/data/trivia.db"
     admin_token: str = ""  # empty = unauthenticated (opt-in lockdown via ADMIN_TOKEN env var)
     litellm_base: str = "http://10.0.0.100:4000"  # override via LITELLM_BASE env var
-    litellm_model: str = "claude-3-5-sonnet-20241022"  # override via LITELLM_MODEL env var
+    # Must name a model the LiteLLM proxy actually serves. The proxy namespaces every
+    # deployment by provider, so a bare `claude-*` id 400s with "no healthy deployments"
+    # and the generator silently falls back to rule-based questions (PHA-1562).
+    litellm_model: str = "anthropic/claude-sonnet-5"  # override via LITELLM_MODEL env var
+    # 50 full-sentence questions cost ~8.8k completion tokens. The old 4000 ceiling
+    # truncated every response mid-JSON, which read as a generator failure (PHA-1562).
+    litellm_max_tokens: int = 16000  # override via LITELLM_MAX_TOKENS env var
     litellm_api_key: str | None = None  # read from LITELLM_API_KEY env var or .env
     steam_api_key: str = ""  # free key from https://steamcommunity.com/dev/apikey
     lastfm_api_key: str = ""  # free key from https://www.last.fm/api/account/create

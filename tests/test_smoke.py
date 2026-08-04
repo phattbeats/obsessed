@@ -131,30 +131,27 @@ async def test_get_question_includes_correct_answer():
         assert len(opts) >= 2, f"Expected ≥2 options, got {len(opts)}: {opts}"
 
         # The fix: correct_answer must be present in options (not just wrong answers).
-        # We verify this by checking that at least one option matches one of the
-        # facts from the manual_facts input (a proxy for correct_answer presence).
-        known_facts = [
-            "Albert Einstein was born in 1879",
-            "Nobel Prize in Physics in 1921",
-            "published four groundbreaking papers in his miracle year 1905",
-            "German-born theoretical physicist",
-            "emigrated to the United States in 1933",
-            "He worked at Princeton University",
-            "He was a committed pacifist during World War One",
-            "His brain was preserved",
-            "He received the Copley Medal in 1925",
-            "He collaborated extensively with Niels Bohr",
-            "He developed the famous mass-energy equivalence formula",
-            "He was a citizen of Switzerland, Germany, and the United States",
-            "He argued that imagination was more important than knowledge",
-        ]
-        opts_text = " ".join(opts).lower()
-        matched = any(fact.lower() in opts_text for fact in known_facts)
+        # /question deliberately withholds the correct answer, so compare against the
+        # stored questions instead. This asserts the invariant directly rather than
+        # matching input fact sentences — the correct answer is no longer a verbatim
+        # echo of an input line now that generation asks a real question (PHA-1562).
+        db = SessionLocal()
+        try:
+            stored = db.query(Question).filter(Question.profile_id == profile_id).all()
+            correct_answers = {q.correct_answer for q in stored}
+        finally:
+            db.close()
+
+        matched = correct_answers & set(opts)
         assert matched, (
-            f"Bug A NOT fixed: none of the {len(known_facts)} known facts appear in "
-            f"options {opts}. This means correct_answer is NOT in the options list — "
-            "the game is still unwinnable."
+            f"Bug A NOT fixed: none of the {len(correct_answers)} stored correct answers "
+            f"appear in options {opts}. This means correct_answer is NOT in the options "
+            "list — the game is still unwinnable."
         )
+
+        # PHA-1562: the options must not all be simultaneously true. Every wrong answer
+        # has to be distinct from the correct one, or the question is a coin flip.
+        assert len(set(opts)) == len(opts), f"duplicate options served: {opts}"
 
 
 @pytest.mark.asyncio
@@ -319,13 +316,38 @@ async def test_single_profile_id_game_still_works():
 
 @pytest.mark.asyncio
 async def test_things_empty_array_fails():
-    """things=[] returns 200 (no validation error) — server accepts it, questions will fail."""
+    """things=[] is a contentless payload — must be rejected with 400 (PHA-1341)."""
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as ac:
         r = await ac.post("/api/games", json={"things": []})
-    # Server currently returns 200 (empty things causes downstream failure only at start)
-    # TODO: add validation in create_game to return 400 for empty things
-    assert r.status_code in (200, 400), f"expected 200 or 400, got {r.status_code}"
+    assert r.status_code == 400, f"expected 400 for empty things, got {r.status_code}: {r.text}"
+    assert "things" in r.json().get("detail", "").lower()
+
+
+@pytest.mark.asyncio
+async def test_create_game_rejects_empty_payload():
+    """POST /api/games with neither profile_id nor things must return 400 (PHA-1341).
+
+    Previously this returned 200 and created a contentless GameSession row,
+    which then crashed at /start time with a less obvious error. Up-front
+    validation surfaces the problem at the API boundary.
+    """
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as ac:
+        r = await ac.post("/api/games", json={})
+    assert r.status_code == 400, f"expected 400 for empty payload, got {r.status_code}: {r.text}"
+    detail = r.json().get("detail", "").lower()
+    assert "profile_id" in detail and "things" in detail, \
+        f"detail should mention both fields, got: {detail!r}"
+
+
+@pytest.mark.asyncio
+async def test_create_game_rejects_explicit_nulls():
+    """POST /api/games with both fields explicitly null must return 400 (PHA-1341)."""
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as ac:
+        r = await ac.post("/api/games", json={"profile_id": None, "things": None})
+    assert r.status_code == 400, f"expected 400 for null/null payload, got {r.status_code}"
 
 
 @pytest.mark.asyncio

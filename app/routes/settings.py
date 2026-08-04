@@ -10,6 +10,7 @@ import httpx
 from fastapi import APIRouter
 from app.config import settings
 from app.services.entity_cache import count_cached, delete_all_cached
+from app.services.scraper import captcha_solver
 
 router = APIRouter(prefix="/api/settings", tags=["settings"])
 
@@ -39,6 +40,9 @@ async def get_settings():
         },
         "websocket": {
             "heartbeat_seconds": settings.ws_heartbeat,
+        },
+        "captcha_solver": {
+            "configured": captcha_solver.is_configured(),
         },
         "cache": count_cached(),
     }

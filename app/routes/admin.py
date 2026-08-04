@@ -4,10 +4,11 @@ Provides aggregated operational view: all profiles, games, stats.
 """
 from __future__ import annotations
 
+import asyncio
 import hmac
 from datetime import datetime, timedelta, timezone
 
-from fastapi import APIRouter, Depends, Header, HTTPException, status
+from fastapi import APIRouter, BackgroundTasks, Depends, Header, HTTPException, Query, status
 
 from app.config import settings
 from app.database import SessionLocal, Profile, GameSession, Player, PlayerStats
@@ -281,3 +282,71 @@ def clear_game(room_code: str):
         return {"ok": True, "room_code": room_code}
     finally:
         db.close()
+
+
+# ── Ohio Voter File ────────────────────────────────────────────────────────────
+
+@router.post("/voters/ohio/ingest")
+async def ingest_ohio_voter_file(
+    background_tasks: BackgroundTasks,
+    county: str = Query(default="franklin", description="County name (e.g. 'franklin')"),
+    force: bool = Query(default=False, description="Re-ingest even if already up to date"),
+):
+    """
+    Trigger a background download + index of the Ohio SoS voter file for the
+    given county. Returns immediately; poll /voters/ohio/status for progress.
+
+    The download is ~509 MB for Franklin County; expect 10–30 min depending
+    on network throughput. Rows are upserted on sos_voterid so re-runs are safe.
+    """
+    from app.services.scraper.ohio_voter_file import COUNTY_DOWNLOADS
+
+    county = county.lower()
+    if county not in COUNTY_DOWNLOADS:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Unknown county {county!r}. Available: {list(COUNTY_DOWNLOADS)}",
+        )
+
+    async def _run():
+        from app.services.scraper.ohio_voter_file import ingest_county
+        try:
+            await ingest_county(county, force=force)
+        except Exception as exc:
+            import logging
+            logging.getLogger(__name__).error(
+                "ohio_voter_file ingest failed for county=%s: %s", county, exc
+            )
+
+    background_tasks.add_task(asyncio.ensure_future, _run())
+
+    return {
+        "ok": True,
+        "county": county,
+        "message": "Ingest started in background. Poll /api/admin/voters/ohio/status for progress.",
+    }
+
+
+@router.get("/voters/ohio/status")
+def ohio_voter_file_status(
+    county: str | None = Query(default=None, description="Filter by county"),
+):
+    """Return the most recent voter file import records (up to 10)."""
+    from app.services.scraper.ohio_voter_file import get_import_status, voter_file_row_count
+    records = get_import_status(county)
+    indexed = voter_file_row_count(county)
+    return {"indexed_rows": indexed, "imports": records}
+
+
+@router.get("/voters/ohio/lookup")
+def ohio_voter_lookup(
+    last_name: str = Query(..., description="Last name (case-insensitive)"),
+    first_name: str = Query(..., description="First name (case-insensitive)"),
+    dob: str | None = Query(default=None, description="Date of birth: YYYY-MM-DD or MM/DD/YYYY"),
+    county: str | None = Query(default=None),
+    limit: int = Query(default=10, le=50),
+):
+    """Test a voter lookup against the local index. Returns matching voter records."""
+    from app.services.scraper.ohio_voter_file import lookup_voter
+    voters = lookup_voter(last_name, first_name, dob=dob, county=county, limit=limit)
+    return {"count": len(voters), "voters": voters}
