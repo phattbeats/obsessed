@@ -1,4 +1,4 @@
-import asyncio, time
+import asyncio, re, time
 from fastapi import APIRouter, HTTPException
 from app.config import settings
 from app.database import SessionLocal, Profile, Question
@@ -54,6 +54,7 @@ def _profile(p: Profile) -> ProfileResponse:
         court_query=p.court_query or "",
         sos_query=p.sos_query or "",
         auditor_query=p.auditor_query or "",
+        voter_query=p.voter_query or "",
         wikipedia_handle=p.wikipedia_handle or "",
         osm_query=p.osm_query or "",
         travel_url=p.travel_url or "",
@@ -88,6 +89,7 @@ def create_profile(data: ProfileCreate):
                     wikidata_query=getattr(data, "wikidata_query", "") or "",
                     openlibrary_query=getattr(data, "openlibrary_query", "") or "",
                     gdelt_query=getattr(data, "gdelt_query", "") or "",
+                    voter_query=getattr(data, "voter_query", "") or "",
                     instagram_handle=getattr(data, "instagram_handle", "") or "",
                     tiktok_handle=getattr(data, "tiktok_handle", "") or "",
                     facebook_handle=getattr(data, "facebook_handle", "") or "",
@@ -210,9 +212,15 @@ def generate_consent_link(profile_id: int):
     finally:
         db.close()
 
-@router.get("/profiles/consent/verify")
+@router.get("/consent/verify")
 def verify_consent(token: str):
-    """Guest visits this URL to grant consent."""
+    """Guest visits this URL to grant consent.
+
+    Resolves to ``GET /api/profiles/consent/verify`` (router prefix is
+    ``/api/profiles``). The previous decorator was ``/profiles/consent/verify``
+    which produced the malformed ``/api/profiles/profiles/consent/verify``
+    path and 404'd FastAPI-style on the documented URL. PHA-1539.
+    """
     db = SessionLocal()
     try:
         p = db.query(Profile).filter(Profile.consent_token == token).first()
@@ -320,6 +328,8 @@ async def trigger_scrape(profile_id: int):
                 await _safe("SOS", _scrape_sos(p.sos_query))
             if p.auditor_query:
                 await _safe("Auditor", _scrape_auditor(p.auditor_query))
+            if p.voter_query:
+                await _safe("Voter", _scrape_voter(p.voter_query))
 
         # ── Public-records helpers ──────────────────────────────────────────
         async def _scrape_news(query: str):
@@ -434,14 +444,34 @@ async def trigger_scrape(profile_id: int):
                 lines.append(f"- Owner: {owner} | Address: {address} | Parcel: {parcel_id} | Value: {value}")
             return "\n".join(lines), {"source": "auditor", "count": len(records)}
 
+        async def _scrape_voter(query: str):
+            """Look up Ohio voter registration from the local bulk-file index."""
+            from app.services.scraper.ohio_voter_file import (
+                parse_voter_query, lookup_voter, format_voter_text
+            )
+            try:
+                last, first, dob = parse_voter_query(query)
+                if not last or not first:
+                    return "", {}
+                voters = lookup_voter(last, first, dob=dob)
+            except Exception:
+                return "", {}
+            if not voters:
+                return "", {}
+            text_out = format_voter_text(voters, query)
+            return text_out, {"source": "ohio_voter_file", "count": len(voters)}
+
         raw = "\n".join(raw_parts)
         if raw.strip():
             write_cached(p.name, p.entity_type, raw)
 
         p.raw_content = raw[: settings.content_max_chars]
 
-        # Estimate content quality from scraped chunks
-        chunks = [ch.strip() for ch in raw.split("\n\n") if len(ch.strip()) > 40]
+        # Estimate content quality from scraped chunks. Split on any newline, not on
+        # blank lines only: the Wikipedia extract joins its sections with a single "\n",
+        # so a blank-line split counted an 88k-char article as one "fact" and reported
+        # `content_quality: insufficient` while generating a full game (PHA-1562).
+        chunks = [ch.strip() for ch in re.split(r"\n+", raw) if len(ch.strip()) > 40]
         p.content_chunks = len(chunks)
         if len(chunks) < 15:
             p.content_quality = "insufficient"
@@ -492,8 +522,8 @@ async def trigger_scrape(profile_id: int):
         db.close()
 
 async def _generate_questions_async(profile_id: int, raw_content: str, name: str, budget: int = 50):
-    from app.services.scraper.reddit import generate_questions as gen_llm
-    from app.services.generator import generate_from_manual
+    from app.services.scraper.reddit import generate_questions as gen_llm, LAST_LLM_ERROR
+    from app.services.generator import generate_from_manual, validate_questions
     import httpx
 
     db = SessionLocal()
@@ -502,21 +532,28 @@ async def _generate_questions_async(profile_id: int, raw_content: str, name: str
     try:
         p = db.query(Profile).filter(Profile.id == profile_id).first()
         questions = []
+        fallback_reason = ""
         if raw_content.strip():
             # Try LLM generation (counted against budget)
             try:
-                result = await gen_llm(profile_id, raw_content, name)
-                questions = result
-                # Extract usage from the LiteLLM response if available
-                # gen_llm doesn't return usage directly - estimate from output length
-                # One call per generate_questions invocation
+                questions = await gen_llm(profile_id, raw_content, name)
+            except Exception as e:
+                fallback_reason = f"{type(e).__name__}: {e}"
+            if questions:
+                # Only a call that produced questions counts against the budget. Counting
+                # the attempt made all 10 profiles report llm_calls=1 while every single
+                # one was actually serving rule-based fallback questions (PHA-1562).
                 total_calls = 1
                 est_tokens = len(raw_content) // 4 + 2000  # rough estimate
                 total_spend_cents = int(est_tokens * 0.003)  # ~$3/MTok input, rounded up
-            except Exception:
-                pass
+            else:
+                fallback_reason = fallback_reason or LAST_LLM_ERROR.get("reason") or "LLM returned no usable questions"
         if not questions and raw_content.strip():
             questions = generate_from_manual(raw_content, name)
+
+        # Last gate before the database: anything without three distinct wrong answers
+        # is unplayable and must not be stored, whichever generator produced it.
+        questions = validate_questions(questions)
 
         budget = budget or 50
         # Reduce question count for limited content
@@ -545,6 +582,10 @@ async def _generate_questions_async(profile_id: int, raw_content: str, name: str
             p.question_count = db.query(Question).filter(Question.profile_id == profile_id).count()
             p.llm_calls = (p.llm_calls or 0) + min(total_calls, budget)
             p.llm_spend_cents = (p.llm_spend_cents or 0) + total_spend_cents
+            # Surface the degradation. Rule-based questions are weaker than generated
+            # ones, so silently serving them is how a broken generator goes unnoticed.
+            if fallback_reason:
+                p.scrape_error = f"LLM generation unavailable, used rule-based questions — {fallback_reason}"[:500]
         db.commit()
     finally:
         db.close()

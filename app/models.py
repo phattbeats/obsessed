@@ -19,6 +19,7 @@ class ProfileCreate(BaseModel):
     court_query: str = ""
     sos_query: str = ""
     auditor_query: str = ""
+    voter_query: str = ""
     wikipedia_handle: str = ""
     osm_query: str = ""
     travel_url: str = ""
@@ -50,6 +51,7 @@ class ProfileUpdate(BaseModel):
     court_query: Optional[str] = None
     sos_query: Optional[str] = None
     auditor_query: Optional[str] = None
+    voter_query: Optional[str] = None
     wikipedia_handle: Optional[str] = None
     osm_query: Optional[str] = None
     travel_url: Optional[str] = None
@@ -84,6 +86,7 @@ class ProfileResponse(BaseModel):
     court_query: str
     sos_query: str
     auditor_query: str
+    voter_query: str
     wikipedia_handle: str
     osm_query: str
     travel_url: str
