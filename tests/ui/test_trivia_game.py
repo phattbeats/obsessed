@@ -102,6 +102,100 @@ class TestProfileCreation:
             httpx.delete(f"{BASE_URL}/api/profiles/{new_id}", timeout=5.0)
 
 
+class TestProfileStickyFooter:
+    """PHA-1541: Save Profile button must stay visible without scrolling
+    even on mobile (375x667) where the long Person form pushes the
+    action below the fold. Sticky footer pattern fixes this."""
+
+    @pytest.mark.parametrize(
+        "viewport,label",
+        [
+            ({"width": 1280, "height": 800}, "desktop-1280x800"),
+            ({"width": 375, "height": 667}, "mobile-375x667"),
+        ],
+    )
+    def test_save_button_visible_without_scroll(self, page, viewport, label):
+        """After filling the form, the Save button must be in the
+        viewport without the user having to scroll."""
+        page.set_viewport_size(viewport)
+        page.goto(BASE_URL)
+        page.locator('button:has-text("New Game")').click()
+        # Submit button lives inside the sticky footer wrapper now.
+        save_btn = page.locator(".profile-form-footer button[type='submit']")
+        assert save_btn.count() == 1, (
+            f"Expected exactly one submit button inside .profile-form-footer, "
+            f"got {save_btn.count()} (label={label})"
+        )
+        btn_box = save_btn.bounding_box()
+        assert btn_box is not None, f"Save button has no bounding box (label={label})"
+        # Sticky footer keeps the button inside the visible viewport
+        # regardless of how long the form is.
+        assert 0 <= btn_box["y"] < viewport["height"], (
+            f"Save button y={btn_box['y']} is outside viewport "
+            f"(height={viewport['height']}, label={label})"
+        )
+        assert btn_box["y"] + btn_box["height"] <= viewport["height"], (
+            f"Save button bottom={btn_box['y'] + btn_box['height']} exceeds "
+            f"viewport height={viewport['height']} (label={label})"
+        )
+
+    def test_save_button_stays_visible_after_scroll_to_bottom(self, page):
+        """Scroll to the last input on the Person form, then confirm the
+        Save button is still visible — the sticky footer pattern only
+        works if the parent form is a flex column with the footer after
+        the fields."""
+        page.set_viewport_size({"width": 375, "height": 667})
+        page.goto(BASE_URL)
+        page.locator('button:has-text("New Game")').click()
+        # Scroll to the bottom-most field (County Auditor Property Search
+        # — the last input on the Person form before Manual Link). Scope
+        # to the visible entity-fields group to avoid matching duplicates
+        # in the hidden Place group.
+        person_fields = page.locator('.entity-fields[data-for="person"]')
+        person_fields.locator('input[name="auditor_query"]').scroll_into_view_if_needed()
+        save_btn = page.locator(".profile-form-footer button[type='submit']")
+        btn_box = save_btn.bounding_box()
+        assert btn_box is not None
+        vp = page.viewport_size
+        assert 0 <= btn_box["y"] < vp["height"], (
+            f"After scrolling, Save button y={btn_box['y']} is outside "
+            f"viewport (height={vp['height']})"
+        )
+
+    def test_save_button_still_submits_form(self, page):
+        """Wrapping the button in a sticky footer must not break the
+        form submit — clicking Save should POST /api/profiles."""
+        import httpx
+        page.set_viewport_size({"width": 1280, "height": 800})
+        page.goto(BASE_URL)
+        page.locator('button:has-text("New Game")').click()
+        page.fill('input[name="name"]', f"Sticky Footer {__import__('uuid').uuid4().hex[:6]}")
+        # Capture the POST so we can clean up.
+        captured = {"id": None}
+        def on_request(req):
+            if req.method == "POST" and req.url.endswith("/api/profiles"):
+                try:
+                    body = req.post_data_json
+                except Exception:
+                    body = None
+                captured["post"] = body
+        page.on("request", on_request)
+        page.locator(".profile-form-footer button[type='submit']").click()
+        page.wait_for_timeout(800)
+        # Cleanup — find the profile by list filter and delete.
+        try:
+            lresp = httpx.get(f"{BASE_URL}/api/profiles", timeout=5.0)
+            if lresp.status_code == 200:
+                for p in lresp.json():
+                    if p.get("name", "").startswith("Sticky Footer"):
+                        httpx.delete(f"{BASE_URL}/api/profiles/{p['id']}", timeout=5.0)
+        except Exception:
+            pass
+        assert "post" in captured, "Form submit did not hit POST /api/profiles"
+        assert captured["post"]["name"].startswith("Sticky Footer"), \
+            f"Unexpected POST body: {captured['post']}"
+
+
 class TestTriviaGameFlow:
     """Game room creation and SPA navigation."""
 

@@ -42,14 +42,35 @@ def _classify_osm_class(osm_results: list[dict]) -> str:
     return "unknown"
 
 def _profile(p: Profile) -> ProfileResponse:
+    """
+    Serialize a Profile ORM row into a ProfileResponse.
+
+    Defensive against NULL columns: every field that the SQLAlchemy model
+    declares as nullable must be defaulted to its type's zero value, because
+    legacy rows (e.g. those inserted by older seed scripts before column
+    defaults landed, or by migrations that added new columns without
+    backfill) have NULL in those fields, and Pydantic v2's strict validation
+    rejects None where a string/int is required. Symptom: `/api/profiles`
+    and `/api/profiles/{id}` return 500 Internal Server Error on any
+    profile with NULLs (PHA-1615).
+
+    The pattern mirrors the admin helper in `app/routes/admin.py` — both
+    must agree on default values, so any new column added to the Profile
+    model needs a defensive default in both helpers.
+    """
     return ProfileResponse(
-        id=p.id, name=p.name, bio=p.bio,
-        reddit_handle=p.reddit_handle, twitter_handle=p.twitter_handle,
-        steam_id=p.steam_id, lastfm_username=p.lastfm_username or "",
-        spotify_user_id=p.spotify_user_id or "", spotify_display_name=p.spotify_display_name or "",
-        discord_handle=p.discord_handle,
-        pinterest_handle=p.pinterest_handle,
-        instagram_handle=p.instagram_handle,
+        id=p.id,
+        name=p.name,                            # NOT NULL in DB; let it raise if NULL
+        bio=p.bio or "",
+        reddit_handle=p.reddit_handle or "",
+        twitter_handle=p.twitter_handle or "",
+        steam_id=p.steam_id or "",
+        lastfm_username=p.lastfm_username or "",
+        spotify_user_id=p.spotify_user_id or "",
+        spotify_display_name=p.spotify_display_name or "",
+        discord_handle=p.discord_handle or "",
+        pinterest_handle=p.pinterest_handle or "",
+        instagram_handle=p.instagram_handle or "",
         tiktok_handle=p.tiktok_handle or "",
         facebook_handle=p.facebook_handle or "",
         news_query=p.news_query or "",
@@ -63,9 +84,11 @@ def _profile(p: Profile) -> ProfileResponse:
         wikidata_query=p.wikidata_query or "",
         openlibrary_query=p.openlibrary_query or "",
         gdelt_query=p.gdelt_query or "",
-        manual_link=p.manual_link, manual_facts=p.manual_facts,
-        scrape_status=p.scrape_status, scrape_error=p.scrape_error,
-        question_count=p.question_count,
+        manual_link=p.manual_link or "",
+        manual_facts=p.manual_facts or "",
+        scrape_status=p.scrape_status or "pending",
+        scrape_error=p.scrape_error or "",
+        question_count=p.question_count or 0,
         llm_calls=p.llm_calls or 0,
         llm_spend_cents=p.llm_spend_cents or 0,
         question_budget=p.question_budget or 50,
@@ -74,7 +97,8 @@ def _profile(p: Profile) -> ProfileResponse:
         content_chunks=p.content_chunks or 0,
         entity_type=p.entity_type or "person",
         address_type=p.address_type or "unknown",
-        created_at=p.created_at, updated_at=p.updated_at,
+        created_at=p.created_at or 0,
+        updated_at=p.updated_at or 0,
     )
 
 @router.post("", response_model=ProfileResponse)

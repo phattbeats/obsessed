@@ -38,6 +38,9 @@ class Settings(BaseSettings):
     spotify_redirect_uri: str = "http://localhost:8000/api/profiles/spotify/callback"  # must match the redirect URI registered on the Spotify app
     # No client secret: Authorization Code with PKCE is a public-client flow by design —
     # the code_verifier replaces the secret, so nothing else needs to be kept server-side.
+    datadome_solve_proxy: str = ""  # HTTP forward proxy for DataDome solves: USER:PASS@HOST:PORT (must egress same residential IP as the scraper)
+    datadome_max_solves_per_run: int = 5  # hard cap on 2Captcha DataDome solve calls per process restart
+    familysearch_client_id: str = ""  # free developer key from https://www.familysearch.org/developers/ — required for the Family Tree unauthenticated-session API
     question_count: int = 50
     question_timeout: int = 30  # seconds per question
     ws_heartbeat: int = 30
