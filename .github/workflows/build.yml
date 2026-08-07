@@ -25,11 +25,12 @@ jobs:
       - name: Install test dependencies
         run: |
           python -m pip install --upgrade pip
-          # Skip lxml (heavy native build, not exercised by smoke tests).
-          # playwright was dropped entirely (PHA-1339) — unused in app/, only
-          # referenced by opt-in UI tests below.
-          grep -v -i 'lxml' requirements.txt > /tmp/reqs-ci.txt
-          pip install -r /tmp/reqs-ci.txt pytest==8.3.3 pytest-asyncio==0.24.0
+          # PHA-1349 added Find a Grave parsing that uses BeautifulSoup with the
+          # 'lxml' parser explicitly, so the gate must install lxml now.
+          # lxml is pinned in requirements.txt; we install it explicitly here
+          # (bypassing the historical smoke-only filter) so the native build
+          # is intentional and visible in the workflow log.
+          pip install -r requirements.txt pytest==8.3.3 pytest-asyncio==0.24.0
 
       - name: Run pytest (smoke + schema gate)
         # tests/ui/ targets the live PHATT-RAID container at 10.0.0.100:10198
