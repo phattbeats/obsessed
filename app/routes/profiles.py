@@ -521,7 +521,11 @@ async def trigger_scrape(profile_id: int):
             scrape_warning = f"Limited content ({len(chunks)} facts) - generating shortened 25-question game."
 
         # Trigger question generation (cache hit included — questions live on Profile, not cache)
-        await _generate_questions_async(p.id, raw, p.name, budget=p.question_budget)
+        # raw_parts (per-source blocks, pre-join) is threaded through so fact-fusion (PHA-1510)
+        # can match facts across sources at their original granularity. On a cache hit,
+        # raw_parts is [] (scraping was skipped entirely) — _generate_questions_async falls
+        # back to re-splitting `raw` on its bracket labels in that case.
+        await _generate_questions_async(p.id, raw, p.name, budget=p.question_budget, raw_parts=raw_parts)
 
         return {
             "ok": True,
@@ -544,9 +548,13 @@ async def trigger_scrape(profile_id: int):
     finally:
         db.close()
 
-async def _generate_questions_async(profile_id: int, raw_content: str, name: str, budget: int = 50):
+async def _generate_questions_async(
+    profile_id: int, raw_content: str, name: str, budget: int = 50,
+    raw_parts: list[str] | None = None,
+):
     from app.services.scraper.reddit import generate_questions as gen_llm, LAST_LLM_ERROR
     from app.services.generator import generate_from_manual, validate_questions
+    from app.services.fact_fusion import run_fact_fusion, split_raw_parts
     import httpx
 
     db = SessionLocal()
@@ -574,6 +582,55 @@ async def _generate_questions_async(profile_id: int, raw_content: str, name: str
         if not questions and raw_content.strip():
             questions = generate_from_manual(raw_content, name)
 
+        # ── PHA-1510: fact-fusion (multi-hop, cross-source) questions ──────────
+        # Runs alongside the single-source generator above, never instead of it — the
+        # merged list only ever grows the base set (see tests/test_fact_fusion.py's
+        # replay-regression check). No feature flag: this is the normal scrape path.
+        #
+        # `raw_parts` is the pre-join list of per-source blocks from trigger_scrape.
+        # It's only [] on a cache hit (scraping was skipped) and always None from
+        # trigger_generate (which only persists the already-joined raw_content, not
+        # the original list) — in both cases we fall back to re-splitting
+        # raw_content on its bracket labels, which recovers source-block
+        # granularity (just not the original per-scraper-call granularity).
+        fusion_questions = []
+        if raw_content.strip():
+            effective_raw_parts = raw_parts if raw_parts else split_raw_parts(raw_content)
+            try:
+                fusion_questions = await run_fact_fusion(profile_id, effective_raw_parts, name)
+            except Exception:
+                # run_fact_fusion already catches its own errors and returns [], this is
+                # belt-and-suspenders so a fusion bug can never take down question gen.
+                fusion_questions = []
+            if fusion_questions:
+                # Same "only count calls that produced usable output" convention as the
+                # single-source path above. Internally this represents up to 2 batched
+                # LLM calls (extract_facts + generate_fusion_questions) per PHA-1510's
+                # cost decision, but only the batch that yielded playable output is
+                # charged against the budget/spend counters.
+                total_calls += 1
+                est_tokens = len(raw_content) // 4 + 3000  # rough estimate, fusion prompts run larger
+                total_spend_cents += int(est_tokens * 0.003)
+            # A fusion miss (LAST_FUSION_ERROR set but fusion_questions empty) is not
+            # surfaced as a profile-level scrape_error: it's routinely expected for
+            # profiles with < 2 usable sources, unlike a single-source LLM failure
+            # (fallback_reason above), which always means degraded quality.
+
+        # Fusion questions add on top of (never replace) the single-source set. Dedupe
+        # by normalized question_text — a fusion question that happens to restate a
+        # single-source one is just noise, not a harder question.
+        fusion_texts = {str(q.get("question_text", "")).strip().casefold() for q in fusion_questions}
+        seen_texts: set[str] = set()
+        merged: list[dict] = []
+        for q in list(questions) + list(fusion_questions):
+            key = str(q.get("question_text", "")).strip().casefold()
+            if key and key in seen_texts:
+                continue
+            if key:
+                seen_texts.add(key)
+            merged.append(q)
+        questions = merged
+
         # Last gate before the database: anything without three distinct wrong answers
         # is unplayable and must not be stored, whichever generator produced it.
         questions = validate_questions(questions)
@@ -594,6 +651,11 @@ async def _generate_questions_async(profile_id: int, raw_content: str, name: str
                 wrong_answers=json.dumps(q.get("wrong_answers", [])),
                 difficulty=q.get("difficulty", 1),
                 source_snippet=q.get("source_snippet", "")[:500],
+                # validate_questions() rebuilds each dict from a fixed key set and drops
+                # any extra fields, so is_fusion can't survive that gate — instead we
+                # tag it back on here by matching the (already-validated) question_text
+                # against the pre-validation fusion-question set captured above.
+                is_fusion=(str(q.get("question_text", "")).strip().casefold() in fusion_texts),
             ))
         # SessionLocal runs with autoflush=False, so the pending inserts above are
         # invisible to the COUNT below until we flush — otherwise question_count is
@@ -635,6 +697,14 @@ async def trigger_generate(profile_id: int):
         if not p:
             raise HTTPException(status_code=404, detail="Profile not found")
         raw = p.raw_content or p.manual_facts
+        # PHA-1510: this call site only has the already-joined raw_content — the
+        # original per-source raw_parts list from trigger_scrape isn't persisted
+        # anywhere (Profile only stores the joined blob). Rather than skip fusion
+        # here or add a new persisted-raw_parts column just for this path, we let
+        # _generate_questions_async fall back to split_raw_parts(raw_content),
+        # which re-derives source-block granularity from the bracket labels —
+        # good enough for fusion's purposes, since it only needs "which source did
+        # this text come from," not the original scraper call boundaries.
         await _generate_questions_async(p.id, raw, p.name, budget=p.question_budget)
         # _generate_questions_async commits in its own session; end this session's
         # read transaction so the refresh sees the freshly-committed count.
