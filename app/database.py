@@ -80,6 +80,12 @@ class Question(Base):
     wrong_answers = Column(Text, nullable=False)  # JSON list: ["wrong1","wrong2","wrong3"]
     difficulty = Column(Integer, default=1)  # 1-3
     source_snippet = Column(Text, default="")
+    # PHA-1510: marks a question produced by the fact-fusion multi-hop generator
+    # (app.services.fact_fusion) rather than the single-source LLM/rule-based
+    # path. Reusing this table with a lightweight marker instead of a parallel
+    # fusion-questions table — the row shape is identical, and this is enough
+    # to filter/report/replay-test fusion output without a second table.
+    is_fusion = Column(Boolean, default=False)
     created_at = Column(Integer, default=lambda: int(datetime.now(timezone.utc).timestamp()))
     profile = relationship("Profile", back_populates="questions")
 
@@ -230,6 +236,8 @@ def init_db():
         "ALTER TABLE profiles ADD COLUMN sos_query TEXT DEFAULT ''",
         "ALTER TABLE profiles ADD COLUMN auditor_query TEXT DEFAULT ''",
         "ALTER TABLE profiles ADD COLUMN address_type TEXT DEFAULT 'unknown'",
+        # PHA-1510: fact-fusion marker on pre-existing questions tables.
+        "ALTER TABLE questions ADD COLUMN is_fusion BOOLEAN DEFAULT 0",
     ]
     for stmt in migrations:
         try:
