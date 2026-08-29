@@ -225,8 +225,8 @@ async def legacy(client: httpx.AsyncClient) -> list[Probe]:
     urls = [
         ("legacy_jordan_rivera_oh",
          "https://www.legacy.com/us/obituaries/search?firstname=Jordan&lastname=Rivera&location=Ohio&country=United+States+of+America"),
-        ("legacy_tom_family_franklin",
-         "https://www.legacy.com/us/obituaries/search?firstname=&lastname=Tom&location=Franklin%2C+OH&country=United+States+of+America"),
+        ("legacy_rivera_family_franklin",
+         "https://www.legacy.com/us/obituaries/search?firstname=&lastname=Rivera&location=Franklin%2C+OH&country=United+States+of+America"),
     ]
     for name, url in urls:
         p = await probe(client, name, url)

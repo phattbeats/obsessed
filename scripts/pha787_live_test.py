@@ -1,6 +1,6 @@
 """PHA-787 — live person test against every Obsessed pipeline.
 
-Subject: Jordan Rivera, DOB 1990-06-15, Franklin County / central Ohio.
+Subject: Jordan Rivera (synthetic test identity), DOB 1990-06-15, Franklin County / central Ohio.
 Note: uses a fabricated subject; do not run against a real person without their consent.
 
 Walks every scraper with seed inputs derived from the subject's identity, captures
