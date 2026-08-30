@@ -9,6 +9,7 @@ from app.services.scraper.instagram import scrape_instagram
 from app.services.scraper.twitter_scraper import scrape_twitter
 from app.services.scraper.steam import scrape_steam
 from app.services.scraper.lastfm import scrape_lastfm
+from app.services.scraper.spotify import scrape_spotify
 from app.services.scraper.facebook import scrape_facebook
 from app.services.scraper.tiktok import scrape_tiktok
 from app.services.scraper.crawl4ai import crawl4ai_scrape
@@ -65,6 +66,8 @@ def _profile(p: Profile) -> ProfileResponse:
         twitter_handle=p.twitter_handle or "",
         steam_id=p.steam_id or "",
         lastfm_username=p.lastfm_username or "",
+        spotify_user_id=p.spotify_user_id or "",
+        spotify_display_name=p.spotify_display_name or "",
         discord_handle=p.discord_handle or "",
         pinterest_handle=p.pinterest_handle or "",
         instagram_handle=p.instagram_handle or "",
@@ -315,6 +318,8 @@ async def trigger_scrape(profile_id: int):
                 await _safe("Steam", scrape_steam(p.steam_id))
             if p.lastfm_username:
                 await _safe("LastFM", scrape_lastfm(p.lastfm_username))
+            if p.spotify_access_token:
+                await _safe("Spotify", scrape_spotify(p.id))
             if p.twitter_handle:
                 await _safe("Twitter", scrape_twitter(p.twitter_handle))
             if p.manual_facts:
