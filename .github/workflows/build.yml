@@ -33,7 +33,7 @@ jobs:
           pip install -r requirements.txt pytest==8.3.3 pytest-asyncio==0.24.0
 
       - name: Run pytest (smoke + schema gate)
-        # tests/ui/ targets the live PHATT-RAID container at 10.0.0.100:10198
+        # tests/ui/ targets the live container on the self-hosted runner's LAN
         # (unreachable from a GitHub runner) and runs in the dedicated ui-test job.
         #
         # The four scraper test files (instagram/people_search/scraper_cache/tiktok)
@@ -45,7 +45,7 @@ jobs:
           pytest -q --ignore=tests/ui
 
   # ui-test runs on demand (workflow_dispatch) or when 'ui-test' is in the commit message.
-  # It tests against the live PHATT-RAID container at 10.0.0.100:10198, so it cannot
+  # It tests against the live container on the self-hosted runner's LAN, so it cannot
   # run in a standard push CI — the container is not reachable from GitHub runners.
   ui-test:
     needs: []   # runs independently; build job does not block on it

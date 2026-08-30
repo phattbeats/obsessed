@@ -123,7 +123,7 @@ async def test_scrape_via_html_applies_cleaner(monkeypatch):
 # the HTML path — where a second, different layer of chrome survived the
 # filter. These tests pin both halves.
 
-# Chrome captured from the live 10.0.0.100:10198 questions after the first fix.
+# Chrome captured from the live deployment's questions after the first fix.
 SAMPLE_LIVE_CHROME = """[ ![](https://en.wikipedia.org/static/images/icons/enwiki-25.svg) ![Wikipedia](https://en.wikipedia.org/static/images/mobile/copyright/wikipedia-wordmark-en-25.svg) ](https://en.wikipedia.org/wiki/Main_Page)
 
 [ Search ](https://en.wikipedia.org/wiki/Special:Search "Search Wikipedia [f]")

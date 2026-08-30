@@ -8,7 +8,7 @@ Usage:
     html, status = fs_get("https://example.com")
     html, status = fs_post("https://example.com/login", post_data={"username": "a"})
 
-FlareSolverr must be reachable at FLARESOLVERR_URL (default: http://10.0.0.100:8191).
+FlareSolverr must be reachable at FLARESOLVERR_URL (see default below).
 Responses with status >= 500 are retried once after a short backoff.
 """
 

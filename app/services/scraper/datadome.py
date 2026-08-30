@@ -28,7 +28,7 @@ To activate:
                          route through this one proxy.
 
 On PHATT-RAID the existing privoxy inside the deluge container works:
-  DATADOME_SOLVE_PROXY=10.0.0.100:8118   (egresses via AirVPN)
+  DATADOME_SOLVE_PROXY=<lan-host>:8118   (egresses via a VPN)
 The AirVPN exit IP must be stable across the solve + retry cycle; the in-process
 cookie cache limits how often a re-solve is needed.
 """

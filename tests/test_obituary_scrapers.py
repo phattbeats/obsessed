@@ -153,7 +153,7 @@ def test_legacy_search_solves_then_parses_when_configured():
     fetch_mock = AsyncMock(side_effect=[(_DD_CHALLENGE_HTML, 403), (SEARCH_HTML, 200)])
     solve_mock = AsyncMock(return_value="SOLVED_DD_COOKIE")
     with patch.object(datadome, "_fetch", fetch_mock), \
-         patch.object(datadome.settings, "datadome_solve_proxy", "10.0.0.100:8118"), \
+         patch.object(datadome.settings, "datadome_solve_proxy", "127.0.0.1:8118"), \
          patch.object(captcha_solver.settings, "twocaptcha_api_key", "key-xyz"), \
          patch.object(captcha_solver, "solve_datadome", solve_mock):
         result = asyncio.run(obituary.legacy_search("John", "Smith"))
@@ -182,7 +182,7 @@ def test_solve_limit_caps_paid_solves():
     solve_mock = AsyncMock(return_value="COOKIE")
     render_mock = AsyncMock(return_value=("", 0))
     with patch.object(datadome, "_fetch", fetch_mock), \
-         patch.object(datadome.settings, "datadome_solve_proxy", "10.0.0.100:8118"), \
+         patch.object(datadome.settings, "datadome_solve_proxy", "127.0.0.1:8118"), \
          patch.object(datadome.settings, "datadome_max_solves_per_run", 1), \
          patch.object(obituary, "crawl4ai_fetch_html", render_mock), \
          patch.object(captcha_solver.settings, "twocaptcha_api_key", "key-xyz"), \

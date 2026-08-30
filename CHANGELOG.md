@@ -51,7 +51,7 @@ All notable changes to Obsessed are documented here.
 ### Architecture
 
 - FastAPI + SQLAlchemy + SQLite (`trivia.db`)
-- LiteLLM proxy at `http://10.0.0.100:4000`
+- LiteLLM proxy at `http://<lan-host>:4000`
 - WebSocket live game events (`/ws/game/{room_code}`)
 - Admin endpoints: `/api/admin/overview`, `/api/admin/cache/delete/all`, `/api/admin/cache/stats`
 - Entity types: `person`, `place`, `thing`, `event`

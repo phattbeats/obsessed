@@ -20,7 +20,7 @@ WIKIPEDIA_ACTION_API = "https://en.wikipedia.org/w/api.php"
 # path, which is where the page-chrome-as-facts bug comes from (PHA-1558).
 # https://foundation.wikimedia.org/wiki/Policy:Wikimedia_Foundation_User-Agent_Policy
 USER_AGENT = (
-    "ObsessedBot/1.0 (https://github.com/phattbeats/obsessed; brandon@phatt.tech) httpx"
+    "ObsessedBot/1.0 (https://github.com/phattbeats/obsessed) httpx"
 )
 _HEADERS = {"User-Agent": USER_AGENT, "Accept": "application/json"}
 

@@ -1,9 +1,9 @@
 """
 Playwright UI tests for Obsessed trivia game.
-Requires: PLAYWRIGHT_BASE_URL (default http://10.0.0.100:10198)
+Requires: PLAYWRIGHT_BASE_URL (defaults to the live LAN deployment)
 Install: pip install playwright && playwright install chromium
 Run:    pytest tests/ui/test_trivia_game.py -v
-CI:     PLAYWRIGHT_BASE_URL=http://10.0.0.100:10198 pytest tests/ui/test_trivia_game.py -v
+CI:     PLAYWRIGHT_BASE_URL=http://<lan-host>:10198 pytest tests/ui/test_trivia_game.py -v
         (runs on workflow_dispatch or when 'ui-test' is in the commit message)
 """
 

@@ -11,7 +11,7 @@ Run:
   python3 tests/e2e_multi_thing.py
 
   # CI with screenshots (requires Playwright):
-  PLAYWRIGHT_BASE_URL=http://10.0.0.100:10198 \
+  PLAYWRIGHT_BASE_URL=http://<lan-host>:10198 \
   PLAYWRIGHT_SCREENSHOT_DIR=screenshots \
   python3 tests/e2e_multi_thing.py --screenshots
 """

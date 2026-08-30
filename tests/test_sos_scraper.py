@@ -2,7 +2,7 @@
 endpoint and returns structured rows.
 
 The live API tests are skipped by default — they require FlareSolverr at
-10.0.0.100:8191 and outbound internet. Enable with
+FLARESOLVERR_URL and outbound internet. Enable with
 `SOS_LIVE_TESTS=1 pytest tests/test_sos_scraper.py`.
 
 The default suite covers the pure URL-encoding logic and the response
